@@ -6,7 +6,7 @@ import {
   getFirestore,
   Firestore
 } from 'firebase/firestore'
-import { initializeAuth, indexedDBLocalPersistence, GoogleAuthProvider } from 'firebase/auth'
+import { getAuth, GoogleAuthProvider } from 'firebase/auth'
 
 // ═══════════════════════════════════════════════════════════════
 // 1. CHAT — globalChat, chatUsers, presence, typing
@@ -129,9 +129,7 @@ export const dbBonus = initializeFirestore(appBonus, {
 // AUTH — pakai project Chat sebagai auth utama
 // (satu auth untuk semua, login sekali berlaku semua)
 // ═══════════════════════════════════════════════════════════════
-export const auth = initializeAuth(appChat, {
-  persistence: indexedDBLocalPersistence
-})
+export const auth = getAuth(appChat)
 export const googleProvider = new GoogleAuthProvider()
 
 // ═══════════════════════════════════════════════════════════════

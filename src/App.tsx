@@ -122,8 +122,8 @@ function App() {
     try {
       await signInWithPopup(auth, googleProvider)
       setShowLoginTutorial(true)
-    } catch {
-      signInWithRedirect(auth, googleProvider)
+    } catch (err) {
+      console.error('Login error:', err)
     }
   }
   const [aiUnread, setAiUnread] = useState(false)

@@ -1339,9 +1339,7 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
     try {
       await signInWithPopup(auth, googleProvider)
     } catch (err: any) {
-      if (err?.code === 'auth/popup-blocked') {
-        try { await signInWithRedirect(auth, googleProvider) } catch {}
-      }
+      console.error('Login error:', err)
       setLoginLoading(false)
     }
   }
