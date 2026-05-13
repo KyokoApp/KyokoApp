@@ -678,7 +678,7 @@ const MemoizedMessage = React.memo(({
           {(userAvatarCache[msg.uid] || msg.photoURL) ? (
             /\.(mp4|webm|mov)(\?|$)/i.test(userAvatarCache[msg.uid] || msg.photoURL)
               ? <VideoAvatar src={userAvatarCache[msg.uid] || msg.photoURL} />
-              : <img src={userAvatarCache[msg.uid] || msg.photoURL} alt="" className="gc-avatar-img"/>
+              : <img src={userAvatarCache[msg.uid] || msg.photoURL} alt="" className="gc-avatar-img" loading="lazy"/>
           ) : msg.username[0].toUpperCase()}
         </div>
       )}
@@ -753,6 +753,12 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
   const appVersionRef = useRef<string | null>(null) // versi yang sedang dipakai user
 
   const [activeTab, setActiveTab] = useState<'chat'|'rpg'|'fishing'|'voice'|'music'|'anime'>('chat')
+  // Lazy mount: track tab yang pernah dibuka - sekali dibuka tetap mounted
+  const [mountedTabs, setMountedTabs] = useState<Set<string>>(new Set(['chat']))
+  const handleTabChange = React.useCallback((tab: 'chat'|'rpg'|'fishing'|'voice'|'music'|'anime') => {
+    handleTabChange(tab)
+    setMountedTabs(prev => new Set([...prev, tab]))
+  }, [])
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   // ── Voice Call state ───────────────────────────────────────────
@@ -811,6 +817,7 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
   const [shopMsg, setShopMsg] = useState('')
   const [questMsg, setQuestMsg] = useState('')
   const [leaderboard, setLeaderboard] = useState<{uid:string;username:string;level:number;class:RpgClass;kills:number;gold:number}[]>([])
+
   const leaderboardLastFetchRef = useRef<number>(0) // timestamp last fetch, untuk throttle 1x/hari
   const [rpgLoading, setRpgLoading] = useState(false)
   const [gachaData, setGachaData] = useState<PlayerGacha | null>(null)
@@ -1335,7 +1342,7 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
   }, [step, user, groupInfo?.ownerId])
 
   // Leaderboard: on-demand + cache 1 hari — fetch hanya saat buka leaderboard/duel/transfer
-  const LEADERBOARD_CACHE_MS = 24 * 60 * 60 * 1000
+  const LEADERBOARD_CACHE_MS = 6 * 60 * 60 * 1000 // 6 jam
   const fetchLeaderboard = useCallback(async (force = false) => {
     if (!user) return
     const now = Date.now()
@@ -3120,14 +3127,14 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
   type ChannelId = typeof CHANNELS[number]['id']
 
   const handleChannelClick = (id: ChannelId) => {
-    if (id === 'rpg') { setActiveTab('rpg'); setActiveGachaTab('rpg'); fetchActiveBattles(); }
-    else if (id === 'gacha') { setActiveTab('rpg'); setActiveGachaTab('gacha'); }
-    else if (id === 'planet') { setActiveTab('rpg'); setActiveGachaTab('planet'); }
-    else if (id === 'fishing') { setActiveTab('fishing' as any); }
-    else if (id === 'voice') { setActiveTab('voice'); }
-    else if (id === 'music') { setActiveTab('music'); }
-    else if (id === 'anime') { setActiveTab('anime' as any); }
-    else { setActiveTab('chat'); }
+    if (id === 'rpg') { handleTabChange('rpg'); setActiveGachaTab('rpg'); fetchActiveBattles(); }
+    else if (id === 'gacha') { handleTabChange('rpg'); setActiveGachaTab('gacha'); }
+    else if (id === 'planet') { handleTabChange('rpg'); setActiveGachaTab('planet'); }
+    else if (id === 'fishing') { handleTabChange('fishing' as any); }
+    else if (id === 'voice') { handleTabChange('voice'); }
+    else if (id === 'music') { handleTabChange('music'); }
+    else if (id === 'anime') { handleTabChange('anime' as any); }
+    else { handleTabChange('chat'); }
   }
 
   const getActiveChannelId = (): ChannelId => {
@@ -3508,7 +3515,7 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
                     </button>
                   </div>
                 ) : (
-                  <button onClick={() => { setActiveTab('chat'); setShowMusicSearch(true) }} style={{background:'linear-gradient(135deg,rgba(200,245,0,0.15),rgba(200,245,0,0.05))',border:'1px solid rgba(200,245,0,0.3)',borderRadius:12,padding:'12px 24px',color:'#c8f500',fontSize:13,fontWeight:700,cursor:'pointer'}}>
+                  <button onClick={() => { handleTabChange('chat'); setShowMusicSearch(true) }} style={{background:'linear-gradient(135deg,rgba(200,245,0,0.15),rgba(200,245,0,0.05))',border:'1px solid rgba(200,245,0,0.3)',borderRadius:12,padding:'12px 24px',color:'#c8f500',fontSize:13,fontWeight:700,cursor:'pointer'}}>
                     🎵 Cari & Putar Musik
                   </button>
                 )}
@@ -4057,7 +4064,7 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
             )}
 
             {/* ── RPG TAB ── */}
-            {activeTab === 'rpg' && activeGachaTab === 'rpg' && (
+            {mountedTabs.has('rpg') && activeGachaTab === 'rpg' && (
               <div className="gc2-rpg-wrap">
                 {loadingActive && (
                   <div className="gc2-loading-overlay">
@@ -4095,7 +4102,7 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
                     onDungeon={() => setRpgView('dungeon')}
                     onParty={() => setRpgView('party')}
                     onDaily={() => setRpgView('daily')}
-                    onFishing={() => setActiveTab('fishing')}
+                    onFishing={() => handleTabChange('fishing')}
                     onMining={() => setRpgView('mining')}
                     onCrafting={() => setRpgView('crafting')}
                     onFarming={() => setRpgView('farming')}
@@ -4219,7 +4226,12 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
           </>
         )}
 
+            )}
+            </div>)}
+
             {/* ── FISHING TAB ── */}
+            {(mountedTabs.has('fishing')) && (
+            <div style={{display: activeTab === 'fishing' ? 'flex' : 'none', flexDirection:'column', flex:1, minHeight:0}}>
             {activeTab === 'fishing' && (
               <div className="gc2-rpg-wrap" style={{overflowY:'auto'}}>
                 <FishingPanel
@@ -4255,10 +4267,13 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
                     setRpgChar(updated)
                     await updateDoc(doc(getRpgDb(user.uid),'rpgChars',user.uid),{gold:newGold})
                   }}
-                  onBack={() => { setActiveTab('rpg'); setFishingView('home') }}
+                  onBack={() => { handleTabChange('rpg'); setFishingView('home') }}
                 />
               </div>
             )}
+
+            )}
+            </div>)}
 
             {/* ── PLANET TAB ── */}
             {activeTab === 'rpg' && activeGachaTab === 'planet' && (

@@ -1,4 +1,5 @@
-import GlobalChatPanel from './GlobalChatPanel'
+// Lazy load GlobalChatPanel - hemat memory saat tidak dibuka
+const GlobalChatPanel = React.lazy(() => import('./GlobalChatPanel'))
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { auth, googleProvider, dbChat, dbCommunity, dbAdmin, dbBonus } from './firebase'
 import { collection, doc, setDoc, deleteDoc, onSnapshot, addDoc, orderBy, query, serverTimestamp, getDoc, getDocs, limit, updateDoc, increment } from 'firebase/firestore'
@@ -2113,7 +2114,15 @@ function App() {
 
 
       {/* ── Global Chat Inline ───────────────────────────────────── */}
-      {gcOpen && <GlobalChatPanel onClose={() => setGcOpen(false)} onUnread={() => setGcUnread(true)} onMusicChange={setGcMiniPlayer} />}
+      {gcOpen && (
+        <React.Suspense fallback={
+          <div style={{position:'fixed',inset:0,background:'#080810',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center'}}>
+            <div style={{color:'#a3e635',fontSize:14}}>Memuat...</div>
+          </div>
+        }>
+          <GlobalChatPanel onClose={() => setGcOpen(false)} onUnread={() => setGcUnread(true)} onMusicChange={setGcMiniPlayer} />
+        </React.Suspense>
+      )}
 
       {/* ── Install App Popup ─────────────────────────────────── */}
       {showInstallPopup && (
