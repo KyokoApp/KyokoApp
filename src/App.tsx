@@ -120,8 +120,16 @@ function App() {
 
   const handleLoginClick = async () => {
     try {
-      await signInWithPopup(auth, googleProvider)
-      setShowLoginTutorial(true)
+      // Cek apakah berjalan di Capacitor (APK) atau browser biasa
+      const isCapacitor = !!(window as any).Capacitor?.isNativePlatform?.()
+      if (isCapacitor) {
+        // Di APK: pakai redirect karena popup tidak support di WebView
+        await signInWithRedirect(auth, googleProvider)
+      } else {
+        // Di browser: pakai popup seperti biasa
+        await signInWithPopup(auth, googleProvider)
+        setShowLoginTutorial(true)
+      }
     } catch (err) {
       console.error('Login error:', err)
     }
