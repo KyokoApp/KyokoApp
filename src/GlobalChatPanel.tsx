@@ -1337,7 +1337,19 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
   const handleLogin = async () => {
     setLoginLoading(true)
     try {
-      await signInWithPopup(auth, googleProvider)
+      const isCapacitor = !!(window as any).Capacitor?.isNativePlatform?.()
+      if (isCapacitor) {
+        const { GoogleAuth } = await import('@codetrix-studio/capacitor-google-auth')
+        await GoogleAuth.initialize()
+        const googleUser = await GoogleAuth.signIn()
+        const credential = (await import('firebase/auth')).GoogleAuthProvider.credential(
+          googleUser.authentication.idToken
+        )
+        const { signInWithCredential } = await import('firebase/auth')
+        await signInWithCredential(auth, credential)
+      } else {
+        await signInWithPopup(auth, googleProvider)
+      }
     } catch (err: any) {
       console.error('Login error:', err)
       setLoginLoading(false)
