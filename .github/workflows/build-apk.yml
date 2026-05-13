@@ -36,12 +36,15 @@ jobs:
       - name: Add Android platform
         run: npx cap add android
 
+      - name: Generate app icons
+        run: |
+          npm install @capacitor/assets --legacy-peer-deps
+          npx capacitor-assets generate --android
+
       - name: Fix Gradle & Java compatibility
         run: |
           cd android
-          # Update gradle wrapper to version compatible with Java 17
           sed -i 's|gradle-.*-all.zip|gradle-8.2.1-all.zip|g' gradle/wrapper/gradle-wrapper.properties
-          # Set Java source/target compatibility to 17
           echo "" >> app/build.gradle
           echo "android.compileOptions.sourceCompatibility = JavaVersion.VERSION_17" >> app/build.gradle
           echo "android.compileOptions.targetCompatibility = JavaVersion.VERSION_17" >> app/build.gradle
