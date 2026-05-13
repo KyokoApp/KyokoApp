@@ -4226,9 +4226,6 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
           </>
         )}
 
-            )}
-            </div>)}
-
             {/* ── FISHING TAB ── */}
             {(mountedTabs.has('fishing')) && (
             <div style={{display: activeTab === 'fishing' ? 'flex' : 'none', flexDirection:'column', flex:1, minHeight:0}}>
@@ -4271,9 +4268,6 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
                 />
               </div>
             )}
-
-            )}
-            </div>)}
 
             {/* ── PLANET TAB ── */}
             {activeTab === 'rpg' && activeGachaTab === 'planet' && (
