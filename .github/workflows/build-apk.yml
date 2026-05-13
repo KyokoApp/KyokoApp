@@ -36,6 +36,19 @@ jobs:
       - name: Add Android platform
         run: npx cap add android
 
+      - name: Setup debug keystore
+        run: |
+          mkdir -p ~/.android
+          keytool -genkey -v -keystore ~/.android/debug.keystore \
+            -alias androiddebugkey -keyalg RSA -keysize 2048 \
+            -validity 10000 -storepass android -keypass android \
+            -dname "CN=Android Debug,O=Android,C=US"
+
+      - name: Print SHA-1
+        run: |
+          keytool -list -v -keystore ~/.android/debug.keystore \
+            -alias androiddebugkey -storepass android
+
       - name: Generate app icons
         run: |
           mkdir -p assets
