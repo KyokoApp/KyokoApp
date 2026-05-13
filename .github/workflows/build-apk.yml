@@ -27,14 +27,14 @@ jobs:
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
+      - name: Install Capacitor 5.7.8
+        run: npm install @capacitor/core@5.7.8 @capacitor/cli@5.7.8 @capacitor/android@5.7.8 --legacy-peer-deps
+
       - name: Install Google Auth plugin
         run: npm install @codetrix-studio/capacitor-google-auth --legacy-peer-deps
 
       - name: Build web app
         run: npm run build
-
-      - name: Install Capacitor 5.7.8
-        run: npm install @capacitor/core@5.7.8 @capacitor/cli@5.7.8 @capacitor/android@5.7.8 --legacy-peer-deps
 
       - name: Add Android platform
         run: npx cap add android
