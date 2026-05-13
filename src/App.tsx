@@ -120,11 +120,18 @@ function App() {
 
   const handleLoginClick = async () => {
     try {
-      // Cek apakah berjalan di Capacitor (APK) atau browser biasa
       const isCapacitor = !!(window as any).Capacitor?.isNativePlatform?.()
       if (isCapacitor) {
-        // Di APK: pakai redirect karena popup tidak support di WebView
-        await signInWithRedirect(auth, googleProvider)
+        // Di APK: pakai plugin native Google Auth (tidak lewat WebView)
+        const { GoogleAuth } = await import('@codetrix-studio/capacitor-google-auth')
+        await GoogleAuth.initialize()
+        const googleUser = await GoogleAuth.signIn()
+        const credential = (await import('firebase/auth')).GoogleAuthProvider.credential(
+          googleUser.authentication.idToken
+        )
+        const { signInWithCredential } = await import('firebase/auth')
+        await signInWithCredential(auth, credential)
+        setShowLoginTutorial(true)
       } else {
         // Di browser: pakai popup seperti biasa
         await signInWithPopup(auth, googleProvider)
