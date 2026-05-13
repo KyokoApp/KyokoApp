@@ -634,6 +634,109 @@ const VideoAvatar = ({ src }: { src: string }) => {
   return <video ref={ref} src={src} loop muted playsInline style={{width:'100%',height:'100%',objectFit:'cover',borderRadius:'10px'}}/>
 }
 
+
+// ── Global message cache (survive panel close/open) ────────────
+let _msgCache: GcMessage[] = []
+function getMsgCache() { return _msgCache }
+function setMsgCache(msgs: GcMessage[]) { _msgCache = msgs }
+
+
+// ── Memoized message component ─────────────────────────────────
+const MemoizedMessage = React.memo(({ 
+  msg, isMe, sameUser, canDelete, isAdmin, swipingMsgId, swipeX,
+  userAvatarCache, msgMenuId, user,
+  onTouchStart, onTouchMove, onTouchEnd, onDelete, onMenuToggle, onReply
+}: {
+  msg: GcMessage; isMe: boolean; sameUser: boolean; canDelete: boolean
+  isAdmin: boolean; swipingMsgId: string|null; swipeX: number
+  userAvatarCache: Record<string,string>; msgMenuId: string|null; user: any
+  onTouchStart: (id:string, x:number) => void
+  onTouchMove: (e:React.TouchEvent, id:string) => void
+  onTouchEnd: (e:React.TouchEvent, msg:GcMessage) => void
+  onDelete: (id:string, uid:string) => void
+  onMenuToggle: (id:string) => void
+  onReply: (msg:GcMessage) => void
+}) => {
+  const fmtTime = (ts: number) => {
+    const d = new Date(ts)
+    return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0')
+  }
+  const avatarColor = (uid: string) => {
+    const colors = ['#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#ff6bff','#ff9f43','#54a0ff','#5f27cd']
+    let hash = 0; for (const c of uid) hash = (hash * 31 + c.charCodeAt(0)) & 0xffffffff
+    return colors[Math.abs(hash) % colors.length]
+  }
+  return (
+    <div 
+      className={`gc-msg-row ${isMe?'gc-msg-me':'gc-msg-other'} ${sameUser?'gc-msg-grouped':''}`}
+      onTouchStart={(e) => onTouchStart(msg.id, e.touches[0].clientX)}
+      onTouchMove={(e) => onTouchMove(e, msg.id)}
+      onTouchEnd={(e) => onTouchEnd(e, msg)}
+    >
+      {!isMe && !sameUser && (
+        <div className="gc-avatar" style={{ background: avatarColor(msg.uid) }}>
+          {(userAvatarCache[msg.uid] || msg.photoURL) ? (
+            /\.(mp4|webm|mov)(\?|$)/i.test(userAvatarCache[msg.uid] || msg.photoURL)
+              ? <VideoAvatar src={userAvatarCache[msg.uid] || msg.photoURL} />
+              : <img src={userAvatarCache[msg.uid] || msg.photoURL} alt="" className="gc-avatar-img"/>
+          ) : msg.username[0].toUpperCase()}
+        </div>
+      )}
+      {!isMe && sameUser && <div className="gc-avatar-spacer"/>}
+      <div className="gc-msg-content" style={{ position: 'relative' }}>
+        {!isMe && !sameUser && <div className="gc-msg-username">{msg.username}</div>}
+        {msg.type === 'sticker' && msg.stickerUrl ? (
+          <img src={msg.stickerUrl} alt="sticker" className="gc2-sticker"/>
+        ) : (
+          <div className={`gc-bubble ${isMe?'gc-bubble-me':'gc-bubble-other'}`}>
+            {msg.replyToUser && (
+              <div className="gc-reply-quote">
+                <div className="gc-reply-quote-bar"/>
+                <div>
+                  <div className="gc-reply-quote-user">↩ {msg.replyToUser}</div>
+                  <div className="gc-reply-quote-text">{msg.replyToText}</div>
+                </div>
+              </div>
+            )}
+            <span className="gc-bubble-text">{msg.text.split(/(@\w+)/g).map((part, pi) =>
+              /^@\w+$/.test(part)
+                ? <span key={pi} className="gc-mention-highlight">{part}</span>
+                : part
+            )}</span>
+            <span className="gc-bubble-time">{fmtTime(msg.createdAt)}</span>
+          </div>
+        )}
+        {canDelete && (
+          <div className={`gc-msg-actions ${isMe ? 'gc-msg-actions-me' : 'gc-msg-actions-other'}`}>
+            <button
+              className="gc-msg-dots"
+              onClick={() => onMenuToggle(msg.id)}
+              aria-label="Opsi pesan"
+            >⋮</button>
+            {msgMenuId === msg.id && (
+              <div className={`gc-msg-menu ${isMe ? 'gc-msg-menu-me' : 'gc-msg-menu-other'}`}>
+                <button onClick={() => onDelete(msg.id, msg.uid)}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                  Hapus Pesan
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}, (prev, next) => {
+  // Hanya re-render kalau data pesan berubah atau menu toggle
+  return prev.msg.id === next.msg.id &&
+    prev.isMe === next.isMe &&
+    prev.sameUser === next.sameUser &&
+    prev.canDelete === next.canDelete &&
+    prev.msgMenuId === next.msgMenuId &&
+    prev.swipingMsgId === next.swipingMsgId &&
+    prev.userAvatarCache[prev.msg.uid] === next.userAvatarCache[next.msg.uid]
+})
+
 export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
   onClose: () => void
   onUnread?: () => void
@@ -665,7 +768,9 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
   const typingDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastSeenPlanetRef = useRef<number>(0)
 
-  const [messages, setMessages] = useState<GcMessage[]>([])
+  const [messages, setMessages] = useState<GcMessage[]>(() => getMsgCache())
+  // Hanya tampilkan 50 pesan terakhir untuk performa
+  const visibleMessages = React.useMemo(() => messages.slice(-50), [messages])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [typingUsers, setTypingUsers] = useState<string[]>([])
@@ -1133,12 +1238,13 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
 
   useEffect(() => {
     if (step !== 'main') return
-    const q = query(collection(dbChat, 'globalChat'), orderBy('createdAt', 'desc'), limit(100))
+    const q = query(collection(dbChat, 'globalChat'), orderBy('createdAt', 'desc'), limit(50))
     return onSnapshot(q, (snap) => {
       const msgs = snap.docs.map(d => ({
         id: d.id, ...(d.data() as Omit<GcMessage,'id'>),
         createdAt: d.data().createdAt?.toMillis?.() ?? Date.now()
       })).reverse()
+      setMsgCache(msgs)
       setMessages(msgs)
     }, (err) => {
       console.error('globalChat onSnapshot error:', err)
@@ -1489,7 +1595,7 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
     setTimeout(() => inputRef.current?.focus(), 0)
   }
 
-  const handleSend = async () => {
+  const handleSend = useCallback(async () => {
     const text = input.trim()
     if (!text || sending || !user || !username) return
     // Cek moderasi
@@ -3521,86 +3627,50 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
                   {messages.length === 0 && (
                     <div className="gc-empty"><div className="gc-empty-icon">💬</div><p>Belum ada pesan. Jadilah yang pertama!</p></div>
                   )}
-                  {messages.map((msg, i) => {
+                  {visibleMessages.map((msg, i, arr) => {
                     const isMe = msg.uid === user?.uid
-                    const prev = messages[i-1]
+                    const prev = arr[i-1]
                     const sameUser = prev && prev.uid === msg.uid
                     const canDelete = isMe || isAdmin
-                    const isSwiping = swipingMsgId === msg.id
                     return (
-                      <div key={msg.id} className={`gc-msg-row ${isMe?'gc-msg-me':'gc-msg-other'} ${sameUser?'gc-msg-grouped':''}`}
-                        onTouchStart={(e) => { setSwipingMsgId(msg.id); setSwipeX(e.touches[0].clientX) }}
-                        onTouchMove={(e) => {
-                          if (swipingMsgId !== msg.id) return
+                      <MemoizedMessage
+                        key={msg.id}
+                        msg={msg}
+                        isMe={isMe}
+                        sameUser={!!sameUser}
+                        canDelete={canDelete}
+                        isAdmin={isAdmin}
+                        swipingMsgId={swipingMsgId}
+                        swipeX={swipeX}
+                        userAvatarCache={userAvatarCache}
+                        msgMenuId={msgMenuId}
+                        user={user}
+                        onTouchStart={(id, x) => { setSwipingMsgId(id); setSwipeX(x) }}
+                        onTouchMove={(e, id) => {
+                          if (swipingMsgId !== id) return
                           const dx = e.touches[0].clientX - swipeX
                           const el = e.currentTarget as HTMLElement
                           el.style.transform = `translateX(${Math.max(-60, Math.min(60, dx))}px)`
                           el.style.transition = 'none'
                         }}
-                        onTouchEnd={(e) => {
+                        onTouchEnd={(e, m) => {
                           const el = e.currentTarget as HTMLElement
                           const dx = e.changedTouches[0].clientX - swipeX
                           el.style.transform = ''
                           el.style.transition = 'transform .2s ease'
                           if (Math.abs(dx) > 50) {
-                            setReplyTo({ id: msg.id, username: msg.username, text: msg.text })
+                            setReplyTo({ id: m.id, username: m.username, text: m.text })
                             setTimeout(() => inputRef.current?.focus(), 100)
                           }
                           setSwipingMsgId(null)
                         }}
-                      >
-                        {!isMe && !sameUser && (
-                          <div className="gc-avatar" style={{ background: avatarColor(msg.uid) }}>
-                            {(userAvatarCache[msg.uid] || msg.photoURL) ? (
-                              /\.(mp4|webm|mov)(\?|$)/i.test(userAvatarCache[msg.uid] || msg.photoURL)
-                                ? <VideoAvatar src={userAvatarCache[msg.uid] || msg.photoURL} />
-                                : <img src={userAvatarCache[msg.uid] || msg.photoURL} alt="" className="gc-avatar-img"/>
-                            ) : msg.username[0].toUpperCase()}
-                          </div>
-                        )}
-                        {!isMe && sameUser && <div className="gc-avatar-spacer"/>}
-                        <div className="gc-msg-content" style={{ position: 'relative' }}>
-                          {!isMe && !sameUser && <div className="gc-msg-username">{msg.username}</div>}
-                          {msg.type === 'sticker' && msg.stickerUrl ? (
-                            <img src={msg.stickerUrl} alt="sticker" className="gc2-sticker"/>
-                          ) : (
-                            <div className={`gc-bubble ${isMe?'gc-bubble-me':'gc-bubble-other'}`}>
-                              {msg.replyToUser && (
-                                <div className="gc-reply-quote">
-                                  <div className="gc-reply-quote-bar"/>
-                                  <div>
-                                    <div className="gc-reply-quote-user">↩ {msg.replyToUser}</div>
-                                    <div className="gc-reply-quote-text">{msg.replyToText}</div>
-                                  </div>
-                                </div>
-                              )}
-                              <span className="gc-bubble-text">{msg.text.split(/(@\w+)/g).map((part, pi) =>
-                                /^@\w+$/.test(part)
-                                  ? <span key={pi} className="gc-mention-highlight">{part}</span>
-                                  : part
-                              )}</span>
-                              <span className="gc-bubble-time">{fmtTime(msg.createdAt)}</span>
-                            </div>
-                          )}
-                          {canDelete && (
-                            <div className={`gc-msg-actions ${isMe ? 'gc-msg-actions-me' : 'gc-msg-actions-other'}`}>
-                              <button
-                                className="gc-msg-dots"
-                                onClick={() => setMsgMenuId(msgMenuId === msg.id ? null : msg.id)}
-                                aria-label="Opsi pesan"
-                              >⋮</button>
-                              {msgMenuId === msg.id && (
-                                <div className={`gc-msg-menu ${isMe ? 'gc-msg-menu-me' : 'gc-msg-menu-other'}`}>
-                                  <button onClick={() => handleDeleteMsg(msg.id, msg.uid)}>
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-                                    Hapus Pesan
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </div>
+                        onDelete={handleDeleteMsg}
+                        onMenuToggle={(id) => setMsgMenuId(msgMenuId === id ? null : id)}
+                        onReply={(m) => {
+                          setReplyTo({ id: m.id, username: m.username, text: m.text })
+                          setTimeout(() => inputRef.current?.focus(), 100)
+                        }}
+                      />
                     )
                   })}
                   {typingUsers.length > 0 && (
