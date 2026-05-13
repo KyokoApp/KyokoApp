@@ -39,10 +39,18 @@ jobs:
       - name: Setup debug keystore
         run: |
           mkdir -p ~/.android
-          keytool -genkey -v -keystore ~/.android/debug.keystore \
-            -alias androiddebugkey -keyalg RSA -keysize 2048 \
-            -validity 10000 -storepass android -keypass android \
-            -dname "CN=Android Debug,O=Android,C=US"
+          if [ -n "${{ secrets.DEBUG_KEYSTORE }}" ]; then
+            echo "${{ secrets.DEBUG_KEYSTORE }}" | base64 -d > ~/.android/debug.keystore
+            echo "Keystore loaded from secrets"
+          else
+            keytool -genkey -v -keystore ~/.android/debug.keystore \
+              -alias androiddebugkey -keyalg RSA -keysize 2048 \
+              -validity 10000 -storepass android -keypass android \
+              -dname "CN=Android Debug,O=Android,C=US"
+            echo "New keystore generated"
+            echo "Copy this base64 to GitHub Secrets as DEBUG_KEYSTORE:"
+            base64 ~/.android/debug.keystore
+          fi
 
       - name: Print SHA-1
         run: |
