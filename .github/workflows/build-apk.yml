@@ -78,6 +78,16 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync android
 
+      - name: Inject Google Auth client ID into strings.xml
+        run: |
+          STRINGS_FILE="android/app/src/main/res/values/strings.xml"
+          if grep -q "server_client_id" "$STRINGS_FILE"; then
+            echo "server_client_id already exists"
+          else
+            sed -i 's|</resources>|    <string name="server_client_id">730376199922-8hj9gq2ifvkc6ag6ddfs6qsgi84i6tq7.apps.googleusercontent.com</string>\n</resources>|' "$STRINGS_FILE"
+            echo "Injected server_client_id"
+          fi
+
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
