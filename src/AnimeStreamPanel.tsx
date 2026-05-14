@@ -3,135 +3,132 @@ import React, { useState, useRef, useCallback, useEffect } from 'react'
 // ═══════════════════════════════════════════════════════════════
 // TYPES
 // ═══════════════════════════════════════════════════════════════
-interface SamAnime {
+interface AnimeInfo {
+  id: number
   title: string
-  url: string
-  original_url?: string
+  titleRomaji: string
+  titleEnglish?: string
   thumbnail: string
-  type?: string
-  status?: string
-  score?: string
-  synopsis?: string
-  genres?: string[]
-  views?: string
+  banner?: string
+  episodes: number | null
+  status: string
+  genres: string[]
+  description: string
+  score: number
+  year?: number
+  format: string
 }
 
-interface SamEpisode {
-  title: string
-  url: string
-  episode?: string
-  date?: string
-  thumbnail?: string
-  // params untuk embed endpoint
-  post?: string | number
-  nume?: string | number
-  type?: string
-}
-
-interface SamDetail {
-  title: string
-  thumbnail: string
-  rating?: string
-  synopsis?: string
-  genres?: string[]
-  details?: Record<string, string>
-  episodeList?: SamEpisode[]
-}
-
-interface DlServer  { provider: string; url: string }
-interface DlQuality { quality: string; servers: DlServer[] }
-interface DlFormat  { format: string; list: DlQuality[] }
-
-interface StreamResult {
-  title?: string
-  episode?: string
-  downloadLinks?: DlFormat[]
+interface EmbedPlayer {
+  id: string
+  name: string
+  icon: string
+  color: string
+  getUrl: (animeTitle: string, episode: number, animeId?: number) => string
 }
 
 type View = 'home' | 'results' | 'detail' | 'player'
 
 // ═══════════════════════════════════════════════════════════════
-// SAMEHADAKU API
 // ═══════════════════════════════════════════════════════════════
-const API = 'https://nexta-api.vercel.app'
+// EMBED PLAYERS
+// Semua pakai format embed URL yang benar dan allow iframe
+// ═══════════════════════════════════════════════════════════════
+const EMBED_PLAYERS: EmbedPlayer[] = [
+  {
+    // vidsrc.to — format terbaru, paling lengkap kontennya
+    id: 'vidsrc',
+    name: 'VidSrc',
+    icon: '🟢',
+    color: '#4ade80',
+    getUrl: (_title, ep, animeId) =>
+      `https://vidsrc.to/embed/anime/${animeId || 0}/${ep}`,
+  },
+  {
+    // vidsrc.su — mirror stabil
+    id: 'vidsrc2',
+    name: 'VidSrc 2',
+    icon: '🟩',
+    color: '#86efac',
+    getUrl: (_title, ep, animeId) =>
+      `https://vidsrc.su/embed/anime/${animeId || 0}/${ep}/1`,
+  },
+  {
+    // vidsrc.in — mirror ke-3
+    id: 'vidsrc3',
+    name: 'VidSrc 3',
+    icon: '🔵',
+    color: '#60a5fa',
+    getUrl: (_title, ep, animeId) =>
+      `https://vidsrc.in/embed/anime?mal=${animeId || 0}&episode=${ep}`,
+  },
+  {
+    // embed.su — MAL ID based, stabil
+    id: 'embedsu',
+    name: 'Embed.su',
+    icon: '🟣',
+    color: '#a78bfa',
+    getUrl: (_title, ep, animeId) =>
+      `https://embed.su/embed/anime/${animeId || 0}/${ep}`,
+  },
+  {
+    // 2anime.xyz — khusus anime embed
+    id: '2anime',
+    name: '2Anime',
+    icon: '🟠',
+    color: '#fb923c',
+    getUrl: (_title, ep, animeId) =>
+      `https://2anime.xyz/embed/anime/${animeId || 0}/${ep}`,
+  },
+  {
+    // anify embed — by MAL ID
+    id: 'anify',
+    name: 'Anify',
+    icon: '🩵',
+    color: '#38bdf8',
+    getUrl: (_title, ep, animeId) =>
+      `https://anify.tv/embed/anime/${animeId || 0}?episode=${ep}`,
+  },
+]
 
-async function apiHome(): Promise<SamAnime[]> {
-  try {
-    const r = await fetch(`${API}/api/anime/samehadaku/home`)
-    const d = await r.json()
-    const arr = d.result?.data || d.result?.recent || d.result?.latest || d.data || (Array.isArray(d.result) ? d.result : null) || []
-    return Array.isArray(arr) ? arr.slice(0, 18) : []
-  } catch { return [] }
-}
+// ═══════════════════════════════════════════════════════════════
+// JIKAN API v4 (MyAnimeList) — CORS open, no key needed
+// ═══════════════════════════════════════════════════════════════
+const JIKAN = 'https://api.jikan.moe/v4'
 
-async function apiSearch(q: string): Promise<SamAnime[]> {
-  const r = await fetch(`${API}/api/anime/samehadaku/search?q=${encodeURIComponent(q)}`)
-  if (!r.ok) throw new Error('Search gagal')
-  const d = await r.json()
-  return d.result?.data || d.data || []
-}
-
-async function apiDetail(url: string): Promise<SamDetail | null> {
-  try {
-    const r = await fetch(url)
-    const d = await r.json()
-    const result = d.result || d
-    // Log raw response ke console agar bisa debug field episode
-    if (import.meta.env.DEV) {
-      console.log('[AnimeStream] detail raw:', JSON.stringify(result).slice(0, 500))
-    }
-    return result
-  } catch { return null }
-}
-
-// Embed endpoint butuh: post (ID episode), nume (nomor server), type (tipe embed)
-// Params ini ada di data episodeList dari detail endpoint
-async function apiEmbed(
-  post: string | number,
-  nume: string | number,
-  embedType: string,
-  refUrl?: string
-): Promise<string | null> {
-  try {
-    let qs = `post=${encodeURIComponent(post)}&nume=${encodeURIComponent(nume)}&type=${encodeURIComponent(embedType)}`
-    if (refUrl) qs += `&url=${encodeURIComponent(refUrl)}`
-    const r = await fetch(`${API}/api/anime/samehadaku/embed?${qs}`)
-    const d = await r.json()
-    return (
-      d.result?.url      ||
-      d.result?.embedUrl ||
-      d.result?.embed    ||
-      d.result?.src      ||
-      d.result?.iframe   ||
-      d.embedUrl         ||
-      d.url              ||
-      d.src              ||
-      null
-    )
-  } catch { return null }
-}
-
-// Coba semua kombinasi server sampai dapat embed URL
-async function apiEmbedAny(
-  post: string | number,
-  refUrl?: string
-): Promise<string | null> {
-  const types = ['schtm1', 'schtm2', 'schtm3', 'v', 'mp4', 'schtm']
-  for (const t of types) {
-    for (let n = 1; n <= 4; n++) {
-      const url = await apiEmbed(post, n, t, refUrl)
-      if (url) return url
-    }
+function parseJikan(m: any): AnimeInfo {
+  const status = m.status === 'Currently Airing' ? 'RELEASING'
+    : m.status === 'Finished Airing' ? 'FINISHED'
+    : 'NOT_YET_RELEASED'
+  return {
+    id: m.mal_id,
+    title: m.title_english || m.title,
+    titleRomaji: m.title,
+    titleEnglish: m.title_english,
+    thumbnail: m.images?.jpg?.large_image_url || m.images?.jpg?.image_url || '',
+    banner: m.images?.jpg?.large_image_url || '',
+    episodes: m.episodes || null,
+    status,
+    genres: (m.genres || []).slice(0, 3).map((g: any) => g.name),
+    description: (m.synopsis || '').slice(0, 200),
+    score: m.score || 0,
+    year: m.year || m.aired?.prop?.from?.year,
+    format: m.type || 'TV',
   }
-  return null
 }
 
-async function apiStream(episodeUrl: string): Promise<StreamResult | null> {
-  try {
-    const r = await fetch(`${API}/api/anime/samehadaku/stream?url=${encodeURIComponent(episodeUrl)}`)
-    const d = await r.json()
-    return d.result || null
-  } catch { return null }
+async function searchAniList(query: string): Promise<AnimeInfo[]> {
+  const res = await fetch(`${JIKAN}/anime?q=${encodeURIComponent(query)}&limit=18&sfw=true`)
+  if (!res.ok) throw new Error('Jikan search failed')
+  const data = await res.json()
+  return (data.data || []).map(parseJikan)
+}
+
+async function getTrending(): Promise<AnimeInfo[]> {
+  const res = await fetch(`${JIKAN}/top/anime?filter=airing&limit=12`)
+  if (!res.ok) throw new Error('Jikan trending failed')
+  const data = await res.json()
+  return (data.data || []).map(parseJikan)
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -141,355 +138,434 @@ const S = `
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;900&display=swap');
 
 .ax-wrap {
-  display:flex; flex-direction:column; height:100%; overflow:hidden;
-  background:#080810; color:#fff;
-  font-family:'Outfit','Segoe UI',sans-serif; position:relative;
+  display: flex; flex-direction: column; height: 100%; overflow: hidden;
+  background: #080810; color: #fff;
+  font-family: 'Outfit', 'Segoe UI', sans-serif;
+  position: relative;
 }
+
+/* ─── HEADER ─── */
 .ax-header {
-  display:flex; align-items:center; gap:10px;
-  padding:11px 14px; flex-shrink:0;
-  background:rgba(8,8,16,0.97);
-  border-bottom:1px solid rgba(167,139,250,0.12); position:relative; z-index:20;
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 14px; flex-shrink: 0;
+  background: rgba(8,8,16,0.97);
+  border-bottom: 1px solid rgba(167,139,250,0.12);
+  position: relative; z-index: 20;
 }
 .ax-logo {
-  font-size:13px; font-weight:900; letter-spacing:.5px;
-  background:linear-gradient(135deg,#a78bfa,#60a5fa);
-  -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+  font-size: 13px; font-weight: 900; letter-spacing: .5px;
+  background: linear-gradient(135deg,#a78bfa,#60a5fa);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
 }
 .ax-back {
-  background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1);
-  border-radius:8px; padding:5px 11px; color:rgba(255,255,255,0.7);
-  font-size:12px; cursor:pointer; transition:all .2s; font-family:inherit;
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px; padding: 5px 11px; color: rgba(255,255,255,0.7);
+  font-size: 12px; cursor: pointer; transition: all .2s; font-family: inherit;
 }
-.ax-back:hover { background:rgba(167,139,250,0.1); color:#a78bfa; border-color:rgba(167,139,250,0.3); }
-.ax-search-bar { display:flex; gap:8px; padding:12px 14px 8px; flex-shrink:0; }
+.ax-back:hover { background: rgba(167,139,250,0.1); color: #a78bfa; border-color: rgba(167,139,250,0.3); }
+
+/* ─── SEARCH ─── */
+.ax-search-bar {
+  display: flex; gap: 8px; padding: 12px 14px 8px; flex-shrink: 0;
+}
 .ax-search-input {
-  flex:1; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1);
-  border-radius:12px; padding:10px 14px; color:#fff; font-size:13px;
-  outline:none; transition:all .2s; font-family:inherit;
+  flex: 1; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px; padding: 10px 14px; color: #fff; font-size: 13px;
+  outline: none; transition: all .2s; font-family: inherit;
 }
-.ax-search-input:focus { border-color:rgba(167,139,250,0.5); background:rgba(167,139,250,0.06); box-shadow:0 0 0 3px rgba(167,139,250,0.08); }
-.ax-search-input::placeholder { color:rgba(255,255,255,0.25); }
+.ax-search-input:focus { border-color: rgba(167,139,250,0.5); background: rgba(167,139,250,0.06); box-shadow: 0 0 0 3px rgba(167,139,250,0.08); }
+.ax-search-input::placeholder { color: rgba(255,255,255,0.25); }
 .ax-search-btn {
-  background:linear-gradient(135deg,#a78bfa,#7c3aed); border:none;
-  border-radius:12px; padding:10px 16px; color:#fff;
-  font-size:13px; font-weight:700; cursor:pointer; transition:all .2s;
-  white-space:nowrap; font-family:inherit; flex-shrink:0;
+  background: linear-gradient(135deg,#a78bfa,#7c3aed); border: none;
+  border-radius: 12px; padding: 10px 16px; color: #fff;
+  font-size: 13px; font-weight: 700; cursor: pointer; transition: all .2s;
+  white-space: nowrap; font-family: inherit; flex-shrink: 0;
 }
-.ax-search-btn:hover { transform:scale(1.04); box-shadow:0 0 18px rgba(167,139,250,0.4); }
-.ax-search-btn:disabled { opacity:.45; transform:none; }
-.ax-scroll { flex:1; overflow-y:auto; padding:10px 14px 80px; scrollbar-width:none; }
-.ax-scroll::-webkit-scrollbar { display:none; }
+.ax-search-btn:hover { transform: scale(1.04); box-shadow: 0 0 18px rgba(167,139,250,0.4); }
+.ax-search-btn:disabled { opacity: .45; transform: none; }
+
+/* ─── SCROLL AREA ─── */
+.ax-scroll {
+  flex: 1; overflow-y: auto; padding: 10px 14px 80px;
+  scrollbar-width: none;
+}
+.ax-scroll::-webkit-scrollbar { display: none; }
+
+/* ─── TRENDING SECTION ─── */
 .ax-section-label {
-  font-size:10px; font-weight:700; color:rgba(167,139,250,0.6);
-  letter-spacing:1.5px; text-transform:uppercase; margin-bottom:10px;
-  display:flex; align-items:center; gap:6px;
+  font-size: 10px; font-weight: 700; color: rgba(167,139,250,0.6);
+  letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 10px;
+  display: flex; align-items: center; gap: 6px;
 }
-.ax-section-label::after { content:''; flex:1; height:1px; background:rgba(167,139,250,0.12); }
-.ax-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+.ax-section-label::after {
+  content: ''; flex: 1; height: 1px; background: rgba(167,139,250,0.12);
+}
+
+/* ─── CARD GRID ─── */
+.ax-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+}
 .ax-card {
-  border-radius:10px; overflow:hidden; cursor:pointer;
-  position:relative; aspect-ratio:2/3;
-  background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.07); transition:all .2s;
+  border-radius: 10px; overflow: hidden; cursor: pointer;
+  position: relative; aspect-ratio: 2/3;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+  transition: all .2s;
 }
-.ax-card:hover { border-color:rgba(167,139,250,0.3); transform:scale(1.02); }
-.ax-card:active { transform:scale(0.97); }
-.ax-card-img { width:100%; height:100%; object-fit:cover; display:block; transition:transform .3s; }
-.ax-card:hover .ax-card-img { transform:scale(1.06); }
-.ax-card-overlay { position:absolute; inset:0; background:linear-gradient(to top,rgba(0,0,0,0.92) 40%,transparent 100%); }
-.ax-card-info { position:absolute; bottom:0; left:0; right:0; padding:8px; }
+.ax-card:hover { border-color: rgba(167,139,250,0.3); transform: scale(1.02); }
+.ax-card:active { transform: scale(0.97); }
+.ax-card-img {
+  width: 100%; height: 100%; object-fit: cover;
+  display: block; transition: transform .3s;
+}
+.ax-card:hover .ax-card-img { transform: scale(1.06); }
+.ax-card-overlay {
+  position: absolute; inset: 0;
+  background: linear-gradient(to top, rgba(0,0,0,0.92) 40%, transparent 100%);
+}
+.ax-card-info {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  padding: 8px;
+}
 .ax-card-title {
-  font-size:10px; font-weight:700; color:#fff; line-height:1.2;
-  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; margin-bottom:3px;
+  font-size: 10px; font-weight: 700; color: #fff; line-height: 1.2;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  margin-bottom: 3px;
 }
-.ax-card-score { font-size:9px; color:#fbbf24; font-weight:700; }
-.ax-card-eps { font-size:9px; color:rgba(255,255,255,0.4); margin-left:4px; }
-.ax-result-list { display:flex; flex-direction:column; gap:8px; }
+.ax-card-score {
+  font-size: 9px; color: #fbbf24; font-weight: 700;
+}
+.ax-card-eps {
+  font-size: 9px; color: rgba(255,255,255,0.4); margin-left: 4px;
+}
+
+/* ─── RESULT LIST (horizontal card style) ─── */
+.ax-result-list { display: flex; flex-direction: column; gap: 8px; }
 .ax-result-card {
-  display:flex; gap:12px; align-items:flex-start;
-  background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08);
-  border-radius:12px; padding:10px; cursor:pointer; transition:all .2s; overflow:hidden; position:relative;
+  display: flex; gap: 12px; align-items: flex-start;
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px; padding: 10px; cursor: pointer; transition: all .2s; overflow: hidden;
+  position: relative;
 }
 .ax-result-card::before {
-  content:''; position:absolute; left:0; top:0; bottom:0; width:3px;
-  background:linear-gradient(#a78bfa,#60a5fa); opacity:0; transition:opacity .2s;
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  background: linear-gradient(#a78bfa,#60a5fa); opacity: 0; transition: opacity .2s;
 }
-.ax-result-card:hover { border-color:rgba(167,139,250,0.25); transform:translateX(4px); }
-.ax-result-card:hover::before { opacity:1; }
-.ax-result-card:active { transform:scale(0.98); }
-.ax-result-thumb { width:56px; height:80px; border-radius:8px; object-fit:cover; flex-shrink:0; background:rgba(255,255,255,0.06); }
-.ax-result-body { flex:1; min-width:0; }
+.ax-result-card:hover { border-color: rgba(167,139,250,0.25); transform: translateX(4px); }
+.ax-result-card:hover::before { opacity: 1; }
+.ax-result-card:active { transform: scale(0.98); }
+.ax-result-thumb {
+  width: 56px; height: 80px; border-radius: 8px; object-fit: cover; flex-shrink: 0;
+  background: rgba(255,255,255,0.06);
+}
+.ax-result-body { flex: 1; min-width: 0; }
 .ax-result-title {
-  font-size:13px; font-weight:700; color:#fff; line-height:1.3;
-  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; margin-bottom:4px;
+  font-size: 13px; font-weight: 700; color: #fff; line-height: 1.3;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  margin-bottom: 4px;
 }
-.ax-result-tags { display:flex; gap:4px; flex-wrap:wrap; }
+.ax-result-sub { font-size: 10px; color: rgba(255,255,255,0.35); margin-bottom: 5px; }
+.ax-result-tags { display: flex; gap: 4px; flex-wrap: wrap; }
 .ax-tag {
-  font-size:9px; padding:2px 7px; border-radius:4px; font-weight:600;
-  background:rgba(167,139,250,0.1); border:1px solid rgba(167,139,250,0.2); color:#a78bfa;
+  font-size: 9px; padding: 2px 7px; border-radius: 4px; font-weight: 600;
+  background: rgba(167,139,250,0.1); border: 1px solid rgba(167,139,250,0.2); color: #a78bfa;
 }
-.ax-tag.score { background:rgba(251,191,36,0.1); border-color:rgba(251,191,36,0.2); color:#fbbf24; }
-.ax-tag.ep { background:rgba(96,165,250,0.1); border-color:rgba(96,165,250,0.2); color:#60a5fa; }
-.ax-detail-banner { width:100%; aspect-ratio:16/6; object-fit:cover; flex-shrink:0; background:rgba(255,255,255,0.04); }
+.ax-tag.score { background: rgba(251,191,36,0.1); border-color: rgba(251,191,36,0.2); color: #fbbf24; }
+.ax-tag.ep { background: rgba(96,165,250,0.1); border-color: rgba(96,165,250,0.2); color: #60a5fa; }
+
+/* ─── DETAIL VIEW ─── */
+.ax-detail-banner {
+  width: 100%; aspect-ratio: 16/6; object-fit: cover; flex-shrink: 0;
+  background: rgba(255,255,255,0.04);
+}
 .ax-detail-banner-placeholder {
-  width:100%; aspect-ratio:16/6; flex-shrink:0;
-  background:linear-gradient(135deg,rgba(167,139,250,0.15),rgba(96,165,250,0.1));
-  display:flex; align-items:center; justify-content:center; font-size:40px;
+  width: 100%; aspect-ratio: 16/6; flex-shrink: 0;
+  background: linear-gradient(135deg,rgba(167,139,250,0.15),rgba(96,165,250,0.1));
+  display: flex; align-items: center; justify-content: center; font-size: 40px;
 }
-.ax-detail-header { display:flex; gap:12px; padding:12px 14px 0; flex-shrink:0; align-items:flex-start; }
+.ax-detail-header {
+  display: flex; gap: 12px; padding: 12px 14px 0; flex-shrink: 0; align-items: flex-start;
+}
 .ax-detail-thumb {
-  width:72px; height:102px; border-radius:10px; object-fit:cover;
-  flex-shrink:0; border:2px solid rgba(167,139,250,0.3);
-  margin-top:-32px; position:relative; z-index:5; box-shadow:0 4px 20px rgba(0,0,0,0.6);
+  width: 72px; height: 102px; border-radius: 10px; object-fit: cover;
+  flex-shrink: 0; border: 2px solid rgba(167,139,250,0.3);
+  margin-top: -32px; position: relative; z-index: 5;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.6);
 }
-.ax-detail-title { font-size:15px; font-weight:900; color:#fff; line-height:1.2; margin-bottom:4px; }
-.ax-detail-tags { display:flex; gap:4px; flex-wrap:wrap; }
+.ax-detail-title {
+  font-size: 15px; font-weight: 900; color: #fff; line-height: 1.2;
+  margin-bottom: 4px;
+}
+.ax-detail-sub { font-size: 11px; color: rgba(255,255,255,0.4); margin-bottom: 6px; }
+.ax-detail-tags { display: flex; gap: 4px; flex-wrap: wrap; }
 .ax-detail-desc {
-  font-size:12px; color:rgba(255,255,255,0.45); line-height:1.6; padding:10px 14px; flex-shrink:0;
+  font-size: 12px; color: rgba(255,255,255,0.45); line-height: 1.6;
+  padding: 10px 14px; flex-shrink: 0;
 }
-.ax-ep-section { padding:0 14px; flex-shrink:0; }
+
+/* ─── EPISODE PICKER ─── */
+.ax-ep-section { padding: 0 14px; flex-shrink: 0; }
 .ax-ep-label {
-  font-size:10px; font-weight:700; color:rgba(167,139,250,0.6);
-  letter-spacing:1.5px; margin-bottom:8px; display:flex; align-items:center; gap:6px;
+  font-size: 10px; font-weight: 700; color: rgba(167,139,250,0.6);
+  letter-spacing: 1.5px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;
 }
-.ax-ep-list { display:flex; flex-direction:column; gap:6px; max-height:260px; overflow-y:auto; scrollbar-width:none; }
-.ax-ep-list::-webkit-scrollbar { display:none; }
-.ax-ep-item {
-  display:flex; align-items:center; gap:10px;
-  background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.07);
-  border-radius:10px; padding:9px 12px; cursor:pointer; transition:all .2s;
+.ax-ep-grid {
+  display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px;
+  max-height: 180px; overflow-y: auto; scrollbar-width: none;
 }
-.ax-ep-item:hover { background:rgba(167,139,250,0.1); border-color:rgba(167,139,250,0.35); }
-.ax-ep-item:active { transform:scale(0.98); }
-.ax-ep-item.active { background:rgba(167,139,250,0.15); border-color:#a78bfa; }
-.ax-ep-num {
-  width:28px; height:28px; border-radius:7px; flex-shrink:0;
-  background:rgba(167,139,250,0.12); border:1px solid rgba(167,139,250,0.2);
-  display:flex; align-items:center; justify-content:center;
-  font-size:11px; font-weight:800; color:#a78bfa;
+.ax-ep-grid::-webkit-scrollbar { display: none; }
+.ax-ep-btn {
+  aspect-ratio: 1; border-radius: 8px; background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08); color: rgba(255,255,255,0.7);
+  font-size: 11px; font-weight: 700; cursor: pointer; transition: all .2s;
+  font-family: inherit; display: flex; align-items: center; justify-content: center;
 }
-.ax-ep-title { font-size:12px; font-weight:600; color:#fff; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.ax-ep-date { font-size:10px; color:rgba(255,255,255,0.3); flex-shrink:0; }
-.ax-player-box { width:100%; aspect-ratio:16/9; background:#000; position:relative; flex-shrink:0; overflow:hidden; }
-.ax-player-box iframe { width:100%; height:100%; border:none; display:block; }
-.ax-player-loading {
-  position:absolute; inset:0; display:flex; flex-direction:column;
-  align-items:center; justify-content:center; gap:12px;
-  background:#000; color:rgba(255,255,255,0.4); font-size:13px;
+.ax-ep-btn:hover { background: rgba(167,139,250,0.15); border-color: rgba(167,139,250,0.4); color: #a78bfa; }
+.ax-ep-btn:active { transform: scale(0.9); }
+.ax-ep-btn.active { background: linear-gradient(135deg,#a78bfa22,#7c3aed22); border-color: #a78bfa; color: #a78bfa; }
+
+/* ─── PLAYER VIEW ─── */
+.ax-player-box {
+  width: 100%; aspect-ratio: 16/9; background: #000;
+  position: relative; flex-shrink: 0; overflow: hidden;
+}
+.ax-player-box iframe {
+  width: 100%; height: 100%; border: none; display: block;
+}
+.ax-player-overlay-msg {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 8px;
+  background: #000; color: rgba(255,255,255,0.3); font-size: 13px;
 }
 .ax-player-controls {
-  display:flex; gap:6px; padding:10px 14px; flex-shrink:0;
-  border-bottom:1px solid rgba(255,255,255,0.06); flex-wrap:wrap; align-items:center;
+  display: flex; gap: 6px; padding: 10px 14px; flex-shrink: 0;
+  border-bottom: 1px solid rgba(255,255,255,0.06); flex-wrap: wrap; align-items: center;
 }
 .ax-ctrl {
-  padding:6px 12px; border-radius:8px; font-size:11px; font-weight:700;
-  cursor:pointer; border:1px solid; transition:all .2s; font-family:inherit;
+  padding: 6px 12px; border-radius: 8px; font-size: 11px; font-weight: 700;
+  cursor: pointer; border: 1px solid; transition: all .2s; font-family: inherit;
 }
-.ax-ctrl.accent { background:rgba(167,139,250,0.12); border-color:rgba(167,139,250,0.3); color:#a78bfa; }
-.ax-ctrl.accent:hover { background:rgba(167,139,250,0.22); }
-.ax-ctrl.dim { background:rgba(255,255,255,0.05); border-color:rgba(255,255,255,0.1); color:rgba(255,255,255,0.6); }
-.ax-ctrl.dim:hover { background:rgba(255,255,255,0.1); color:#fff; }
-.ax-ctrl.green { background:rgba(52,211,153,0.1); border-color:rgba(52,211,153,0.3); color:#34d399; }
-.ax-ctrl.green:hover { background:rgba(52,211,153,0.2); }
+.ax-ctrl.accent { background: rgba(167,139,250,0.12); border-color: rgba(167,139,250,0.3); color: #a78bfa; }
+.ax-ctrl.accent:hover { background: rgba(167,139,250,0.22); }
+.ax-ctrl.dim { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); color: rgba(255,255,255,0.6); }
+.ax-ctrl.dim:hover { background: rgba(255,255,255,0.1); color: #fff; }
+
 .ax-now-playing {
-  font-size:11px; color:rgba(255,255,255,0.35); padding:6px 14px; flex-shrink:0;
-  display:flex; align-items:center; gap:6px;
+  font-size: 11px; color: rgba(255,255,255,0.35); padding: 6px 14px; flex-shrink: 0;
+  display: flex; align-items: center; gap: 6px;
 }
 .ax-now-dot {
-  width:6px; height:6px; border-radius:50%; background:#a78bfa; flex-shrink:0;
-  animation:ax-pulse 1.4s ease infinite;
+  width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+  animation: ax-pulse 1.4s ease infinite;
 }
 @keyframes ax-pulse { 0%,100%{opacity:.5;transform:scale(1)} 50%{opacity:1;transform:scale(1.3)} }
-.ax-dl-section { padding:8px 14px; flex-shrink:0; }
-.ax-dl-format-label {
-  font-size:9px; font-weight:700; color:rgba(255,255,255,0.3);
-  letter-spacing:1.5px; text-transform:uppercase; margin-bottom:6px; margin-top:8px;
+
+/* ─── SERVER PICKER ─── */
+.ax-server-scroll {
+  flex: 1; overflow-y: auto; padding: 10px 14px 80px; scrollbar-width: none;
 }
-.ax-dl-quality-row { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px; align-items:center; }
-.ax-dl-q-label { font-size:10px; font-weight:700; color:rgba(96,165,250,0.8); min-width:36px; }
-.ax-dl-btn {
-  padding:5px 12px; border-radius:7px; font-size:11px; font-weight:700;
-  cursor:pointer; border:1px solid; transition:all .2s; font-family:inherit;
-  text-decoration:none; display:inline-block;
+.ax-server-scroll::-webkit-scrollbar { display: none; }
+.ax-server-card {
+  display: flex; align-items: center; gap: 12px;
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px; padding: 12px 14px; margin-bottom: 8px;
+  cursor: pointer; transition: all .2s; position: relative; overflow: hidden;
 }
-.ax-dl-btn.gofile { background:rgba(251,191,36,0.08); border-color:rgba(251,191,36,0.25); color:#fbbf24; }
-.ax-dl-btn.gofile:hover { background:rgba(251,191,36,0.18); }
-.ax-dl-btn.krakenfiles { background:rgba(52,211,153,0.08); border-color:rgba(52,211,153,0.25); color:#34d399; }
-.ax-dl-btn.krakenfiles:hover { background:rgba(52,211,153,0.18); }
-.ax-dl-btn.other { background:rgba(167,139,250,0.08); border-color:rgba(167,139,250,0.25); color:#a78bfa; }
-.ax-dl-btn.other:hover { background:rgba(167,139,250,0.18); }
+.ax-server-card:hover { border-color: rgba(167,139,250,0.3); transform: translateX(3px); }
+.ax-server-card.active { border-color: rgba(167,139,250,0.6); background: rgba(167,139,250,0.08); }
+.ax-server-card:active { transform: scale(0.98); }
+.ax-server-icon {
+  width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: 18px;
+}
+.ax-server-name { font-size: 13px; font-weight: 700; color: #fff; }
+.ax-server-sub { font-size: 10px; color: rgba(255,255,255,0.35); margin-top: 2px; }
+.ax-server-badge {
+  margin-left: auto; font-size: 10px; padding: 3px 8px; border-radius: 5px;
+  font-weight: 700; background: rgba(167,139,250,0.1); border: 1px solid rgba(167,139,250,0.25); color: #a78bfa;
+}
+.ax-server-check { font-size: 16px; color: #a78bfa; margin-left: 4px; }
+.ax-server-tip {
+  margin: 8px 14px; padding: 9px 12px; border-radius: 10px;
+  background: rgba(96,165,250,0.08); border: 1px solid rgba(96,165,250,0.18);
+  font-size: 11px; color: rgba(96,165,250,0.8); line-height: 1.5; flex-shrink: 0;
+}
+
+/* ─── LOADING ─── */
 .ax-loading {
-  display:flex; flex-direction:column; align-items:center; justify-content:center;
-  gap:12px; padding:50px 20px; color:rgba(255,255,255,0.3); font-size:13px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 12px; padding: 50px 20px; color: rgba(255,255,255,0.3); font-size: 13px;
 }
 .ax-spinner {
-  width:30px; height:30px; border:3px solid rgba(167,139,250,0.15);
-  border-top-color:#a78bfa; border-radius:50%; animation:ax-spin .7s linear infinite;
+  width: 30px; height: 30px; border: 3px solid rgba(167,139,250,0.15);
+  border-top-color: #a78bfa; border-radius: 50%; animation: ax-spin .7s linear infinite;
 }
-@keyframes ax-spin { to { transform:rotate(360deg); } }
+@keyframes ax-spin { to { transform: rotate(360deg); } }
+
+/* ─── EMPTY ─── */
 .ax-empty {
-  display:flex; flex-direction:column; align-items:center; justify-content:center;
-  gap:8px; padding:60px 20px; color:rgba(255,255,255,0.2); font-size:13px; text-align:center;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; padding: 60px 20px; color: rgba(255,255,255,0.2); font-size: 13px; text-align: center;
 }
-.ax-status { font-size:9px; padding:2px 7px; border-radius:4px; font-weight:700; }
-.ax-status.airing   { background:rgba(52,211,153,0.12); border:1px solid rgba(52,211,153,0.25); color:#34d399; }
-.ax-status.finished { background:rgba(148,163,184,0.12); border:1px solid rgba(148,163,184,0.2); color:#94a3b8; }
-.ax-status.upcoming { background:rgba(251,191,36,0.12); border:1px solid rgba(251,191,36,0.25); color:#fbbf24; }
+
+/* ─── STATUS BADGE ─── */
+.ax-status {
+  font-size: 9px; padding: 2px 7px; border-radius: 4px; font-weight: 700;
+}
+.ax-status.airing { background: rgba(52,211,153,0.12); border: 1px solid rgba(52,211,153,0.25); color: #34d399; }
+.ax-status.finished { background: rgba(148,163,184,0.12); border: 1px solid rgba(148,163,184,0.2); color: #94a3b8; }
+.ax-status.upcoming { background: rgba(251,191,36,0.12); border: 1px solid rgba(251,191,36,0.25); color: #fbbf24; }
+
+/* ─── OPEN EXTERNAL BTN ─── */
 .ax-open-btn {
-  width:100%; padding:12px; border-radius:12px; border:none;
-  background:linear-gradient(135deg,#a78bfa,#7c3aed); color:#fff;
-  font-size:13px; font-weight:700; cursor:pointer; font-family:inherit;
-  transition:all .2s; display:flex; align-items:center; justify-content:center; gap:8px;
+  width: 100%; padding: 12px; border-radius: 12px; border: none;
+  background: linear-gradient(135deg,#a78bfa,#7c3aed); color: #fff;
+  font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit;
+  transition: all .2s; display: flex; align-items: center; justify-content: center; gap: 8px;
 }
-.ax-open-btn:hover { transform:scale(1.02); box-shadow:0 0 20px rgba(167,139,250,0.4); }
-.ax-open-btn:active { transform:scale(0.97); }
-.ax-tip {
-  margin:6px 14px; padding:9px 12px; border-radius:10px;
-  background:rgba(96,165,250,0.08); border:1px solid rgba(96,165,250,0.18);
-  font-size:11px; color:rgba(96,165,250,0.8); line-height:1.5; flex-shrink:0;
-}
+.ax-open-btn:hover { transform: scale(1.02); box-shadow: 0 0 20px rgba(167,139,250,0.4); }
+.ax-open-btn:active { transform: scale(0.97); }
 `
 
 // ═══════════════════════════════════════════════════════════════
 // COMPONENT
 // ═══════════════════════════════════════════════════════════════
-interface Props { isAdmin: boolean; userId: string }
+interface Props {
+  isAdmin: boolean
+  userId: string
+}
 
 export default function AnimeStreamPanel({ isAdmin, userId }: Props) {
-  const [view, setView]               = useState<View>('home')
-  const [query, setQuery]             = useState('')
-  const [searching, setSearching]     = useState(false)
-  const [results, setResults]         = useState<SamAnime[]>([])
-  const [homeList, setHomeList]       = useState<SamAnime[]>([])
-  const [homeLoading, setHomeLoading] = useState(true)
+  const [view, setView] = useState<View>('home')
+  const [query, setQuery] = useState('')
+  const [searching, setSearching] = useState(false)
+  const [results, setResults] = useState<AnimeInfo[]>([])
+  const [trending, setTrending] = useState<AnimeInfo[]>([])
+  const [trendLoading, setTrendLoading] = useState(true)
 
-  const [selectedAnime, setSelectedAnime]   = useState<SamAnime | null>(null)
-  const [detail, setDetail]                 = useState<SamDetail | null>(null)
-  const [detailLoading, setDetailLoading]   = useState(false)
-
-  const [selectedEp, setSelectedEp]         = useState<SamEpisode | null>(null)
-  const [embedUrl, setEmbedUrl]             = useState<string | null>(null)
-  const [streamData, setStreamData]         = useState<StreamResult | null>(null)
-  const [playerLoading, setPlayerLoading]   = useState(false)
-  const [showDownload, setShowDownload]     = useState(false)
-
+  const [selectedAnime, setSelectedAnime] = useState<AnimeInfo | null>(null)
+  const [selectedEp, setSelectedEp] = useState<number>(1)
+  const [activePlayer, setActivePlayer] = useState<EmbedPlayer>(EMBED_PLAYERS[0])
   const iframeRef = useRef<HTMLIFrameElement>(null)
 
+  // ── Load trending on mount ─────────────────────────────────
   useEffect(() => {
-    apiHome().then(setHomeList).finally(() => setHomeLoading(false))
+    getTrending()
+      .then(setTrending)
+      .catch(() => {})
+      .finally(() => setTrendLoading(false))
   }, [])
 
+  // ── Search ─────────────────────────────────────────────────
   const handleSearch = useCallback(async () => {
     if (!query.trim()) return
-    setSearching(true); setView('results')
-    try { setResults(await apiSearch(query.trim())) }
-    catch { setResults([]) }
-    finally { setSearching(false) }
+    setSearching(true)
+    setView('results')
+    try {
+      const found = await searchAniList(query.trim())
+      setResults(found)
+    } catch {
+      setResults([])
+    } finally {
+      setSearching(false)
+    }
   }, [query])
 
-  const handleSelectAnime = async (anime: SamAnime) => {
-    setSelectedAnime(anime); setDetail(null); setSelectedEp(null)
-    setEmbedUrl(null); setStreamData(null); setShowDownload(false)
-    setDetailLoading(true); setView('detail')
-    const det = await apiDetail(anime.url)
-    setDetail(det); setDetailLoading(false)
+  // ── Select anime ───────────────────────────────────────────
+  const handleSelectAnime = (anime: AnimeInfo) => {
+    setSelectedAnime(anime)
+    setSelectedEp(1)
+    setActivePlayer(EMBED_PLAYERS[0])
+    setView('detail')
   }
 
-  const handleWatch = async (ep: SamEpisode) => {
-    setSelectedEp(ep); setEmbedUrl(null); setStreamData(null)
-    setShowDownload(false); setPlayerLoading(true); setView('player')
-
-    // Jika episode punya data post/nume/type (dari detail endpoint), pakai langsung
-    if (ep.post && ep.nume && ep.type) {
-      const embed = await apiEmbed(ep.post, ep.nume, ep.type, ep.url)
-      if (embed) { setEmbedUrl(embed); setPlayerLoading(false); return }
-    }
-
-    // Fallback: coba semua kombinasi server dengan post ID saja
-    if (ep.post) {
-      const embed = await apiEmbedAny(ep.post, ep.url)
-      if (embed) { setEmbedUrl(embed); setPlayerLoading(false); return }
-    }
-
-    // Terakhir: ambil stream/download links
-    const stream = await apiStream(ep.url)
-    setStreamData(stream); setShowDownload(true); setPlayerLoading(false)
+  // ── Watch episode ──────────────────────────────────────────
+  const handleWatch = (ep: number, player?: EmbedPlayer) => {
+    setSelectedEp(ep)
+    if (player) setActivePlayer(player)
+    setView('player')
   }
 
+  // ── Open in browser ────────────────────────────────────────
+  const handleOpenExternal = () => {
+    if (!selectedAnime) return
+    const title = selectedAnime.titleRomaji || selectedAnime.title
+    const url = activePlayer.getUrl(title, selectedEp, selectedAnime.id)
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }
+
+  // ── Fullscreen ─────────────────────────────────────────────
   const handleFullscreen = () => {
-    const el = iframeRef.current; if (!el) return
+    const el = iframeRef.current
+    if (!el) return
     try {
       if (el.requestFullscreen) el.requestFullscreen()
       else if ((el as any).webkitRequestFullscreen) (el as any).webkitRequestFullscreen()
     } catch {}
   }
 
-  const epList = detail?.episodeList || []
-  const currentEpIdx = selectedEp ? epList.findIndex(e => e.url === selectedEp.url) : -1
+  // ── Generate episode count ─────────────────────────────────
+  const epCount = selectedAnime?.episodes || 24
 
-  const statusClass = (s?: string) => {
-    if (!s) return 'upcoming'
-    const l = s.toLowerCase()
-    if (l.includes('ongoing') || l.includes('airing')) return 'airing'
-    if (l.includes('completed') || l.includes('finished')) return 'finished'
+  const statusClass = (status: string) => {
+    if (status === 'RELEASING') return 'airing'
+    if (status === 'FINISHED') return 'finished'
     return 'upcoming'
   }
-  const statusLabel = (s?: string) => {
-    if (!s) return 'Unknown'
-    const l = s.toLowerCase()
-    if (l.includes('ongoing') || l.includes('airing')) return '● Ongoing'
-    if (l.includes('completed') || l.includes('finished')) return 'Selesai'
-    return s
+  const statusLabel = (status: string) => {
+    if (status === 'RELEASING') return '● Ongoing'
+    if (status === 'FINISHED') return 'Selesai'
+    if (status === 'NOT_YET_RELEASED') return 'Upcoming'
+    return status
   }
-  const dlBtnClass = (p: string) => {
-    const pl = p.toLowerCase()
-    if (pl.includes('gofile')) return 'ax-dl-btn gofile'
-    if (pl.includes('krakenfiles')) return 'ax-dl-btn krakenfiles'
-    return 'ax-dl-btn other'
-  }
+
+  const currentUrl = selectedAnime
+    ? activePlayer.getUrl(selectedAnime.titleRomaji || selectedAnime.title, selectedEp, selectedAnime.id)
+    : ''
 
   return (
     <>
       <style>{S}</style>
       <div className="ax-wrap">
 
-        {/* HOME */}
+        {/* ══════════ HOME ══════════ */}
         {view === 'home' && (
           <>
-            <div className="ax-header"><span className="ax-logo">✦ SAMEHADAKU</span></div>
+            <div className="ax-header">
+              <span className="ax-logo">✦ ANIME STREAM</span>
+            </div>
             <div className="ax-search-bar">
-              <input className="ax-search-input" placeholder="Cari anime sub indo..."
-                value={query} onChange={e => setQuery(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleSearch()} />
+              <input
+                className="ax-search-input"
+                placeholder="Cari anime... (One Piece, Naruto, dll)"
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleSearch()}
+              />
               <button className="ax-search-btn" onClick={handleSearch} disabled={searching || !query.trim()}>
                 {searching ? '...' : '🔍'}
               </button>
             </div>
             <div className="ax-scroll">
-              <div className="ax-section-label">🔥 TERBARU</div>
-              {homeLoading ? (
+              <div className="ax-section-label">🔥 TRENDING SEKARANG</div>
+              {trendLoading ? (
                 <div className="ax-loading" style={{ padding: '30px 0' }}>
-                  <div className="ax-spinner" /><div>Memuat anime...</div>
-                </div>
-              ) : homeList.length === 0 ? (
-                <div className="ax-empty">
-                  <div style={{ fontSize: 36 }}>🎌</div>
-                  <div>Gagal memuat daftar anime</div>
-                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.15)' }}>Coba cari manual di atas</div>
+                  <div className="ax-spinner" />
+                  <div>Memuat trending...</div>
                 </div>
               ) : (
                 <div className="ax-grid">
-                  {homeList.map((a, i) => (
-                    <div key={i} className="ax-card" onClick={() => handleSelectAnime(a)}>
+                  {trending.map(a => (
+                    <div key={a.id} className="ax-card" onClick={() => handleSelectAnime(a)}>
                       {a.thumbnail
                         ? <img src={a.thumbnail} alt="" className="ax-card-img" loading="lazy" />
-                        : <div style={{ width:'100%',height:'100%',background:'rgba(167,139,250,0.1)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:28 }}>🎌</div>
+                        : <div style={{ width: '100%', height: '100%', background: 'rgba(167,139,250,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>🎌</div>
                       }
                       <div className="ax-card-overlay" />
                       <div className="ax-card-info">
                         <div className="ax-card-title">{a.title}</div>
-                        {a.score && <span className="ax-card-score">★{a.score}</span>}
-                        {a.type  && <span className="ax-card-eps"> {a.type}</span>}
+                        <span className="ax-card-score">{a.score > 0 ? `★${a.score.toFixed(1)}` : ''}</span>
+                        <span className="ax-card-eps">{a.episodes ? `${a.episodes} ep` : ''}</span>
                       </div>
                     </div>
                   ))}
@@ -499,7 +575,7 @@ export default function AnimeStreamPanel({ isAdmin, userId }: Props) {
           </>
         )}
 
-        {/* RESULTS */}
+        {/* ══════════ RESULTS ══════════ */}
         {view === 'results' && (
           <>
             <div className="ax-header">
@@ -507,9 +583,13 @@ export default function AnimeStreamPanel({ isAdmin, userId }: Props) {
               <span className="ax-logo">HASIL PENCARIAN</span>
             </div>
             <div className="ax-search-bar">
-              <input className="ax-search-input" placeholder="Cari lagi..."
-                value={query} onChange={e => setQuery(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleSearch()} />
+              <input
+                className="ax-search-input"
+                placeholder="Cari lagi..."
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleSearch()}
+              />
               <button className="ax-search-btn" onClick={handleSearch} disabled={searching || !query.trim()}>
                 {searching ? '...' : '🔍'}
               </button>
@@ -525,23 +605,25 @@ export default function AnimeStreamPanel({ isAdmin, userId }: Props) {
                 </div>
               ) : (
                 <div className="ax-result-list">
-                  {results.map((a, i) => (
-                    <div key={i} className="ax-result-card" onClick={() => handleSelectAnime(a)}>
+                  {results.map(a => (
+                    <div key={a.id} className="ax-result-card" onClick={() => handleSelectAnime(a)}>
                       {a.thumbnail
                         ? <img src={a.thumbnail} alt="" className="ax-result-thumb" loading="lazy" />
-                        : <div className="ax-result-thumb" style={{ display:'flex',alignItems:'center',justifyContent:'center',fontSize:24 }}>🎌</div>
+                        : <div className="ax-result-thumb" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>🎌</div>
                       }
                       <div className="ax-result-body">
                         <div className="ax-result-title">{a.title}</div>
+                        {a.title !== a.titleRomaji && (
+                          <div className="ax-result-sub">{a.titleRomaji}</div>
+                        )}
                         <div className="ax-result-tags">
-                          {a.score  && <span className="ax-tag score">★ {a.score}</span>}
-                          {a.type   && <span className="ax-tag ep">{a.type}</span>}
-                          {a.status && <span className={`ax-status ${statusClass(a.status)}`}>{statusLabel(a.status)}</span>}
-                          {(a.genres || []).slice(0,2).map(g => <span key={g} className="ax-tag">{g}</span>)}
+                          {a.score > 0 && <span className="ax-tag score">★ {a.score.toFixed(1)}</span>}
+                          {a.episodes && <span className="ax-tag ep">{a.episodes} ep</span>}
+                          <span className={`ax-status ${statusClass(a.status)}`}>{statusLabel(a.status)}</span>
+                          {a.genres.slice(0, 2).map(g => <span key={g} className="ax-tag">{g}</span>)}
                         </div>
-                        {a.views && <div style={{ fontSize:10,color:'rgba(255,255,255,0.25)',marginTop:4 }}>👁 {a.views}</div>}
                       </div>
-                      <span style={{ color:'rgba(255,255,255,0.2)',fontSize:16,alignSelf:'center' }}>›</span>
+                      <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 16, alignSelf: 'center' }}>›</span>
                     </div>
                   ))}
                 </div>
@@ -550,158 +632,157 @@ export default function AnimeStreamPanel({ isAdmin, userId }: Props) {
           </>
         )}
 
-        {/* DETAIL */}
+        {/* ══════════ DETAIL ══════════ */}
         {view === 'detail' && selectedAnime && (
           <>
             <div className="ax-header">
               <button className="ax-back" onClick={() => setView(results.length > 0 ? 'results' : 'home')}>‹</button>
-              <span className="ax-logo" style={{ fontSize:11,maxWidth:200,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>
+              <span className="ax-logo" style={{ fontSize: 11, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {selectedAnime.title}
               </span>
             </div>
-            <div style={{ flex:1,overflow:'hidden',display:'flex',flexDirection:'column' }}>
-              <div style={{ flex:1,overflowY:'auto',scrollbarWidth:'none' }}>
-                {(detail?.thumbnail || selectedAnime.thumbnail)
-                  ? <img src={detail?.thumbnail || selectedAnime.thumbnail} alt="" className="ax-detail-banner" />
+            <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ flex: 1, overflowY: 'auto', scrollbarWidth: 'none' }}>
+                {/* Banner */}
+                {selectedAnime.banner
+                  ? <img src={selectedAnime.banner} alt="" className="ax-detail-banner" />
                   : <div className="ax-detail-banner-placeholder">🎌</div>
                 }
+                {/* Header */}
                 <div className="ax-detail-header">
-                  <img src={detail?.thumbnail || selectedAnime.thumbnail} alt="" className="ax-detail-thumb" />
-                  <div style={{ flex:1,paddingTop:8 }}>
-                    <div className="ax-detail-title">{detail?.title || selectedAnime.title}</div>
+                  <img src={selectedAnime.thumbnail} alt="" className="ax-detail-thumb" />
+                  <div style={{ flex: 1, paddingTop: 8 }}>
+                    <div className="ax-detail-title">{selectedAnime.title}</div>
+                    {selectedAnime.title !== selectedAnime.titleRomaji && (
+                      <div className="ax-detail-sub">{selectedAnime.titleRomaji}</div>
+                    )}
                     <div className="ax-detail-tags">
-                      {(detail?.rating || selectedAnime.score) && <span className="ax-tag score">★ {detail?.rating || selectedAnime.score}</span>}
-                      {detail?.details?.status && <span className={`ax-status ${statusClass(detail.details.status)}`}>{statusLabel(detail.details.status)}</span>}
-                      {detail?.details?.type     && <span className="ax-tag ep">{detail.details.type}</span>}
-                      {detail?.details?.episodes && <span className="ax-tag">{detail.details.episodes} ep</span>}
+                      {selectedAnime.score > 0 && <span className="ax-tag score">★ {selectedAnime.score.toFixed(1)}</span>}
+                      {selectedAnime.episodes && <span className="ax-tag ep">{selectedAnime.episodes} ep</span>}
+                      {selectedAnime.year && <span className="ax-tag">{selectedAnime.year}</span>}
+                      <span className={`ax-status ${statusClass(selectedAnime.status)}`}>{statusLabel(selectedAnime.status)}</span>
                     </div>
                   </div>
                 </div>
-                {(detail?.synopsis || selectedAnime.synopsis) && (
-                  <p className="ax-detail-desc">
-                    {(detail?.synopsis || selectedAnime.synopsis || '').replace(/\\n/g,' ').slice(0,220)}...
-                  </p>
+                {/* Desc */}
+                {selectedAnime.description && (
+                  <p className="ax-detail-desc">{selectedAnime.description}...</p>
                 )}
-                {(detail?.genres || selectedAnime.genres || []).length > 0 && (
-                  <div style={{ padding:'0 14px 8px',display:'flex',gap:5,flexWrap:'wrap' }}>
-                    {(detail?.genres || selectedAnime.genres || []).map(g => <span key={g} className="ax-tag">{g}</span>)}
-                  </div>
-                )}
+                {/* Episode Picker */}
                 <div className="ax-ep-section">
-                  <div className="ax-ep-label" style={{ marginTop:8 }}>
-                    🎬 DAFTAR EPISODE {detailLoading ? '...' : epList.length > 0 ? `(${epList.length})` : ''}
+                  <div className="ax-ep-label">🎬 PILIH EPISODE</div>
+                  <div className="ax-ep-grid">
+                    {Array.from({ length: epCount }, (_, i) => i + 1).map(ep => (
+                      <button
+                        key={ep}
+                        className={`ax-ep-btn${selectedEp === ep ? ' active' : ''}`}
+                        onClick={() => { setSelectedEp(ep); handleWatch(ep) }}
+                      >
+                        {ep}
+                      </button>
+                    ))}
                   </div>
-                  {detailLoading ? (
-                    <div className="ax-loading" style={{ padding:'20px 0' }}>
-                      <div className="ax-spinner" /><div>Memuat episode...</div>
-                    </div>
-                  ) : epList.length === 0 ? (
-                    <div style={{ padding:'10px 0',fontSize:12,color:'rgba(255,255,255,0.3)',textAlign:'center' }}>
-                      Daftar episode tidak tersedia
-                    </div>
-                  ) : (
-                    <div className="ax-ep-list">
-                      {epList.map((ep, i) => (
-                        <div key={i} className={`ax-ep-item${selectedEp?.url === ep.url ? ' active' : ''}`} onClick={() => handleWatch(ep)}>
-                          <div className="ax-ep-num">{i + 1}</div>
-                          <div className="ax-ep-title">{ep.title || `Episode ${i + 1}`}</div>
-                          {ep.date && <div className="ax-ep-date">{ep.date}</div>}
-                          <span style={{ color:'rgba(255,255,255,0.2)',fontSize:13 }}>▶</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
                 </div>
-                {epList.length > 0 && (
-                  <div style={{ padding:'14px 14px 30px' }}>
-                    <button className="ax-open-btn" onClick={() => handleWatch(epList[0])}>
-                      ▶ Tonton Episode 1
-                    </button>
+                {/* Genres */}
+                {selectedAnime.genres.length > 0 && (
+                  <div style={{ padding: '10px 14px 4px', display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                    {selectedAnime.genres.map(g => <span key={g} className="ax-tag">{g}</span>)}
                   </div>
                 )}
+                {/* Quick Watch button */}
+                <div style={{ padding: '12px 14px 30px' }}>
+                  <button className="ax-open-btn" onClick={() => handleWatch(selectedEp)}>
+                    ▶ Tonton Episode {selectedEp}
+                  </button>
+                </div>
               </div>
             </div>
           </>
         )}
 
-        {/* PLAYER */}
-        {view === 'player' && selectedAnime && selectedEp && (
+        {/* ══════════ PLAYER ══════════ */}
+        {view === 'player' && selectedAnime && (
           <>
             <div className="ax-header">
               <button className="ax-back" onClick={() => setView('detail')}>‹ Detail</button>
-              <span style={{ fontSize:11,color:'rgba(255,255,255,0.5)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',flex:1 }}>
-                {selectedAnime.title} · {selectedEp.title}
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                {selectedAnime.title} · Ep {selectedEp}
               </span>
             </div>
+
+            {/* Player Box */}
             <div className="ax-player-box">
-              {playerLoading ? (
-                <div className="ax-player-loading">
-                  <div className="ax-spinner" /><div>Memuat player...</div>
-                </div>
-              ) : embedUrl ? (
-                <iframe
-                  ref={iframeRef} src={embedUrl} allowFullScreen
-                  allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
-                  sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation"
-                  key={embedUrl}
-                  style={{ border:'none',width:'100%',height:'100%',display:'block',background:'#000' }}
-                />
-              ) : (
-                <div className="ax-player-loading">
-                  <div style={{ fontSize:32 }}>📥</div>
-                  <div style={{ textAlign:'center',padding:'0 20px',fontSize:12 }}>
-                    {showDownload ? 'Embed tidak tersedia — pakai link download di bawah' : 'Gagal memuat player'}
-                  </div>
-                </div>
-              )}
+              <iframe
+                ref={iframeRef}
+                src={currentUrl}
+                allowFullScreen
+                allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation"
+                key={`${activePlayer.id}-${selectedEp}`}
+                style={{ border: 'none', width: '100%', height: '100%', display: 'block', background: '#000' }}
+              />
             </div>
+
+            {/* Now Playing */}
             <div className="ax-now-playing">
-              <div className="ax-now-dot" />
-              <span>Samehadaku · {selectedEp.title}</span>
+              <div className="ax-now-dot" style={{ background: activePlayer.color }} />
+              <span>{activePlayer.name} · {selectedAnime.title} Ep {selectedEp}</span>
             </div>
+
+            {/* Controls */}
             <div className="ax-player-controls">
-              {embedUrl && <button className="ax-ctrl accent" onClick={handleFullscreen}>⛶ Fullscreen</button>}
-              {currentEpIdx > 0 && (
-                <button className="ax-ctrl dim" onClick={() => handleWatch(epList[currentEpIdx - 1])}>
-                  ‹ Ep {currentEpIdx}
-                </button>
-              )}
-              {currentEpIdx >= 0 && currentEpIdx < epList.length - 1 && (
-                <button className="ax-ctrl dim" onClick={() => handleWatch(epList[currentEpIdx + 1])}>
-                  Ep {currentEpIdx + 2} ›
-                </button>
-              )}
-              <button className="ax-ctrl green" onClick={() => window.open(selectedEp.url,'_blank','noopener,noreferrer')}>
-                🌐 Buka Browser
+              <button className="ax-ctrl accent" onClick={handleFullscreen}>⛶ Fullscreen</button>
+              <button className="ax-ctrl dim" onClick={() => { if (selectedEp > 1) setSelectedEp(e => e - 1) }}>
+                ‹ Ep {selectedEp > 1 ? selectedEp - 1 : '-'}
+              </button>
+              <button className="ax-ctrl dim" onClick={() => { if (selectedEp < epCount) setSelectedEp(e => e + 1) }}>
+                Ep {selectedEp < epCount ? selectedEp + 1 : '-'} ›
               </button>
             </div>
-            {showDownload && streamData?.downloadLinks && streamData.downloadLinks.length > 0 && (
-              <div style={{ flex:1,overflowY:'auto',scrollbarWidth:'none' }}>
-                <div className="ax-dl-section">
-                  <div className="ax-section-label" style={{ marginBottom:10 }}>📥 LINK DOWNLOAD</div>
-                  {streamData.downloadLinks.map((fmt, fi) => (
-                    <div key={fi}>
-                      <div className="ax-dl-format-label">{fmt.format}</div>
-                      {fmt.list?.map((q, qi) => (
-                        <div key={qi} className="ax-dl-quality-row">
-                          <span className="ax-dl-q-label">{q.quality}</span>
-                          {q.servers?.map((srv, si) => (
-                            <a key={si} href={srv.url} target="_blank" rel="noopener noreferrer" className={dlBtnClass(srv.provider)}>
-                              {srv.provider}
-                            </a>
-                          ))}
-                        </div>
-                      ))}
+
+            {/* Tip */}
+            <div className="ax-server-tip">
+              💡 Coba <b>VidSrc</b> dulu — paling lengkap. Kalau kosong, coba mirror lainnya. Anime baru / season baru mungkin belum tersedia di semua server.
+            </div>
+
+            {/* Server Picker */}
+            <div style={{ padding: '6px 14px 2px', fontSize: 10, fontWeight: 700, color: 'rgba(167,139,250,0.5)', letterSpacing: 1.5, flexShrink: 0 }}>
+              GANTI SERVER ({EMBED_PLAYERS.length} tersedia)
+            </div>
+            <div className="ax-server-scroll">
+              {EMBED_PLAYERS.map(player => {
+                const isActive = activePlayer.id === player.id
+                const subText =
+                  player.id === 'vidsrc' ? '⭐ Paling lengkap — coba ini dulu'
+                  : player.id === 'vidsrc2' ? 'Mirror VidSrc — fallback stabil'
+                  : player.id === 'vidsrc3' ? 'Mirror VidSrc — by MAL ID'
+                  : player.id === 'embedsu' ? 'Embed by MAL ID'
+                  : player.id === '2anime' ? 'Khusus anime embed'
+                  : player.id === 'anify' ? 'Embed by MAL ID'
+                  : 'Embed player'
+                return (
+                  <div
+                    key={player.id}
+                    className={`ax-server-card${isActive ? ' active' : ''}`}
+                    onClick={() => setActivePlayer(player)}
+                  >
+                    <div className="ax-server-icon" style={{ background: `${player.color}18` }}>
+                      {player.icon}
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            {!showDownload && (
-              <div className="ax-tip">
-                💡 Video dari <b>Samehadaku</b> — subtitle Indonesia. Kalau player tidak muncul, coba <b>Buka Browser</b>.
-              </div>
-            )}
+                    <div style={{ flex: 1 }}>
+                      <div className="ax-server-name">{player.name}</div>
+                      <div className="ax-server-sub">{subText}</div>
+                    </div>
+                    {isActive
+                      ? <span className="ax-server-check">✓</span>
+                      : <span className="ax-server-badge" style={{ color: player.color, borderColor: `${player.color}33`, background: `${player.color}12` }}>
+                          Pakai
+                        </span>
+                    }
+                  </div>
+                )
+              })}
+            </div>
           </>
         )}
 
