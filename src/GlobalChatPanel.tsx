@@ -119,21 +119,29 @@ const ELEMENT_EMOJI: Record<Element, string> = {
   Fire:'🔥', Water:'💧', Earth:'🌿', Wind:'🌪️', Dark:'🌑', Light:'✨', Thunder:'⚡', Ice:'❄️'
 }
 const MONSTERS = [
-  { name: 'Slime Biru',     emoji: '🟦', hp: 150,  atk: 8,  def: 2,  exp: 15,  gold: 8,   rank: 'F', drop: 'Lendir Slime' },
-  { name: 'Goblin',         emoji: '👺', hp: 220,  atk: 12, def: 4,  exp: 25,  gold: 15,  rank: 'F', drop: 'Telinga Goblin' },
-  { name: 'Wolf Hutan',     emoji: '🐺', hp: 300,  atk: 18, def: 6,  exp: 40,  gold: 22,  rank: 'E', drop: 'Taring Wolf' },
-  { name: 'Orc Prajurit',   emoji: '👹', hp: 450, atk: 24, def: 10, exp: 65,  gold: 35,  rank: 'E', drop: 'Baju Orc Rusak' },
-  { name: 'Undead Knight',  emoji: '💀', hp: 600, atk: 30, def: 15, exp: 90,  gold: 50,  rank: 'D', drop: 'Tulang Rune' },
-  { name: 'Dark Elf',       emoji: '🧝', hp: 520, atk: 35, def: 12, exp: 110, gold: 60,  rank: 'D', drop: 'Busur Gelap' },
-  { name: 'Ice Golem',      emoji: '🧊', hp: 800, atk: 28, def: 25, exp: 140, gold: 75,  rank: 'C', drop: 'Kristal Es' },
-  { name: 'Thunder Wyvern', emoji: '🦅', hp: 720, atk: 42, def: 18, exp: 170, gold: 90,  rank: 'C', drop: 'Sisik Petir' },
-  { name: 'Demon Samurai',  emoji: '👿', hp: 1000, atk: 50, def: 22, exp: 220, gold: 120, rank: 'B', drop: 'Katana Setan' },
-  { name: 'Ancient Lich',   emoji: '🦴', hp: 1200, atk: 60, def: 20, exp: 280, gold: 150, rank: 'B', drop: 'Mahkota Lich' },
-  { name: 'Fire Dragon',    emoji: '🐲', hp: 1800, atk: 75, def: 30, exp: 400, gold: 220, rank: 'A', drop: 'Sisik Naga Api' },
-  { name: 'Void Titan',     emoji: '🌌', hp: 2000, atk: 80, def: 35, exp: 500, gold: 280, rank: 'A', drop: 'Inti Kehampaan' },
-  { name: 'Abyss Lord',     emoji: '😈', hp: 2800, atk: 100,def: 45, exp: 700, gold: 400, rank: 'S', drop: 'Jiwa Jurang' },
-  { name: 'Celestial Beast',emoji: '🦁', hp: 3200, atk: 110,def: 50, exp: 900, gold: 500, rank: 'S', drop: 'Kristal Langit' },
-  { name: 'World Serpent',  emoji: '🐍', hp:4000, atk: 130,def: 55, exp:1200, gold: 700, rank: 'SS',drop: 'Sisik Dunia' },
+  // rank F — diperberat 2.5x HP, +heal ability
+  { name: 'Slime Biru',     emoji: '🟦', hp: 380,   atk: 10,  def: 3,  exp: 15,  gold: 8,   rank: 'F', drop: 'Lendir Slime',   canHeal: false, canShield: false },
+  { name: 'Goblin',         emoji: '👺', hp: 550,   atk: 15,  def: 6,  exp: 25,  gold: 15,  rank: 'F', drop: 'Telinga Goblin', canHeal: false, canShield: false },
+  // rank E
+  { name: 'Wolf Hutan',     emoji: '🐺', hp: 780,   atk: 22,  def: 8,  exp: 40,  gold: 22,  rank: 'E', drop: 'Taring Wolf',    canHeal: false, canShield: true  },
+  { name: 'Orc Prajurit',   emoji: '👹', hp: 1100,  atk: 28,  def: 13, exp: 65,  gold: 35,  rank: 'E', drop: 'Baju Orc Rusak', canHeal: false, canShield: true  },
+  // rank D
+  { name: 'Undead Knight',  emoji: '💀', hp: 1500,  atk: 35,  def: 18, exp: 90,  gold: 50,  rank: 'D', drop: 'Tulang Rune',    canHeal: true,  canShield: true  },
+  { name: 'Dark Elf',       emoji: '🧝', hp: 1350,  atk: 42,  def: 15, exp: 110, gold: 60,  rank: 'D', drop: 'Busur Gelap',    canHeal: true,  canShield: false },
+  // rank C
+  { name: 'Ice Golem',      emoji: '🧊', hp: 2200,  atk: 35,  def: 32, exp: 140, gold: 75,  rank: 'C', drop: 'Kristal Es',     canHeal: false, canShield: true  },
+  { name: 'Thunder Wyvern', emoji: '🦅', hp: 2000,  atk: 50,  def: 22, exp: 170, gold: 90,  rank: 'C', drop: 'Sisik Petir',    canHeal: true,  canShield: false },
+  // rank B
+  { name: 'Demon Samurai',  emoji: '👿', hp: 2800,  atk: 60,  def: 28, exp: 220, gold: 120, rank: 'B', drop: 'Katana Setan',   canHeal: true,  canShield: true  },
+  { name: 'Ancient Lich',   emoji: '🦴', hp: 3200,  atk: 72,  def: 25, exp: 280, gold: 150, rank: 'B', drop: 'Mahkota Lich',   canHeal: true,  canShield: true  },
+  // rank A
+  { name: 'Fire Dragon',    emoji: '🐲', hp: 5000,  atk: 88,  def: 38, exp: 400, gold: 220, rank: 'A', drop: 'Sisik Naga Api', canHeal: true,  canShield: true  },
+  { name: 'Void Titan',     emoji: '🌌', hp: 5800,  atk: 95,  def: 44, exp: 500, gold: 280, rank: 'A', drop: 'Inti Kehampaan', canHeal: true,  canShield: true  },
+  // rank S
+  { name: 'Abyss Lord',     emoji: '😈', hp: 8000,  atk: 120, def: 58, exp: 700, gold: 400, rank: 'S', drop: 'Jiwa Jurang',    canHeal: true,  canShield: true  },
+  { name: 'Celestial Beast',emoji: '🦁', hp: 9500,  atk: 135, def: 65, exp: 900, gold: 500, rank: 'S', drop: 'Kristal Langit', canHeal: true,  canShield: true  },
+  // rank SS
+  { name: 'World Serpent',  emoji: '🐍', hp: 13000, atk: 160, def: 75, exp: 1200,gold: 700, rank: 'SS',drop: 'Sisik Dunia',    canHeal: true,  canShield: true  },
 ]
 const QUESTS = [
   { id: 'q1', name: 'Pembersihan Hutan',     desc: 'Bunuh 5 monster rank F-E',    kills: 5,  ranks: ['F','E'],         expReward: 100, goldReward: 50,  itemReward: 'Pedang Besi' },
@@ -730,9 +738,11 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
   const [autoBattle, setAutoBattle] = useState(false)
   const autoBattleRef = useRef(false)
   const [battleState, setBattleState] = useState<{
-    monster: typeof MONSTERS[0]; monsterHp: number; playerHp: number; playerMp: number
-    log: {text:string;type:'dmg'|'heal'|'skill'|'info'}[]; phase: 'idle'|'player'|'enemy'|'result'
-    result?: 'win'|'lose'; loading: boolean
+    monster: typeof MONSTERS[0]; monsterHp: number; monsterMp: number
+    monsterShield: number; monsterShieldMax: number
+    playerHp: number; playerMp: number; playerShield: number; playerShieldMax: number
+    log: {text:string;type:'dmg'|'heal'|'skill'|'info'|'shield'}[]; phase: 'confirm'|'running'|'result'
+    result?: 'win'|'lose'; loading: boolean; turn: number
   } | null>(null)
   const [shopMsg, setShopMsg] = useState('')
   const [questMsg, setQuestMsg] = useState('')
@@ -1072,7 +1082,7 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
       () => rpgCharRef.current as (object & { gold?: number; level?: number }),
       getRpgDb,
       (msg, ok) => {
-        showToast(ok ? 'win' : 'info', msg, '')
+        showToast(ok ? 'success' : 'info', msg, '')
         // Update pending count setelah execute
         getPendingTransfers(user.uid).then(p => setPendingTransferCount(p.length))
       }
@@ -1309,7 +1319,7 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
           if (charForTransfer) {
             const count = await executePendingTransfers(
               user!.uid, charForTransfer.gold || 0, getRpgDb,
-              (msg, ok) => showToast(ok ? 'win' : 'info', msg, '')
+              (msg, ok) => showToast(ok ? 'success' : 'info', msg, '')
             )
             if (count > 0) {
               // Refresh gold dari Firebase setelah transfer
@@ -1910,10 +1920,12 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
     if (!rpgChar) return
     const m = { ...MONSTERS[mIdx] }
     const bs = {
-      monster: m, monsterHp: m.hp,
+      monster: m, monsterHp: m.hp, monsterMp: 80,
+      monsterShield: 0, monsterShieldMax: Math.floor(m.hp * 0.15),
       playerHp: rpgChar.hp, playerMp: rpgChar.mp,
+      playerShield: 0, playerShieldMax: Math.floor(rpgChar.maxHp * 0.2),
       log: [{ text: `⚔️ ${rpgChar.username} vs ${m.emoji} ${m.name}!`, type: 'info' as const }],
-      phase: 'player' as const, loading: false
+      phase: 'confirm' as const, loading: false, turn: 0
     }
     setBattleState(bs)
     setRpgView('battle')
@@ -1941,214 +1953,242 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
     if (user) deleteDoc(doc(getRpgDb(user!.uid), 'activeBattles', user.uid)).catch(() => {})
   }
 
-  const doAttack = async (type: 'normal'|'skill', skillIdx?: number) => {
-    if (!battleState || !rpgChar || battleState.phase !== 'player') return
-    const bs = { ...battleState }
-    bs.loading = true
-    setBattleAnim('player-atk')
-    setTimeout(() => setBattleAnim(''), 400)
-
-    let dmg = 0
-    let logEntry: {text:string;type:'dmg'|'heal'|'skill'|'info'} = { text: '', type: 'dmg' }
-
-    // Apply active food buffs to ATK and DEF
-    const nowTs = Date.now()
-    const activeFoodBuffs = (rpgChar.foodBuffs || []).filter(b => b.expiresAt > nowTs)
-    const buffedAtk = activeFoodBuffs.filter(b => b.stat === 'atk').reduce((acc, b) => acc + b.value, rpgChar.atk)
-    const buffedDef = activeFoodBuffs.filter(b => b.stat === 'def').reduce((acc, b) => acc + b.value, rpgChar.def)
-
-    if (type === 'normal') {
-      dmg = Math.max(1, buffedAtk - bs.monster.def + Math.floor(Math.random() * 8) - 4)
-      const crit = Math.random() * 100 < rpgChar.luck
-      if (crit) { dmg = Math.floor(dmg * 1.8); logEntry = { text: `💥 KRITIS! Kamu menyerang ${bs.monster.name} -${dmg} HP!`, type: 'dmg' } }
-      else logEntry = { text: `⚔️ Kamu menyerang ${bs.monster.name} -${dmg} HP`, type: 'dmg' }
-    } else if (type === 'skill' && skillIdx !== undefined) {
-      const skill = rpgChar.skills[skillIdx]
-      const mpCost = 15 + skillIdx * 5
-      if (bs.playerMp < mpCost) {
-        bs.log.push({ text: `💙 MP tidak cukup! Butuh ${mpCost} MP, kamu punya ${bs.playerMp} MP.`, type: 'info' })
-        setBattleState({ ...bs, loading: false })
-        return
-      }
-      bs.playerMp -= mpCost
-      dmg = Math.max(1, Math.floor(buffedAtk * (1.5 + skillIdx * 0.3)) - bs.monster.def + Math.floor(Math.random() * 12))
-      logEntry = { text: `✨ ${skill}! Kamu menyerang ${bs.monster.name} -${dmg} HP [MP -${mpCost}]`, type: 'skill' }
-    }
-
-    bs.monsterHp = Math.max(0, bs.monsterHp - dmg)
-    bs.log.push(logEntry)
-
-    if (bs.monsterHp <= 0) {
-      bs.phase = 'result'; bs.result = 'win'
-      const expGain = bs.monster.exp; const goldGain = bs.monster.gold
-      bs.log.push({ text: `🏆 Menang! +${expGain} EXP +${goldGain} Gold | Drop: ${bs.monster.drop}`, type: 'info' })
-      setBattleState({ ...bs, loading: false })
-      clearActiveBattle()
-      showToast('win', '🏆 MENANG!', `+${expGain} EXP · +${goldGain} Gold · Drop: ${bs.monster.drop}`)
-
-      const newExp = rpgChar.exp + expGain
-      const newGold = rpgChar.gold + goldGain
-      const newLevel = getLevel(newExp)
-      const newKills = rpgChar.kills + 1
-      const inv = [...rpgChar.inventory, bs.monster.drop]
-      const lvlUp = newLevel > rpgChar.level
-
-      let newQuestProgress = rpgChar.questProgress
-      let newActiveQuest = rpgChar.activeQuest
-      if (rpgChar.activeQuest) {
-        const quest = QUESTS.find(q => q.id === rpgChar.activeQuest)
-        if (quest && quest.ranks.includes(bs.monster.rank)) {
-          newQuestProgress = Math.min(newQuestProgress + 1, quest.kills)
-          if (newQuestProgress >= quest.kills) {
-            bs.log.push({ text: `✅ Quest "${quest.name}" SELESAI! Pergi ke Quest Board untuk klaim reward!`, type: 'info' })
-            // Tidak auto-clear — user harus klaim manual di Quest Board
-          }
-        }
-      }
-
-      const updates: Partial<RpgChar> = {
-        exp: newExp, gold: newGold, level: newLevel, kills: newKills,
-        inventory: inv.slice(-20), activeQuest: newActiveQuest, questProgress: newQuestProgress,
-        hp: Math.min(bs.playerHp, rpgChar.maxHp + (lvlUp ? 20 : 0)),
-        mp: Math.min(bs.playerMp, rpgChar.maxMp + (lvlUp ? 15 : 0)),
-        wins: (rpgChar.wins || 0) + 1
-      }
-      // Track daily mission progress for battle
-      const todayStr = new Date().toDateString()
-      const dm = rpgChar.dailyMissions?.date === todayStr ? rpgChar.dailyMissions : { date: todayStr, completed: [], claimed: [] }
-      if (!dm.completed.includes('dm_battle') && newKills % 3 === 0) {
-        dm.completed = [...dm.completed, 'dm_battle']
-        showToast('info', '📋 Daily Done!', 'Mission "Berburu Monster" selesai! Klaim di Daily Missions.')
-      }
-      updates.dailyMissions = dm
-      if (lvlUp) {
-        updates.maxHp = rpgChar.maxHp + 20; updates.maxMp = rpgChar.maxMp + 15
-        updates.atk = rpgChar.atk + 3; updates.def = rpgChar.def + 2
-        const titleIdx = Math.min(Math.floor(newLevel / 5), TITLES.length - 1)
-        updates.titles = [TITLES[titleIdx]]
-        showToast('info', '🎉 LEVEL UP!', `${rpgChar.username} naik ke Level ${newLevel}!`)
-      }
-      await updateRpgChar(updates)
-      return
-    }
-
-    // Enemy turn
-    bs.phase = 'enemy'
-    setBattleState({ ...bs })
-    updateActiveBattle({ ...bs })
-    setTimeout(() => {
-      setBattleAnim('enemy-atk')
-      setTimeout(() => setBattleAnim(''), 400)
-      // Rank-based armor penetration: high-rank monsters bypass a portion of player defense
-      const rankPen: Record<string,number> = { F:0, E:0.1, D:0.2, C:0.35, B:0.5, A:0.65, S:0.8, SS:1.0 }
-      const pen = rankPen[bs.monster.rank] || 0
-      const effectiveDef = Math.floor(buffedDef * (1 - pen))
-      const baseEDmg = bs.monster.atk - effectiveDef + Math.floor(Math.random() * 6) - 3
-      // Minimum damage = 15% of monster ATK regardless of defense
-      const minDmg = Math.max(1, Math.floor(bs.monster.atk * 0.15))
-      const eDmg = Math.max(minDmg, baseEDmg)
-      bs.playerHp = Math.max(0, bs.playerHp - eDmg)
-      bs.log.push({ text: `${bs.monster.emoji} ${bs.monster.name} menyerang kamu -${eDmg} HP!`, type: 'dmg' })
-
-      if (bs.playerHp <= 0) {
-        bs.phase = 'result'; bs.result = 'lose'
-        bs.log.push({ text: '💀 Kamu kalah! HP dipulihkan sebagian.', type: 'info' })
-        clearActiveBattle()
-        showToast('lose', '💀 KALAH!', `${bs.monster.name} mengalahkanmu. HP dipulihkan 30%.`)
-        updateDoc(doc(getRpgDb(user!.uid), 'rpgChars', user!.uid), {
-          hp: Math.floor(rpgChar.maxHp * 0.3),
-          mp: Math.floor(rpgChar.maxMp * 0.5), // restore some MP too
-          losses: (rpgChar.losses || 0) + 1
-        })
-      } else {
-        bs.phase = 'player'
-        updateActiveBattle({ ...bs, loading: false })
-      }
-      setBattleState({ ...bs, loading: false })
-    }, 700)
-  }
-  // Keep ref updated so auto-battle interval always calls fresh doAttack
-
-  const doFlee = () => {
-    if (!battleState) return
-    const success = Math.random() < 0.6
-    if (success) {
-      clearActiveBattle()
-      setBattleState(null); setRpgView('dashboard')
-    } else {
-      const eDmg = Math.max(1, battleState.monster.atk - (rpgChar?.def || 0))
-      const newHp = Math.max(1, battleState.playerHp - eDmg)
-      const newBs = { ...battleState, playerHp: newHp, log: [...battleState.log, { text: `🏃 Gagal kabur! ${battleState.monster.name} menyerang -${eDmg} HP`, type: 'dmg' as const }] }
-      setBattleState(newBs)
-      updateActiveBattle(newBs)
-    }
-  }
-
-  const doHeal = () => {
+  // ── RPG: Konfirmasi START / MUNDUR ───────────────────────────
+  const confirmBattle = () => {
     if (!battleState || !rpgChar) return
-    const mpCost = 20
-    if (battleState.playerMp < mpCost) {
-      const newBs = { ...battleState, log: [...battleState.log, { text: `💙 MP tidak cukup untuk Heal! Butuh ${mpCost} MP.`, type: 'info' as const }] }
-      setBattleState(newBs)
-      return
-    }
-    const healAmt = Math.floor(rpgChar.maxHp * 0.25)
-    const newHp = Math.min(rpgChar.maxHp, battleState.playerHp + healAmt)
-    const newBs = {
-      ...battleState, playerHp: newHp, playerMp: battleState.playerMp - mpCost,
-      log: [...battleState.log, { text: `💚 Kamu memulihkan ${healAmt} HP [MP -${mpCost}]`, type: 'heal' as const }]
-    }
-    setBattleState(newBs)
-    updateActiveBattle(newBs)
+    setBattleState(prev => prev ? { ...prev, phase: 'running' } : prev)
+    // Mulai loop AI setelah confirm
   }
 
-  const endBattle = async () => {
-    if (!rpgChar) return
-    // Stop auto-battle
-    setAutoBattle(false)
-    autoBattleRef.current = false
-    try {
-      if (battleState) {
-        await updateDoc(doc(getRpgDb(user!.uid), 'rpgChars', user!.uid), {
-          hp: Math.max(1, battleState.playerHp),
-          mp: battleState.playerMp
-        })
-      }
-    } catch (e) { console.error('endBattle save error:', e) }
+  const cancelBattle = () => {
     clearActiveBattle()
     setBattleState(null)
     setRpgView('dashboard')
   }
 
+  const endBattle = async () => {
+    if (!rpgChar) return
+    setAutoBattle(false)
+    autoBattleRef.current = false
+    if (battleState && battleState.phase !== 'result') {
+      try {
+        await updateDoc(doc(getRpgDb(user!.uid), 'rpgChars', user!.uid), {
+          hp: Math.max(1, battleState.playerHp),
+          mp: battleState.playerMp
+        })
+      } catch (e) { console.error('endBattle save error:', e) }
+      clearActiveBattle()
+    }
+    setBattleState(null)
+    setRpgView('dashboard')
+  }
+
+  // ── AI Battle Engine — satu tick per 900ms ────────────────────
+  const battleStateRef = useRef<typeof battleState>(battleState)
+  useEffect(() => { battleStateRef.current = battleState }, [battleState])
+  const rpgCharRef2 = useRef(rpgChar)
+  useEffect(() => { rpgCharRef2.current = rpgChar }, [rpgChar])
+
+  useEffect(() => {
+    if (!battleState || battleState.phase !== 'running') return
+    const interval = setInterval(() => {
+      const bs = battleStateRef.current
+      const char = rpgCharRef2.current
+      if (!bs || bs.phase !== 'running' || !char) return
+
+      // Clone state untuk tick ini
+      let { monsterHp, monsterMp, monsterShield, playerHp, playerMp, playerShield, turn } = bs
+      const newLog: typeof bs.log = []
+      const nowTs = Date.now()
+      const activeFoodBuffs = (char.foodBuffs || []).filter(b => b.expiresAt > nowTs)
+      const buffedAtk = activeFoodBuffs.filter(b => b.stat === 'atk').reduce((acc, b) => acc + b.value, char.atk)
+      const buffedDef = activeFoodBuffs.filter(b => b.stat === 'def').reduce((acc, b) => acc + b.value, char.def)
+      turn++
+
+      // ── PLAYER TURN (AI cerdas) ─────────────────────────────
+      // Prioritas: kalau HP < 30% → heal / shield
+      //            kalau MP cukup dan musuh tidak bershield → pakai skill
+      //            kalau musuh punya shield tinggi → normal attack dulu
+      //            else normal attack
+      const playerHpPct = playerHp / char.maxHp
+      const playerUsedAction = (() => {
+        // Heal dulu kalau hp kritis & ada MP
+        if (playerHpPct < 0.30 && playerMp >= 25) {
+          const healAmt = Math.floor(char.maxHp * 0.28)
+          playerHp = Math.min(char.maxHp, playerHp + healAmt)
+          playerMp = Math.max(0, playerMp - 25)
+          newLog.push({ text: `💚 [Player] Pulihkan ${healAmt} HP! [MP -25]`, type: 'heal' })
+          return 'heal'
+        }
+        // Pasang shield kalau HP < 55% dan belum ada shield
+        if (playerHpPct < 0.55 && playerShield === 0 && playerMp >= 20 && Math.random() < 0.5) {
+          playerShield = bs.playerShieldMax
+          playerMp = Math.max(0, playerMp - 20)
+          newLog.push({ text: `🛡️ [Player] Pasang Perisai! [Shield +${bs.playerShieldMax}, MP -20]`, type: 'shield' })
+          return 'shield'
+        }
+        // Skill attack kalau MP cukup dan musuh tidak punya shield penuh
+        if (playerMp >= 18 && (monsterShield < bs.monsterShieldMax * 0.5 || Math.random() < 0.3)) {
+          const skillIdx = Math.floor(Math.random() * Math.min(char.skills.length, 4))
+          const mpCost = 15 + skillIdx * 5
+          if (playerMp >= mpCost) {
+            const crit = Math.random() * 100 < char.luck * 1.5
+            let dmg = Math.max(2, Math.floor(buffedAtk * (1.4 + skillIdx * 0.2)) - Math.floor(bs.monster.def * 0.6) + Math.floor(Math.random() * 10) - 5)
+            if (crit) dmg = Math.floor(dmg * 2)
+            // Damage ke shield dulu
+            if (monsterShield > 0) {
+              const absorbedByShield = Math.min(monsterShield, Math.floor(dmg * 0.7))
+              monsterShield = Math.max(0, monsterShield - absorbedByShield)
+              dmg = Math.max(1, dmg - absorbedByShield)
+              newLog.push({ text: `💥 [Skill: ${char.skills[skillIdx]}]${crit?' CRIT!':''} Tembus Shield! -${absorbedByShield}🛡️ -${dmg}HP`, type: 'skill' })
+            } else {
+              newLog.push({ text: `✨ [Skill: ${char.skills[skillIdx]}]${crit?' CRIT!':''} ${bs.monster.name} -${dmg} HP!`, type: 'skill' })
+            }
+            monsterHp = Math.max(0, monsterHp - dmg)
+            playerMp = Math.max(0, playerMp - mpCost)
+            return 'skill'
+          }
+        }
+        // Normal attack
+        const crit = Math.random() * 100 < char.luck
+        let dmg = Math.max(1, buffedAtk - Math.floor(bs.monster.def * 0.8) + Math.floor(Math.random() * 8) - 4)
+        if (crit) dmg = Math.floor(dmg * 1.8)
+        if (monsterShield > 0) {
+          const absorbed = Math.min(monsterShield, Math.floor(dmg * 0.5))
+          monsterShield = Math.max(0, monsterShield - absorbed)
+          dmg = Math.max(1, dmg - absorbed)
+          newLog.push({ text: `⚔️${crit?' KRITIS!':''} [Player] Tembus Shield! -${absorbed}🛡️ -${dmg}HP ke ${bs.monster.name}`, type: 'dmg' })
+        } else {
+          newLog.push({ text: `⚔️${crit?' KRITIS!':''} [Player] ${bs.monster.name} -${dmg} HP!`, type: 'dmg' })
+        }
+        monsterHp = Math.max(0, monsterHp - dmg)
+        // Regen MP sedikit tiap serangan
+        playerMp = Math.min(char.maxMp, playerMp + 5)
+        return 'normal'
+      })()
+
+      // ── CEK MENANG ──────────────────────────────────────────
+      if (monsterHp <= 0) {
+        const expGain = bs.monster.exp; const goldGain = bs.monster.gold
+        newLog.push({ text: `🏆 Menang! +${expGain} EXP +${goldGain} Gold | Drop: ${bs.monster.drop}`, type: 'info' })
+        setBattleAnim('player-atk')
+        setTimeout(() => setBattleAnim(''), 400)
+        setBattleState(prev => prev ? {
+          ...prev, monsterHp: 0, playerHp, playerMp, playerShield, monsterShield,
+          log: [...prev.log, ...newLog].slice(-30),
+          phase: 'result', result: 'win', turn, loading: false
+        } : prev)
+        clearActiveBattle()
+        showToast('win', '🏆 MENANG!', `+${expGain} EXP · +${goldGain} Gold`)
+        const newExp = char.exp + expGain; const newGold = char.gold + goldGain
+        const newLevel = getLevel(newExp); const newKills = char.kills + 1
+        const inv = [...char.inventory, bs.monster.drop]
+        const lvlUp = newLevel > char.level
+        let newQP = char.questProgress; let newAQ = char.activeQuest
+        if (char.activeQuest) {
+          const quest = QUESTS.find(q => q.id === char.activeQuest)
+          if (quest && quest.ranks.includes(bs.monster.rank)) {
+            newQP = Math.min(newQP + 1, quest.kills)
+            if (newQP >= quest.kills) newLog.push({ text: `✅ Quest selesai! Klaim di Quest Board.`, type: 'info' })
+          }
+        }
+        const updates: Partial<RpgChar> = {
+          exp: newExp, gold: newGold, level: newLevel, kills: newKills,
+          inventory: inv.slice(-20), activeQuest: newAQ, questProgress: newQP,
+          hp: Math.min(playerHp, char.maxHp + (lvlUp ? 20 : 0)),
+          mp: Math.min(playerMp, char.maxMp + (lvlUp ? 15 : 0)),
+          wins: (char.wins || 0) + 1
+        }
+        const todayStr = new Date().toDateString()
+        const dm = char.dailyMissions?.date === todayStr ? char.dailyMissions : { date: todayStr, completed: [], claimed: [] }
+        if (!dm.completed.includes('dm_battle') && newKills % 3 === 0) dm.completed = [...dm.completed, 'dm_battle']
+        updates.dailyMissions = dm
+        if (lvlUp) {
+          updates.maxHp = char.maxHp + 20; updates.maxMp = char.maxMp + 15
+          updates.atk = char.atk + 3; updates.def = char.def + 2
+          const titleIdx = Math.min(Math.floor(newLevel / 5), TITLES.length - 1)
+          updates.titles = [TITLES[titleIdx]]
+          showToast('info', '🎉 LEVEL UP!', `Naik ke Level ${newLevel}!`)
+        }
+        updateRpgChar(updates)
+        return
+      }
+
+      // ── MONSTER TURN (AI musuh cerdas) ───────────────────────
+      const monsterHpPct = monsterHp / bs.monster.hp
+      const canHeal = bs.monster.canHeal
+      const canShield = bs.monster.canShield
+
+      // Heal kalau HP < 25% dan punya kemampuan
+      if (canHeal && monsterHpPct < 0.25 && monsterMp >= 30 && Math.random() < 0.6) {
+        const healAmt = Math.floor(bs.monster.hp * 0.12)
+        monsterHp = Math.min(bs.monster.hp, monsterHp + healAmt)
+        monsterMp = Math.max(0, monsterMp - 30)
+        newLog.push({ text: `💜 [${bs.monster.name}] Regenerasi +${healAmt} HP!`, type: 'heal' })
+      }
+      // Shield kalau HP < 50% dan belum ada shield
+      else if (canShield && monsterShield === 0 && monsterHpPct < 0.50 && monsterMp >= 20 && Math.random() < 0.4) {
+        monsterShield = bs.monsterShieldMax
+        monsterMp = Math.max(0, monsterMp - 20)
+        newLog.push({ text: `🔴 [${bs.monster.name}] Pasang Perisai! [Shield +${bs.monsterShieldMax}]`, type: 'shield' })
+      }
+      // Serangan musuh
+      else {
+        const rankPen: Record<string,number> = { F:0, E:0.1, D:0.2, C:0.35, B:0.5, A:0.65, S:0.8, SS:1.0 }
+        const pen = rankPen[bs.monster.rank] || 0
+        const effectiveDef = Math.floor(buffedDef * (1 - pen))
+        const minDmg = Math.max(1, Math.floor(bs.monster.atk * 0.15))
+        const baseDmg = bs.monster.atk - effectiveDef + Math.floor(Math.random() * 8) - 4
+        let eDmg = Math.max(minDmg, baseDmg)
+        // Terkadang musuh pakai serangan kuat (20% chance)
+        const powerAtk = Math.random() < 0.2
+        if (powerAtk) { eDmg = Math.floor(eDmg * 1.6); }
+        // Kurangi shield player dulu
+        if (playerShield > 0) {
+          const absorbed = Math.min(playerShield, Math.floor(eDmg * 0.8))
+          playerShield = Math.max(0, playerShield - absorbed)
+          eDmg = Math.max(1, eDmg - absorbed)
+          newLog.push({ text: `${powerAtk?'🔥 Serangan Kuat!':''}🗡️ [${bs.monster.name}] Tembus Shield! -${absorbed}🛡️ -${eDmg}HP`, type: 'dmg' })
+        } else {
+          newLog.push({ text: `${powerAtk?'🔥 Serangan Kuat! ':''} 🗡️ [${bs.monster.name}] Menyerang -${eDmg} HP!`, type: 'dmg' })
+        }
+        playerHp = Math.max(0, playerHp - eDmg)
+        monsterMp = Math.min(100, monsterMp + 8)
+      }
+
+      setBattleAnim(turn % 2 === 0 ? 'player-atk' : 'enemy-atk')
+      setTimeout(() => setBattleAnim(''), 400)
+
+      // ── CEK KALAH ──────────────────────────────────────────
+      if (playerHp <= 0) {
+        newLog.push({ text: `💀 Kamu kalah! HP dipulihkan sebagian.`, type: 'info' })
+        setBattleState(prev => prev ? {
+          ...prev, playerHp: 0, monsterHp, monsterMp, monsterShield, playerShield,
+          log: [...prev.log, ...newLog].slice(-30),
+          phase: 'result', result: 'lose', turn, loading: false
+        } : prev)
+        clearActiveBattle()
+        showToast('lose', '💀 KALAH!', `${bs.monster.name} mengalahkanmu.`)
+        updateRpgChar({
+          hp: Math.floor(char.maxHp * 0.3),
+          mp: Math.floor(char.maxMp * 0.5),
+          losses: (char.losses || 0) + 1
+        })
+        return
+      }
+
+      setBattleState(prev => prev ? {
+        ...prev, monsterHp, monsterMp, monsterShield, playerHp, playerMp, playerShield, turn,
+        log: [...prev.log, ...newLog].slice(-30), loading: false
+      } : prev)
+    }, 900)
+    return () => clearInterval(interval)
+  }, [battleState?.phase])
+
   // ── RPG: Auto-Battle ──────────────────────────────────────────
   useEffect(() => { autoBattleRef.current = autoBattle }, [autoBattle])
 
-  // Auto-battle: use refs to always read fresh battleState inside interval
-  const battleStateRef = useRef<typeof battleState>(battleState)
-  useEffect(() => { battleStateRef.current = battleState }, [battleState])
-
-  // Store doAttack in a ref so interval always calls the latest version
-  const doAttackRef = useRef<(type: 'normal'|'skill', idx?: number) => void>(() => {})
-  doAttackRef.current = doAttack
-
-  useEffect(() => {
-    if (!autoBattle) return
-    const interval = setInterval(() => {
-      if (!autoBattleRef.current) return
-      const bs = battleStateRef.current
-      if (!bs || bs.phase !== 'player' || !!bs.result || bs.loading) return
-      // Auto-use skill if MP available, else normal attack
-      if (bs.playerMp >= 15) {
-        doAttackRef.current('skill', 0)
-      } else {
-        doAttackRef.current('normal')
-      }
-    }, 1000)
-    return () => clearInterval(interval)
-  }, [autoBattle])
-
-  // Auto-restart battle after win (monitored inside the auto-battle interval above via ref)
-  // Separate effect to catch win state and restart
+  // Auto-restart battle after win
   const autoWinHandled = useRef(false)
   useEffect(() => {
     if (!autoBattle || !battleState) { autoWinHandled.current = false; return }
@@ -2156,12 +2196,9 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
       autoWinHandled.current = true
       const char = rpgChar
       if (!char || battleState.playerHp <= 0) return
-      setTimeout(async () => {
+      setTimeout(() => {
         if (!autoBattleRef.current) return
-        await updateDoc(doc(getRpgDb(user!.uid), 'rpgChars', user!.uid), {
-          hp: Math.max(1, battleState.playerHp),
-          mp: battleState.playerMp
-        })
+        // HP/MP sudah tersimpan otomatis via updateRpgChar saat menang — tidak perlu write lagi
         const mIdx = MONSTERS.indexOf(battleState.monster)
         if (mIdx >= 0) startBattle(mIdx)
       }, 800)
@@ -2298,8 +2335,13 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
 
   // ── RPG: Shop ─────────────────────────────────────────────────
   const buyItem = async (item: typeof ITEMS_SHOP[0]) => {
-    if (!rpgChar || rpgChar.gold < item.price) { setShopMsg('Gold tidak cukup!'); return }
-    const updates: Partial<RpgChar> = { gold: rpgChar.gold - item.price }
+    if (!rpgChar) return
+    // Harga naik 50% per 50 level, max 2x di level 100+
+    const lvl = rpgChar.level || 1
+    const priceMult = lvl >= 100 ? 2.0 : lvl >= 50 ? 1.5 : 1.0
+    const finalPrice = Math.round(item.price * priceMult)
+    if (rpgChar.gold < finalPrice) { setShopMsg(`Gold tidak cukup! (Harga: ${finalPrice})`); return }
+    const updates: Partial<RpgChar> = { gold: rpgChar.gold - finalPrice }
     const efx = item.effect.split(',')
     efx.forEach(e => {
       const [k, v] = e.split('+')
@@ -2317,7 +2359,8 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
       updates.inventory = [...(rpgChar.inventory || []), item.name].slice(-20)
     }
     await updateRpgChar(updates)
-    setShopMsg(`✅ ${item.name} berhasil dibeli!`)
+    const multLabel = priceMult > 1 ? ` (Harga Lv${lvl}+: x${priceMult})` : ''
+    setShopMsg(`✅ ${item.name} berhasil dibeli!${multLabel}`)
     setTimeout(() => setShopMsg(''), 3000)
   }
 
@@ -4245,9 +4288,8 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
                 {rpgChar && rpgView === 'battle' && battleState && (
                   <RpgBattle
                     char={rpgChar} bs={battleState} anim={battleAnim}
-                    onAttack={() => doAttack('normal')}
-                    onSkill={(i) => doAttack('skill', i)}
-                    onHeal={doHeal} onFlee={doFlee} onEnd={endBattle}
+                    onConfirm={() => setBattleState(prev => prev ? { ...prev, phase: 'running' } : prev)}
+                    onCancel={endBattle} onEnd={endBattle}
                     autoBattle={autoBattle} onToggleAuto={() => { setAutoBattle(v => !v); autoBattleRef.current = !autoBattleRef.current }}
                   />
                 )}
@@ -6095,173 +6137,543 @@ function RpgMonsterSelect({ char, onSelect, onBack }: { char: RpgChar; onSelect:
 }
 
 
-function RpgBattle({ char, bs, anim, onAttack, onSkill, onHeal, onFlee, onEnd, autoBattle, onToggleAuto }: {
-  char: RpgChar; bs: any; anim: string
-  onAttack: () => void; onSkill: (i: number) => void; onHeal: () => void; onFlee: () => void; onEnd: () => void
+// ── BATTLE CSS ANIMATIONS ─────────────────────────────────────
+const BATTLE_REDESIGN_CSS = `
+@keyframes floatDmg {
+  0%   { transform:translateY(0) scale(1);   opacity:1; }
+  40%  { transform:translateY(-28px) scale(1.1); opacity:1; }
+  100% { transform:translateY(-65px) scale(0.6); opacity:0; }
+}
+@keyframes slashP {
+  0%   { transform:rotate(-38deg) translateX(-120%) scaleY(0.5); opacity:0; }
+  15%  { opacity:1; }
+  100% { transform:rotate(-38deg) translateX(80%) scaleY(0.5); opacity:0; }
+}
+@keyframes slashE {
+  0%   { transform:rotate(38deg) translateX(120%) scaleY(0.5); opacity:0; }
+  15%  { opacity:1; }
+  100% { transform:rotate(38deg) translateX(-80%) scaleY(0.5); opacity:0; }
+}
+@keyframes slashFlash { 0% { opacity:0.6; } 100% { opacity:0; } }
+@keyframes battleShake {
+  0%,100% { transform:translate(0,0); }
+  15%  { transform:translate(-4px,3px); }
+  30%  { transform:translate(4px,-3px); }
+  50%  { transform:translate(-3px,4px); }
+  70%  { transform:translate(3px,-2px); }
+  85%  { transform:translate(-2px,1px); }
+}
+@keyframes battleBigShake {
+  0%,100% { transform:translate(0,0); }
+  10%  { transform:translate(-6px,5px); }
+  25%  { transform:translate(6px,-5px); }
+  40%  { transform:translate(-5px,6px); }
+  60%  { transform:translate(5px,-4px); }
+  80%  { transform:translate(-3px,3px); }
+}
+@keyframes comboIn {
+  0%   { transform:scale(0.2) rotate(-12deg); opacity:0; }
+  55%  { transform:scale(1.25) rotate(4deg); opacity:1; }
+  75%  { transform:scale(0.95) rotate(-1deg); }
+  100% { transform:scale(1) rotate(0); opacity:1; }
+}
+@keyframes comboPulse {
+  0%,100% { text-shadow:0 0 10px #ffd60a; }
+  50%      { text-shadow:0 0 28px #ffd60a, 0 0 50px #ffd60a; }
+}
+@keyframes rageFlicker {
+  0%,100% { filter:drop-shadow(0 0 12px rgba(255,55,95,0.8)); }
+  50%     { filter:drop-shadow(0 0 30px rgba(255,55,95,1)) brightness(1.25) saturate(1.5); }
+}
+@keyframes vsGlitch {
+  0%,85%,100% { opacity:1; transform:scale(1) skewX(0); }
+  87%  { opacity:0.2; transform:scale(1.08) skewX(-6deg); color:#ff375f; }
+  89%  { opacity:1; transform:scale(0.92); }
+  91%  { opacity:0.5; transform:skewX(4deg); color:#4fc3f7; }
+  93%  { opacity:1; }
+}
+@keyframes scanMove { from { transform:translateY(-100%); } to { transform:translateY(200%); } }
+@keyframes critBurst {
+  0%   { transform:scale(0.5); opacity:1; }
+  100% { transform:scale(2.5); opacity:0; }
+}
+@keyframes battleLogIn {
+  from { transform:translateX(-8px); opacity:0; }
+  to   { transform:translateX(0); opacity:1; }
+}
+@keyframes battleWinPop {
+  0%   { transform:scale(0.3) rotate(-10deg); opacity:0; }
+  50%  { transform:scale(1.2) rotate(3deg); }
+  75%  { transform:scale(0.95); }
+  100% { transform:scale(1) rotate(0); opacity:1; }
+}
+@keyframes battleAutoPulse {
+  0%,100% { box-shadow:0 0 0 0 rgba(255,214,0,0.5); }
+  50%      { box-shadow:0 0 0 5px rgba(255,214,0,0); }
+}
+@keyframes battleHpFlash  { 0% { background:rgba(255,55,95,0.3); } 100% { background:transparent; } }
+@keyframes battleHealFlash { 0% { background:rgba(48,209,88,0.2); } 100% { background:transparent; } }
+@keyframes battleIdleFloat { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-4px); } }
+@keyframes battleGlitch {
+  0%,90%,100% { clip-path:none; transform:none; }
+  91%  { clip-path:polygon(0 20%,100% 20%,100% 35%,0 35%); transform:translateX(-4px); }
+  93%  { clip-path:polygon(0 60%,100% 60%,100% 78%,0 78%); transform:translateX(4px); color:#ff375f; }
+  95%  { clip-path:none; transform:none; }
+}
+@keyframes battlePopIn {
+  0%   { transform:scale(0.4) translateY(20px); opacity:0; }
+  65%  { transform:scale(1.12) translateY(-4px); }
+  100% { transform:scale(1) translateY(0); opacity:1; }
+}
+`
+
+// ── FLOATING DAMAGE NUMBER ────────────────────────────────────
+function BattleFloatNum({ value, type, left, top }: { value: number|string; type: string; left: string; top: string }) {
+  const C: Record<string,string> = { dmg:'#ff375f', heal:'#30d158', shield:'#4fc3f7', skill:'#ffd60a', crit:'#ff9500', mp:'#7dd3fc' }
+  const sz = type==='crit' ? 22 : type==='skill' ? 18 : 15
+  const col = C[type] || '#fff'
+  return (
+    <div style={{
+      position:'absolute', left, top, pointerEvents:'none', zIndex:200,
+      color: col, fontWeight:900, fontSize:sz, fontFamily:'monospace',
+      textShadow:`0 0 10px ${col},0 0 20px ${col}`,
+      animation:'floatDmg 1.3s ease-out forwards', whiteSpace:'nowrap'
+    }}>
+      {type==='crit' ? `💥 ${value}!` : type==='heal' ? `💚+${value}` : type==='shield' ? `🛡️ Shield!` : `-${value}`}
+    </div>
+  )
+}
+
+// ── SLASH EFFECT ──────────────────────────────────────────────
+function BattleSlashFX({ slashKey, attacker }: { slashKey: number|null; attacker: string }) {
+  if (!slashKey) return null
+  const isPlayer = attacker === 'player'
+  const color1 = isPlayer ? '#ffd60a' : '#ff375f'
+  const color2 = isPlayer ? '#c8f500' : '#ff8080'
+  const animName = isPlayer ? 'slashP' : 'slashE'
+  return (
+    <div key={slashKey} style={{ position:'absolute', inset:0, pointerEvents:'none', zIndex:60, overflow:'hidden' }}>
+      <div style={{ position:'absolute', width:'220%', height:4, left:'-60%', top:'38%',
+        background:`linear-gradient(90deg,transparent,${color1} 40%,#fff 50%,${color1} 60%,transparent)`,
+        animation:`${animName} 0.4s ease-out forwards`,
+        boxShadow:`0 0 12px ${color1},0 0 24px ${color1}66` }}/>
+      <div style={{ position:'absolute', width:'220%', height:2, left:'-60%', top:'43%',
+        background:`linear-gradient(90deg,transparent,${color2},transparent)`,
+        animation:`${animName} 0.4s ease-out 0.06s forwards`, opacity:0.7 }}/>
+      <div style={{ position:'absolute', inset:0,
+        background: isPlayer ? 'rgba(255,214,0,0.06)' : 'rgba(255,55,95,0.08)',
+        animation:'slashFlash 0.25s ease-out forwards' }}/>
+    </div>
+  )
+}
+
+// ── CRIT BURST RING ───────────────────────────────────────────
+function BattleCritRing({ active, side }: { active: boolean; side: string }) {
+  if (!active) return null
+  return (
+    <div style={{
+      position:'absolute',
+      [side==='monster' ? 'right' : 'left']: '20%', top:'15%',
+      width:60, height:60, borderRadius:'50%',
+      border:'3px solid #ffd60a',
+      animation:'critBurst 0.5s ease-out forwards',
+      pointerEvents:'none', zIndex:70
+    }}/>
+  )
+}
+
+// ── BATTLE STAT BAR ───────────────────────────────────────────
+function BattleBar({ pct, color, height=8, glow=false }: { pct: number; color: string; height?: number; glow?: boolean }) {
+  return (
+    <div style={{ background:'rgba(255,255,255,0.06)', borderRadius:3, overflow:'hidden', height }}>
+      <div style={{
+        height:'100%', width:`${Math.max(0, pct)}%`,
+        background:`linear-gradient(90deg,${color},${color}cc)`,
+        transition:'width 0.5s cubic-bezier(.4,0,.2,1)', borderRadius:3,
+        boxShadow: glow && pct > 0 ? `0 0 6px ${color}` : 'none'
+      }}/>
+    </div>
+  )
+}
+
+// ── REDESIGNED RPGBATTLE ──────────────────────────────────────
+function RpgBattle({ char, bs, onConfirm, onCancel, onEnd, autoBattle, onToggleAuto }: {
+  char: RpgChar; bs: any
+  onConfirm: () => void; onCancel: () => void; onEnd: () => void
   autoBattle?: boolean; onToggleAuto?: () => void
 }) {
   const logRef = useRef<HTMLDivElement>(null)
+  const floatCounter = useRef(0)
+  const prevLogLen = useRef(0)
+
+  const [combo, setCombo]         = useState(0)
+  const [floats, setFloats]       = useState<any[]>([])
+  const [slashKey, setSlashKey]   = useState<number|null>(null)
+  const [slashSide, setSlashSide] = useState('player')
+  const [shaking, setShaking]     = useState('')
+  const [critRing, setCritRing]   = useState<string|null>(null)
+  const [flashPanel, setFlashPanel] = useState('')
+
   useEffect(() => { logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: 'smooth' }) }, [bs.log])
 
-  const pHpPct = Math.max(0, (bs.playerHp / char.maxHp) * 100)
-  const mHpPct = Math.max(0, (bs.monsterHp / bs.monster.hp) * 100)
-  const isPlayerTurn = bs.phase === 'player' && !bs.result
-  const isResult = !!bs.result
-  const rankColor: Record<string,string> = { F:'#9ca3af',E:'#6ee7b7',D:'#60a5fa',C:'#a78bfa',B:'#f472b6',A:'#fb923c',S:'#fbbf24',SS:'#f9a8d4' }
+  // ── Visual FX helpers ──
+  const addFloat = useCallback((value: number|string, type: string, side: string) => {
+    const id = ++floatCounter.current
+    const leftBase = side === 'monster' ? 58 : 8
+    const left = `${leftBase + Math.random() * 12}%`
+    const top  = `${20 + Math.random() * 15}%`
+    setFloats(f => [...f.slice(-8), { id, value, type, left, top }])
+    setTimeout(() => setFloats(f => f.filter(x => x.id !== id)), 1400)
+  }, [])
+
+  const triggerSlash = useCallback((side: string) => {
+    const key = Date.now() + Math.random()
+    setSlashKey(key as any); setSlashSide(side)
+    setTimeout(() => setSlashKey(null), 420)
+  }, [])
+
+  const triggerShake = useCallback((intensity = 'light') => {
+    setShaking(intensity)
+    setTimeout(() => setShaking(''), intensity === 'big' ? 600 : 380)
+  }, [])
+
+  const triggerCrit = useCallback((side: string) => {
+    setCritRing(side); setTimeout(() => setCritRing(null), 520)
+  }, [])
+
+  const triggerFlash = useCallback((type: string) => {
+    setFlashPanel(type); setTimeout(() => setFlashPanel(''), 300)
+  }, [])
+
+  // ── Trigger visual FX from battle log changes ──
+  useEffect(() => {
+    if (!bs?.log?.length) return
+    if (bs.log.length <= prevLogLen.current) { prevLogLen.current = bs.log.length; return }
+    const newEntries = bs.log.slice(prevLogLen.current)
+    prevLogLen.current = bs.log.length
+    newEntries.forEach((entry: any) => {
+      const nums = entry.text.match(/\d+/)
+      const val = nums ? parseInt(nums[0]) : 10
+      const isCrit = entry.text.includes('KRITIS') || entry.text.includes('CRIT')
+      if (entry.type === 'dmg' || entry.type === 'skill') {
+        const isMonsterAtk = entry.text.startsWith('🗡️') || entry.text.startsWith('🔥')
+        if (!isMonsterAtk) {
+          triggerSlash('player')
+          addFloat(val, isCrit ? 'crit' : entry.type === 'skill' ? 'skill' : 'dmg', 'monster')
+          if (isCrit) { triggerCrit('monster'); triggerShake('big') } else triggerShake('light')
+          setCombo(c => c + 1)
+        } else {
+          triggerSlash('enemy')
+          addFloat(val, isCrit ? 'crit' : 'dmg', 'player')
+          triggerFlash('player-hit')
+          if (isCrit) triggerShake('big'); else triggerShake('light')
+          setCombo(0)
+        }
+      } else if (entry.type === 'heal') {
+        const isPlayerHeal = entry.text.includes(char.username)
+        addFloat(val, 'heal', isPlayerHeal ? 'player' : 'monster')
+        triggerFlash('heal'); setCombo(0)
+      } else if (entry.type === 'shield') {
+        const isPlayerShield = entry.text.includes(char.username)
+        addFloat(0, 'shield', isPlayerShield ? 'player' : 'monster'); setCombo(0)
+      }
+    })
+  }, [bs?.log?.length])
+
+  // Reset combo when battle resets
+  useEffect(() => { if (bs?.phase === 'confirm') { setCombo(0); setFloats([]) } }, [bs?.phase])
+
+  const pHpPct  = Math.max(0, (bs.playerHp / char.maxHp) * 100)
+  const mHpPct  = Math.max(0, (bs.monsterHp / bs.monster.hp) * 100)
+  const pShPct  = bs.playerShieldMax > 0 ? Math.max(0, (bs.playerShield / bs.playerShieldMax) * 100) : 0
+  const mShPct  = bs.monsterShieldMax > 0 ? Math.max(0, (bs.monsterShield / bs.monsterShieldMax) * 100) : 0
+  const pMpPct  = Math.max(0, (bs.playerMp / char.maxMp) * 100)
+  const isResult  = bs.phase === 'result'
+  const isConfirm = bs.phase === 'confirm'
+  const isRunning = bs.phase === 'running'
+  const mIsRage   = mHpPct < 30 && mHpPct > 0 && isRunning
+  const RANK_COLOR: Record<string,string> = { F:'#9ca3af',E:'#6ee7b7',D:'#60a5fa',C:'#a78bfa',B:'#f472b6',A:'#fb923c',S:'#fbbf24',SS:'#f9a8d4' }
+  const LOG_COLOR:  Record<string,string> = { dmg:'#ff6b6b', heal:'#30d158', skill:'#ffd60a', shield:'#4fc3f7', info:'rgba(255,255,255,0.45)' }
   const hpColor = pHpPct > 60 ? '#30d158' : pHpPct > 30 ? '#ffd60a' : '#ff375f'
+  const rankCol = RANK_COLOR[bs.monster.rank] || '#fff'
 
-  // Sword tilt: player-atk → tilt right, enemy-atk → tilt left
-  const swordStyle: React.CSSProperties = {
-    fontSize: 28,
-    transition: 'transform .35s cubic-bezier(.34,1.56,.64,1), filter .35s',
-    transform: anim === 'player-atk' ? 'rotate(40deg) scale(1.25)' : anim === 'enemy-atk' ? 'rotate(-40deg) scale(1.25)' : 'rotate(0deg) scale(1)',
-    filter: anim === 'player-atk' ? 'drop-shadow(0 0 8px #ffd60a)' : anim === 'enemy-atk' ? 'drop-shadow(0 0 8px #ff375f)' : 'drop-shadow(0 0 4px rgba(255,255,255,0.2))',
-    display: 'inline-block',
-    userSelect: 'none',
-  }
+  const bgGrad = (() => {
+    if (isResult && bs.result === 'win')  return 'radial-gradient(ellipse at top,#0d2000 0%,#0a0a0f 60%)'
+    if (isResult && bs.result === 'lose') return 'radial-gradient(ellipse at top,#200000 0%,#0a0a0f 60%)'
+    if (pHpPct < 25) return 'radial-gradient(ellipse at bottom-left,#200005 0%,#0a0a0f 70%)'
+    if (mHpPct < 25) return 'radial-gradient(ellipse at bottom-right,#200005 0%,#0a0a0f 70%)'
+    return 'radial-gradient(ellipse at top,#0a0014 0%,#060610 50%,#0a0a0f 100%)'
+  })()
 
+  // ── CONFIRM SCREEN ────────────────────────────────────────────
+  if (isConfirm) return (
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', background:'#060610', overflow:'hidden', position:'relative' }}>
+      <style>{BATTLE_REDESIGN_CSS}</style>
+      <div style={{ position:'absolute', inset:0, backgroundImage:'linear-gradient(rgba(255,255,255,0.015) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.015) 1px,transparent 1px)', backgroundSize:'40px 40px', pointerEvents:'none' }}/>
+      <div style={{ position:'absolute', top:0, left:0, right:0, height:2, background:`linear-gradient(90deg,transparent,${rankCol},transparent)` }}/>
+
+      <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'16px 20px 20px', gap:16 }}>
+        {/* Monster */}
+        <div style={{ textAlign:'center', animation:'battleIdleFloat 3s ease-in-out infinite' }}>
+          <div style={{ fontSize:72, filter:`drop-shadow(0 0 20px ${rankCol})`, marginBottom:8 }}>{bs.monster.emoji}</div>
+          <div style={{ fontSize:20, fontWeight:900, color:'#fff', letterSpacing:2, fontFamily:'monospace' }}>{bs.monster.name}</div>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8, marginTop:6 }}>
+            <span style={{ background:`${rankCol}22`, color:rankCol, border:`1px solid ${rankCol}66`, fontSize:11, fontWeight:800, padding:'2px 10px', borderRadius:4, fontFamily:'monospace', letterSpacing:1 }}>RANK {bs.monster.rank}</span>
+            {bs.monster.canHeal   && <span style={{ background:'rgba(147,51,234,0.15)', color:'#a855f7', border:'1px solid rgba(147,51,234,0.3)', fontSize:10, padding:'2px 8px', borderRadius:4, fontWeight:700 }}>💜 HEAL</span>}
+            {bs.monster.canShield && <span style={{ background:'rgba(239,68,68,0.15)', color:'#f87171', border:'1px solid rgba(239,68,68,0.3)', fontSize:10, padding:'2px 8px', borderRadius:4, fontWeight:700 }}>🔴 SHIELD</span>}
+          </div>
+        </div>
+
+        {/* Stats */}
+        <div style={{ width:'100%', background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:12, padding:'12px 16px' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8, marginBottom:10 }}>
+            {([['❤️ HP', bs.monster.hp.toLocaleString(), '#ff375f'],['⚔️ ATK', bs.monster.atk, '#fb923c'],['🛡️ DEF', bs.monster.def, '#60a5fa']] as [string,any,string][]).map(([label,val,color]) => (
+              <div key={label} style={{ textAlign:'center', background:`${color}10`, border:`1px solid ${color}22`, borderRadius:8, padding:'6px 4px' }}>
+                <div style={{ fontSize:9, color:'rgba(255,255,255,0.35)', fontFamily:'monospace', marginBottom:2 }}>{label}</div>
+                <div style={{ fontSize:13, fontWeight:900, color, fontFamily:'monospace' }}>{val}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize:11, color:'rgba(255,255,255,0.3)', textAlign:'center', borderTop:'1px solid rgba(255,255,255,0.06)', paddingTop:8 }}>
+            🎁 {bs.monster.drop} &nbsp;·&nbsp; +{bs.monster.exp} EXP &nbsp;·&nbsp; +{bs.monster.gold} Gold
+          </div>
+        </div>
+
+        {/* Auto note */}
+        <div style={{ background:'rgba(255,214,0,0.05)', border:'1px solid rgba(255,214,0,0.2)', borderRadius:10, padding:'10px 14px', width:'100%', textAlign:'center' }}>
+          <div style={{ fontSize:11, color:'rgba(255,214,0,0.9)', lineHeight:1.7, fontFamily:'monospace' }}>
+            ⚡ FULL AUTO AI BATTLE<br/>
+            <span style={{ color:'rgba(255,255,255,0.4)', fontSize:10 }}>Player & musuh akan heal, shield, dan skill secara cerdas</span>
+          </div>
+        </div>
+
+        {/* Buttons */}
+        <div style={{ display:'flex', flexDirection:'column', gap:8, width:'100%' }}>
+          <button onClick={onConfirm} style={{ width:'100%', padding:'14px 0',
+            background:'linear-gradient(135deg,rgba(255,55,95,0.25),rgba(255,55,95,0.1))',
+            border:'1px solid rgba(255,55,95,0.5)', borderRadius:10, color:'#fff',
+            fontSize:15, fontWeight:900, cursor:'pointer', fontFamily:'monospace',
+            letterSpacing:2, boxShadow:'0 0 20px rgba(255,55,95,0.2)' }}>
+            ▶ &nbsp; MULAI PERTARUNGAN
+          </button>
+          <button onClick={onCancel} style={{ width:'100%', padding:'10px 0',
+            background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.12)',
+            borderRadius:10, color:'rgba(255,255,255,0.5)', fontSize:13, fontWeight:700,
+            cursor:'pointer', fontFamily:'monospace', letterSpacing:1 }}>
+            ← &nbsp; MUNDUR
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+
+  // ── BATTLE SCREEN ─────────────────────────────────────────────
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%', background:'#0a0a0f', position:'relative', overflow:'hidden' }} className="gc2-fadein">
-      {/* Scanline BG */}
-      <div style={{ position:'absolute', inset:0, backgroundImage:'repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(255,255,255,0.012) 2px,rgba(255,255,255,0.012) 4px)', pointerEvents:'none', zIndex:0 }}/>
+    <div style={{
+      display:'flex', flexDirection:'column', height:'100%',
+      background: bgGrad, position:'relative', overflow:'hidden',
+      animation: shaking === 'big' ? 'battleBigShake 0.5s ease-out' : shaking === 'light' ? 'battleShake 0.35s ease-out' : 'none'
+    }}>
+      <style>{BATTLE_REDESIGN_CSS}</style>
 
-      {/* Header bar */}
-      <div style={{ background:'linear-gradient(135deg,rgba(255,55,95,0.15),rgba(10,10,20,0.9))', borderBottom:'1px solid rgba(255,55,95,0.2)', padding:'8px 14px', display:'flex', alignItems:'center', justifyContent:'space-between', position:'relative', zIndex:1 }}>
+      {/* Scanline */}
+      <div style={{ position:'absolute', inset:0, pointerEvents:'none', zIndex:1, overflow:'hidden', opacity:0.05 }}>
+        <div style={{ position:'absolute', left:0, right:0, height:'40%', background:'linear-gradient(transparent,rgba(255,255,255,0.15),transparent)', animation:'scanMove 4s linear infinite' }}/>
+      </div>
+
+      {/* Grid bg */}
+      <div style={{ position:'absolute', inset:0, backgroundImage:'linear-gradient(rgba(255,255,255,0.012) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.012) 1px,transparent 1px)', backgroundSize:'32px 32px', pointerEvents:'none', zIndex:0 }}/>
+
+      {/* Slash FX */}
+      <BattleSlashFX slashKey={slashKey} attacker={slashSide} />
+
+      {/* Panel flash */}
+      {flashPanel && (
+        <div style={{ position:'absolute', inset:0, zIndex:55, pointerEvents:'none',
+          background: flashPanel === 'player-hit' ? 'rgba(255,55,95,0.12)' : 'rgba(48,209,88,0.08)',
+          animation:`${flashPanel === 'player-hit' ? 'battleHpFlash' : 'battleHealFlash'} 0.3s ease-out forwards` }}/>
+      )}
+
+      {/* Floating numbers */}
+      {floats.map((f: any) => <BattleFloatNum key={f.id} {...f} />)}
+
+      {/* Crit rings */}
+      <BattleCritRing active={critRing === 'monster'} side="monster" />
+      <BattleCritRing active={critRing === 'player'}  side="player" />
+
+      {/* ── HEADER ── */}
+      <div style={{ position:'relative', zIndex:10, background:'rgba(0,0,0,0.6)', borderBottom:'1px solid rgba(255,255,255,0.08)', padding:'7px 12px', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-          <span style={{ fontFamily:'monospace', fontSize:10, color:'rgba(255,55,95,0.8)', letterSpacing:2, fontWeight:700 }}>COMBAT</span>
-          <span style={{ background:'rgba(255,55,95,0.15)', border:'1px solid rgba(255,55,95,0.3)', color: rankColor[bs.monster.rank] || '#fff', fontSize:10, fontWeight:700, padding:'1px 6px', borderRadius:3 }}>
-            {bs.monster.rank}
-          </span>
+          <span style={{ fontFamily:'monospace', fontSize:9, color:'rgba(255,55,95,0.7)', letterSpacing:3, fontWeight:700 }}>COMBAT</span>
+          <span style={{ background:`${rankCol}18`, color:rankCol, border:`1px solid ${rankCol}44`, fontSize:9, fontWeight:800, padding:'1px 6px', borderRadius:3, fontFamily:'monospace' }}>RANK {bs.monster.rank}</span>
+          {isRunning && <span style={{ fontSize:9, color:'rgba(255,214,0,0.6)', fontFamily:'monospace' }}>TURN {bs.turn||0}</span>}
         </div>
         <div style={{ display:'flex', gap:6, alignItems:'center' }}>
-          {/* Kembali always available */}
-          <button onClick={onEnd} style={{ background:'rgba(255,255,255,0.07)', border:'1px solid rgba(255,255,255,0.15)', color:'rgba(255,255,255,0.7)', borderRadius:6, padding:'3px 10px', fontSize:11, fontWeight:700, cursor:'pointer' }}>
-            ← Kembali
+          <button onClick={onEnd} style={{ background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.12)', color:'rgba(255,255,255,0.6)', borderRadius:6, padding:'3px 10px', fontSize:10, fontWeight:700, cursor:'pointer', fontFamily:'monospace' }}>
+            {isResult ? '← KEMBALI' : '← KABUR'}
           </button>
-          <button onClick={onToggleAuto} style={{
-            background: autoBattle ? 'rgba(255,214,0,0.15)' : 'rgba(255,255,255,0.06)',
-            border: autoBattle ? '1px solid rgba(255,214,0,0.5)' : '1px solid rgba(255,255,255,0.12)',
-            color: autoBattle ? '#ffd600' : 'rgba(255,255,255,0.4)',
-            borderRadius:6, padding:'3px 10px', fontSize:11, fontWeight:700, cursor:'pointer',
-            animation: autoBattle ? 'autoPulse 1.5s ease-in-out infinite' : 'none',
-            transition:'all .2s'
-          }}>
-            {autoBattle ? '⚡ AUTO ON' : '⚡ AUTO OFF'}
-          </button>
+          {!isResult && (
+            <button onClick={onToggleAuto} style={{
+              background: autoBattle ? 'rgba(255,214,0,0.15)' : 'rgba(255,255,255,0.05)',
+              border: autoBattle ? '1px solid rgba(255,214,0,0.6)' : '1px solid rgba(255,255,255,0.1)',
+              color: autoBattle ? '#ffd60a' : 'rgba(255,255,255,0.35)',
+              borderRadius:6, padding:'3px 10px', fontSize:10, fontWeight:700, cursor:'pointer', fontFamily:'monospace',
+              animation: autoBattle ? 'battleAutoPulse 1.5s infinite' : 'none'
+            }}>
+              ⚡ AUTO {autoBattle ? 'ON' : 'OFF'}
+            </button>
+          )}
         </div>
       </div>
 
-      {/* ── ARENA: side-by-side bars with sword center ── */}
-      <div style={{ padding:'12px 14px 8px', position:'relative', zIndex:1, flex:'0 0 auto' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-          {/* Player side */}
-          <div style={{ flex:1 }}>
-            <div className={anim === 'player-atk' ? 'battle-anim-player' : ''} style={{ fontSize:32, textAlign:'center', marginBottom:4, filter:`drop-shadow(0 0 10px rgba(0,122,255,0.5))` }}>
-              {RPG_CLASSES[char.class].emoji}
+      {/* ── ARENA HP BARS ── */}
+      <div style={{ position:'relative', zIndex:10, padding:'10px 12px 6px', flexShrink:0 }}>
+
+        {/* Combo counter */}
+        {combo >= 2 && isRunning && (
+          <div style={{ position:'absolute', top:8, left:'50%', transform:'translateX(-50%)', zIndex:20, textAlign:'center', animation:'comboIn 0.4s cubic-bezier(.34,1.56,.64,1)' }}>
+            <div style={{ fontFamily:'monospace', fontWeight:900, fontSize:combo>=10?22:18, color:'#ffd60a', animation:'comboPulse 0.8s infinite', letterSpacing:1 }}>{combo} HIT!</div>
+            <div style={{ fontSize:8, color:'rgba(255,214,0,0.5)', letterSpacing:2, marginTop:-2 }}>COMBO</div>
+          </div>
+        )}
+
+        <div style={{ display:'flex', gap:8, alignItems:'stretch' }}>
+
+          {/* ── PLAYER CARD ── */}
+          <div style={{ flex:1, display:'flex', flexDirection:'column', gap:4, padding:'10px 10px 8px',
+            background:'rgba(0,100,255,0.06)', border:'1px solid rgba(0,100,255,0.15)', borderRadius:10,
+            animation: flashPanel === 'player-hit' ? 'battleHpFlash 0.3s ease-out' : undefined }}>
+            <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:4 }}>
+              <div style={{ fontSize:26, filter:'drop-shadow(0 0 8px rgba(0,122,255,0.6))' }}>{RPG_CLASSES[char.class].emoji}</div>
+              <div>
+                <div style={{ fontSize:10, fontWeight:800, color:'rgba(255,255,255,0.8)', fontFamily:'monospace' }}>{char.username}</div>
+                <div style={{ fontSize:8, color:'rgba(255,255,255,0.3)', fontFamily:'monospace' }}>{char.class.toUpperCase()}</div>
+              </div>
             </div>
-            <div style={{ fontSize:10, fontWeight:700, color:'rgba(255,255,255,0.7)', textAlign:'center', marginBottom:3, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{char.username}</div>
-            {/* HP bar */}
-            <div style={{ background:'rgba(255,255,255,0.06)', borderRadius:4, overflow:'hidden', height:8, marginBottom:2 }}>
-              <div style={{ height:'100%', width:`${pHpPct}%`, background:`linear-gradient(90deg,${hpColor},${hpColor}99)`, transition:'width .5s', borderRadius:4 }}/>
+            <div>
+              <div style={{ display:'flex', justifyContent:'space-between', fontSize:8, fontFamily:'monospace', marginBottom:2 }}>
+                <span style={{ color:hpColor, fontWeight:700 }}>HP</span><span style={{ color:hpColor }}>{bs.playerHp}</span>
+              </div>
+              <BattleBar pct={pHpPct} color={hpColor} height={7} glow={pHpPct<30} />
             </div>
-            {/* MP bar */}
-            <div style={{ background:'rgba(255,255,255,0.06)', borderRadius:4, overflow:'hidden', height:5, marginBottom:2 }}>
-              <div style={{ height:'100%', width:`${(bs.playerMp/char.maxMp)*100}%`, background:'linear-gradient(90deg,#007aff,#5ac8fa)', transition:'width .5s', borderRadius:4 }}/>
-            </div>
-            <div style={{ display:'flex', justifyContent:'space-between', fontSize:9, fontFamily:'monospace' }}>
-              <span style={{ color:hpColor }}>❤️ {bs.playerHp}</span>
-              <span style={{ color:'#5ac8fa' }}>💙 {bs.playerMp}</span>
+            {bs.playerShieldMax > 0 && (
+              <div>
+                <div style={{ display:'flex', justifyContent:'space-between', fontSize:8, fontFamily:'monospace', marginBottom:2 }}>
+                  <span style={{ color:'#4fc3f7' }}>🛡️</span><span style={{ color:'#4fc3f7' }}>{bs.playerShield}</span>
+                </div>
+                <BattleBar pct={pShPct} color='#4fc3f7' height={4} glow={pShPct>0} />
+              </div>
+            )}
+            <div>
+              <div style={{ display:'flex', justifyContent:'space-between', fontSize:8, fontFamily:'monospace', marginBottom:2 }}>
+                <span style={{ color:'#5ac8fa' }}>MP</span><span style={{ color:'#5ac8fa' }}>{bs.playerMp}</span>
+              </div>
+              <BattleBar pct={pMpPct} color='#5ac8fa' height={4} />
             </div>
           </div>
 
-          {/* Center sword icon */}
-          <div style={{ flexShrink:0, width:44, textAlign:'center' }}>
-            <div style={swordStyle}>⚔️</div>
-            <div style={{ fontSize:8, color:'rgba(255,255,255,0.2)', fontFamily:'monospace', marginTop:2, letterSpacing:1 }}>VS</div>
+          {/* ── CENTER VS ── */}
+          <div style={{ flexShrink:0, width:36, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:4 }}>
+            <div style={{ fontSize:18, animation:'vsGlitch 5s infinite', fontWeight:900, fontFamily:'monospace', color:'rgba(255,255,255,0.7)' }}>⚔️</div>
+            <div style={{ fontSize:8, fontFamily:'monospace', letterSpacing:2, color:'rgba(255,255,255,0.2)', fontWeight:700 }}>VS</div>
           </div>
 
-          {/* Monster side */}
-          <div style={{ flex:1 }}>
-            <div className={anim === 'enemy-atk' ? 'battle-anim-enemy' : ''} style={{ fontSize:32, textAlign:'center', marginBottom:4, filter:'drop-shadow(0 0 12px rgba(255,55,95,0.6))' }}>
-              {bs.monster.emoji}
+          {/* ── MONSTER CARD ── */}
+          <div style={{ flex:1, display:'flex', flexDirection:'column', gap:4, padding:'10px 10px 8px',
+            background: mIsRage ? 'rgba(255,55,95,0.12)' : 'rgba(255,55,95,0.06)',
+            border: `1px solid ${mIsRage ? 'rgba(255,55,95,0.4)' : 'rgba(255,55,95,0.15)'}`,
+            borderRadius:10,
+            animation: mIsRage ? 'rageFlicker 1.2s infinite' : undefined }}>
+            <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:4, justifyContent:'flex-end' }}>
+              <div style={{ textAlign:'right' }}>
+                <div style={{ fontSize:10, fontWeight:800, color:'rgba(255,255,255,0.8)', fontFamily:'monospace', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:80 }}>{bs.monster.name}</div>
+                <div style={{ fontSize:8, color: mIsRage ? '#ff375f' : 'rgba(255,255,255,0.3)', fontFamily:'monospace', fontWeight: mIsRage ? 700 : 400 }}>
+                  {mIsRage ? '💢 RAGE!' : `RANK ${bs.monster.rank}`}
+                </div>
+              </div>
+              <div style={{ fontSize:26, animation: mIsRage ? 'rageFlicker 0.8s infinite' : 'battleIdleFloat 2.5s ease-in-out infinite',
+                filter:`drop-shadow(0 0 ${mIsRage ? '18px rgba(255,55,95,1)' : '10px rgba(255,55,95,0.5)'})` }}>
+                {bs.monster.emoji}
+              </div>
             </div>
-            <div style={{ fontSize:10, fontWeight:700, color:'rgba(255,255,255,0.7)', textAlign:'center', marginBottom:3, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{bs.monster.name}</div>
-            {/* Monster HP bar */}
-            <div style={{ background:'rgba(255,255,255,0.06)', borderRadius:4, overflow:'hidden', height:8, marginBottom:2 }}>
-              <div style={{ height:'100%', width:`${mHpPct}%`, background:'linear-gradient(90deg,#ff375f,#ff9f0a)', transition:'width .5s', borderRadius:4, boxShadow:'0 0 6px rgba(255,55,95,0.5)' }}/>
+            <div>
+              <div style={{ display:'flex', justifyContent:'space-between', fontSize:8, fontFamily:'monospace', marginBottom:2 }}>
+                <span style={{ color:'#ff375f', fontWeight:700 }}>HP</span><span style={{ color:'#ff375f88' }}>{bs.monsterHp}/{bs.monster.hp}</span>
+              </div>
+              <BattleBar pct={mHpPct} color={mIsRage ? '#ff375f' : '#ff6b6b'} height={7} glow={mIsRage} />
             </div>
-            <div style={{ height:5, marginBottom:2 }}/>
-            <div style={{ display:'flex', justifyContent:'flex-end', fontSize:9, fontFamily:'monospace' }}>
-              <span style={{ color:'rgba(255,100,100,0.8)' }}>❤️ {bs.monsterHp}/{bs.monster.hp}</span>
-            </div>
+            {bs.monsterShieldMax > 0 && (
+              <div>
+                <div style={{ display:'flex', justifyContent:'space-between', fontSize:8, fontFamily:'monospace', marginBottom:2 }}>
+                  <span style={{ color:'#fb923c' }}>🛡️</span><span style={{ color:'#fb923c' }}>{bs.monsterShield}</span>
+                </div>
+                <BattleBar pct={mShPct} color='#fb923c' height={4} glow={mShPct>0} />
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Battle log */}
-      <div ref={logRef} style={{ flex:'1 1 0', overflowY:'auto', margin:'0 14px 8px', background:'rgba(0,0,0,0.5)', borderRadius:8, padding:'8px 10px', fontSize:11, border:'1px solid rgba(255,255,255,0.06)', position:'relative', zIndex:1, scrollbarWidth:'none' }}>
+      {/* ── BATTLE LOG ── */}
+      <div ref={logRef} style={{
+        flex:'1 1 0', overflowY:'auto', margin:'0 12px 8px',
+        background:'rgba(0,0,0,0.55)', borderRadius:8, padding:'8px 10px',
+        border:'1px solid rgba(255,255,255,0.06)', position:'relative', zIndex:10, scrollbarWidth:'none'
+      }}>
         {bs.log.map((l: any, i: number) => (
-          <div key={i} style={{ color: l.type==='dmg'?'#ff6b6b':l.type==='heal'?'#30d158':l.type==='skill'?'#ffd60a':'rgba(255,255,255,0.45)', marginBottom:3, fontFamily:'monospace', fontSize:11, animation:'fadeInUp .2s ease' }}>
+          <div key={l.id ?? i} style={{
+            color: LOG_COLOR[l.type as keyof typeof LOG_COLOR] || LOG_COLOR.info,
+            marginBottom:3, fontFamily:'monospace', fontSize:10.5, lineHeight:1.5,
+            animation:'battleLogIn 0.25s ease-out',
+            opacity: i < bs.log.length - 8 ? 0.5 : 1,
+            fontWeight: l.type === 'info' ? 700 : 400
+          }}>
             {l.text}
           </div>
         ))}
-        {bs.phase === 'enemy' && !bs.result && (
-          <div style={{ display:'flex', alignItems:'center', gap:6, color:'rgba(255,100,100,0.6)', marginTop:4 }}>
-            <span className="gc-spinner-sm"/>
-            <span style={{ fontFamily:'monospace', fontSize:10 }}>Enemy turn...</span>
-          </div>
-        )}
-        {autoBattle && isPlayerTurn && (
+        {isRunning && (
           <div style={{ display:'flex', alignItems:'center', gap:6, color:'rgba(255,214,0,0.7)', marginTop:4 }}>
-            <span className="gc-spinner-sm"/>
-            <span style={{ fontFamily:'monospace', fontSize:10 }}>Auto attacking...</span>
+            <div style={{ width:6, height:6, borderRadius:'50%', background:'#ffd60a', animation:'battleAutoPulse 1s infinite' }}/>
+            <span style={{ fontFamily:'monospace', fontSize:9, letterSpacing:1 }}>BATTLE IN PROGRESS...</span>
           </div>
         )}
       </div>
 
-      {/* Action buttons */}
-      {isPlayerTurn && !autoBattle && (
-        <div style={{ padding:'0 14px 14px', display:'flex', flexDirection:'column', gap:6, position:'relative', zIndex:1 }}>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6 }}>
-            <button className="zzz-btn zzz-btn-attack" onClick={onAttack} disabled={bs.loading}>
-              <span style={{ fontSize:16 }}>⚔️</span> Serang
-            </button>
-            <button className="zzz-btn zzz-btn-heal" onClick={onHeal} disabled={bs.loading || bs.playerMp < 20} style={{ opacity: bs.playerMp < 20 ? 0.45 : 1 }}>
-              <span style={{ fontSize:16 }}>💚</span> Heal
-            </button>
-          </div>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6 }}>
-            {char.skills.slice(0, 4).map((s, i) => {
-              const mpCost = 15 + i * 5
-              const noMp = bs.playerMp < mpCost
-              return (
-                <button key={i} className="zzz-btn zzz-btn-skill" onClick={() => onSkill(i)} disabled={bs.loading} style={{ opacity: noMp ? 0.4 : 1, fontSize:11 }}>
-                  ✨ {s} <span style={{ fontSize:9, opacity:.6 }}>-{mpCost}MP</span>
-                </button>
-              )
-            })}
-          </div>
-          <button className="zzz-btn zzz-btn-flee" onClick={onFlee} disabled={bs.loading}>🏃 Kabur</button>
-        </div>
-      )}
-
-      {isPlayerTurn && autoBattle && (
-        <div style={{ padding:'0 14px 14px', position:'relative', zIndex:1 }}>
-          <button className="zzz-btn zzz-btn-flee" onClick={onFlee}>🛑 Stop & Kabur</button>
-        </div>
-      )}
-
-      {/* Result panel - always shows Kembali */}
+      {/* ── RESULT ── */}
       {isResult && (
-        <div style={{ padding:'0 14px 14px', position:'relative', zIndex:1, textAlign:'center' }}>
-          <div style={{ fontSize:40, marginBottom:6, animation:'popIn .4s cubic-bezier(.34,1.56,.64,1)' }}>{bs.result === 'win' ? '🏆' : '💀'}</div>
-          <div style={{ fontSize:16, fontWeight:900, letterSpacing:2, marginBottom:10, color: bs.result === 'win' ? '#ffd60a' : '#ff375f', textShadow: bs.result === 'win' ? '0 0 20px rgba(255,214,0,0.6)' : '0 0 20px rgba(255,55,95,0.6)' }}>
+        <div style={{ padding:'0 12px 14px', position:'relative', zIndex:10, textAlign:'center' }}>
+          <div style={{ fontSize:44, marginBottom:4, animation:'battleWinPop 0.5s cubic-bezier(.34,1.56,.64,1)' }}>
+            {bs.result === 'win' ? '🏆' : '💀'}
+          </div>
+          <div style={{ fontSize:20, fontWeight:900, letterSpacing:3, fontFamily:'monospace', marginBottom:8,
+            color: bs.result === 'win' ? '#ffd60a' : '#ff375f',
+            textShadow: bs.result === 'win' ? '0 0 24px rgba(255,214,0,0.8)' : '0 0 24px rgba(255,55,95,0.8)',
+            animation:'battleGlitch 4s infinite' }}>
             {bs.result === 'win' ? 'VICTORY' : 'DEFEATED'}
           </div>
           {autoBattle && bs.result === 'win' && (
-            <div style={{ fontSize:11, color:'rgba(255,214,0,0.6)', fontFamily:'monospace', marginBottom:8 }}>⚡ Restarting auto-battle...</div>
+            <div style={{ fontSize:10, color:'rgba(255,214,0,0.6)', fontFamily:'monospace', marginBottom:8, letterSpacing:1 }}>⚡ RESTARTING AUTO-BATTLE...</div>
           )}
-          <button className="zzz-btn zzz-btn-attack" onClick={onEnd} style={{ width:'100%' }}>← Kembali</button>
+          <button onClick={onEnd} style={{ width:'100%', padding:'12px 0',
+            background: bs.result === 'win' ? 'rgba(255,214,0,0.15)' : 'rgba(255,55,95,0.15)',
+            border:`1px solid ${bs.result === 'win' ? 'rgba(255,214,0,0.5)' : 'rgba(255,55,95,0.5)'}`,
+            borderRadius:10, color:'#fff', fontSize:13, fontWeight:800, cursor:'pointer',
+            fontFamily:'monospace', letterSpacing:1 }}>
+            {bs.result === 'win' ? '⚔️ LANJUT BERTARUNG' : '🔄 COBA LAGI'}
+          </button>
+        </div>
+      )}
+
+      {/* ── TURN INDICATOR ── */}
+      {isRunning && !isResult && (
+        <div style={{ position:'relative', zIndex:10, padding:'0 12px 10px', display:'flex', justifyContent:'center' }}>
+          <div style={{ display:'flex', gap:4, alignItems:'center' }}>
+            {[0,1,2,3,4].map(i => (
+              <div key={i} style={{ width: i === (bs.turn||0)%5 ? 14 : 6, height:3, borderRadius:3,
+                background: i === (bs.turn||0)%5 ? '#ffd60a' : 'rgba(255,255,255,0.12)',
+                transition:'all 0.3s' }}/>
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -6326,6 +6738,9 @@ function RpgShop({ char, items, msg, onBuy, onBack }: {
   char: RpgChar; items: typeof ITEMS_SHOP; msg: string
   onBuy: (item: typeof ITEMS_SHOP[0]) => void; onBack: () => void
 }) {
+  const lvl = char.level || 1
+  const priceMult = lvl >= 100 ? 2.0 : lvl >= 50 ? 1.5 : 1.0
+  const multLabel = priceMult > 1 ? ` (Lv${lvl >= 100 ? '100' : '50'}+ ×${priceMult})` : ''
   return (
     <div style={{ padding: 16 }} className="gc2-fadein">
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
@@ -6335,22 +6750,29 @@ function RpgShop({ char, items, msg, onBuy, onBack }: {
         </div>
         <div style={{ fontSize: 13, color: '#ffd700', fontWeight: 700 }}>💰 {char.gold}</div>
       </div>
+      {priceMult > 1 && <div style={{ background:'rgba(255,150,0,0.12)', border:'1px solid rgba(255,150,0,0.3)', borderRadius:8, padding:'6px 12px', fontSize:11, color:'#ffb347', marginBottom:10 }}>
+        ⚠️ Harga naik {priceMult === 2 ? '100%' : '50%'}{multLabel} karena levelmu tinggi!
+      </div>}
       {msg && <div style={{ background: msg.startsWith('✅') ? 'rgba(80,200,80,0.1)' : 'rgba(255,80,80,0.1)', border: `1px solid ${msg.startsWith('✅') ? 'rgba(80,200,80,0.2)' : 'rgba(255,80,80,0.2)'}`, borderRadius: 8, padding: '8px 12px', fontSize: 12, color: msg.startsWith('✅') ? '#80ff80' : '#ff8080', marginBottom: 10 }}>{msg}</div>}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {items.map(item => (
-          <div key={item.id} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ fontSize: 28, lineHeight: 1 }}>{item.emoji}</div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{item.name}</div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>{item.desc}</div>
+        {items.map(item => {
+          const finalPrice = Math.round(item.price * priceMult)
+          return (
+            <div key={item.id} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ fontSize: 28, lineHeight: 1 }}>{item.emoji}</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{item.name}</div>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>{item.desc}</div>
+                {priceMult > 1 && <div style={{ fontSize: 10, color: 'rgba(255,150,0,0.6)', textDecoration: 'line-through' }}>💰{item.price}</div>}
+              </div>
+              <button className="gc2-rpg-btn primary" onClick={() => onBuy(item)}
+                disabled={char.gold < finalPrice}
+                style={{ fontSize: 11, padding: '5px 10px', flexShrink: 0, background: priceMult > 1 ? 'rgba(255,150,0,0.3)' : undefined }}>
+                💰{finalPrice}
+              </button>
             </div>
-            <button className="gc2-rpg-btn primary" onClick={() => onBuy(item)}
-              disabled={char.gold < item.price}
-              style={{ fontSize: 11, padding: '5px 10px', flexShrink: 0 }}>
-              💰{item.price}
-            </button>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
