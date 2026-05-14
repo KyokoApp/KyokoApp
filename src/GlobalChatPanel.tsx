@@ -1,6 +1,12 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react'
+import React, { useEffect, useRef, useState, useCallback, memo } from 'react'
 import AnimeStreamPanel from './AnimeStreamPanel'
 import { auth, googleProvider, dbChat, getRpgDb } from './firebase'
+import {
+  rpgSaveLocal, rpgLoadLocal, rpgSyncToFirebase, rpgNeedsSync,
+  markLocalChanges, getSyncMeta, setSyncMeta,
+  queueTransfer, getPendingTransfers, executePendingTransfers,
+  setupOnlineListener, isOnline, hasCachedAuth,
+} from './rpgStore'
 import PlanetPanel from './PlanetPanel'
 import {
   collection, doc, setDoc, addDoc, onSnapshot, orderBy, query,
@@ -683,11 +689,36 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
   const [memberList, setMemberList] = useState<{uid:string;username:string;photoURL:string;isAdmin:boolean;isOwner:boolean}[]>([])
 
   const [rpgChar, setRpgChar] = useState<RpgChar | null>(null)
-  // Helper: update rpgChar di Firestore + local state sekaligus (hemat re-fetch)
+  // Ref agar updateRpgChar selalu akses state terbaru (bukan stale closure)
+  const rpgCharRef = useRef<RpgChar | null>(null)
+  useEffect(() => { rpgCharRef.current = rpgChar }, [rpgChar])
+
+  /**
+   * Update RPG char — LOCAL-FIRST:
+   * 1. Update React state DULU (instant, tidak nunggu network)
+   * 2. Save ke IndexedDB (offline-safe, terenkripsi)
+   * 3. Firebase: background write (tidak block UI)
+   * 4. Daily sync jika sudah 24 jam sejak sync terakhir
+   */
   const updateRpgChar = useCallback(async (updates: Partial<RpgChar>) => {
     if (!user) return
-    await updateDoc(doc(getRpgDb(user.uid), 'rpgChars', user.uid), updates as any)
-    setRpgChar(prev => prev ? { ...prev, ...updates } as RpgChar : prev)
+    setRpgChar(prev => {
+      if (!prev) return prev
+      const newChar = { ...prev, ...updates } as RpgChar
+      // Side-effects non-blocking
+      ;(async () => {
+        await rpgSaveLocal(user.uid, newChar)
+        await markLocalChanges(user.uid)
+        // Firebase background write (jika online)
+        if (navigator.onLine) {
+          updateDoc(doc(getRpgDb(user.uid), 'rpgChars', user.uid), updates as Record<string, unknown>).catch(console.error)
+          // Daily sync check
+          const needs = await rpgNeedsSync(user.uid)
+          if (needs) rpgSyncToFirebase(user.uid, newChar, getRpgDb).catch(console.error)
+        }
+      })()
+      return newChar
+    })
   }, [user])
   // Helper: update playerGacha di Firestore + local state
   const updateGachaLocal = useCallback(async (updates: Partial<PlayerGacha>) => {
@@ -852,6 +883,22 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
 
   // ── Custom notification sound ──────────────────────────────────
   const [notifSound, setNotifSound] = useState<string>(() => localStorage.getItem('kyoko_notif_sound') || '')
+
+  // ── Offline/Online state ───────────────────────────────────────
+  const [isAppOnline, setIsAppOnline] = useState(navigator.onLine)
+  const [pendingTransferCount, setPendingTransferCount] = useState(0)
+  useEffect(() => {
+    const on = () => setIsAppOnline(true)
+    const off = () => setIsAppOnline(false)
+    window.addEventListener('online', on)
+    window.addEventListener('offline', off)
+    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off) }
+  }, [])
+
+  // ── Chat cache & virtual window ───────────────────────────────
+  const CHAT_CACHE_KEY = 'kyoko_chat_cache_v3'
+  const MSG_WINDOW_SIZE = 50       // jumlah pesan yang di-render sekaligus
+  const [msgWindowExtra, setMsgWindowExtra] = useState(0) // tambahan pesan lama yang di-load
   const [showSoundPicker, setShowSoundPicker] = useState(false)
   const [soundInput, setSoundInput] = useState('')
   const notifAudioRef = useRef<HTMLAudioElement | null>(null)
@@ -1017,6 +1064,22 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
   const panelMountedRef = useRef(true)
   useEffect(() => { panelMountedRef.current = true; return () => { panelMountedRef.current = false } }, [])
 
+  // ── Auto-sync & pending transfer execution saat kembali online ──
+  useEffect(() => {
+    if (!user) return
+    const cleanup = setupOnlineListener(
+      user.uid,
+      () => rpgCharRef.current as (object & { gold?: number; level?: number }),
+      getRpgDb,
+      (msg, ok) => {
+        showToast(ok ? 'success' : 'info', msg, '')
+        // Update pending count setelah execute
+        getPendingTransfers(user.uid).then(p => setPendingTransferCount(p.length))
+      }
+    )
+    return cleanup
+  }, [user])
+
   // Reset init flag tiap kali step berubah ke 'main' (panel baru dibuka)
   useEffect(() => {
     if (step === 'main') {
@@ -1117,6 +1180,16 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
       if (u) {
         const cachedUsername = localStorage.getItem('kyoko_username_' + u.uid)
         if (cachedUsername) { setUsername(cachedUsername); setStep('main'); joinGroup(u.uid, cachedUsername, u.photoURL || '') }
+        // Jika offline tapi punya cached username → langsung main (offline mode)
+        if (!navigator.onLine) {
+          if (cachedUsername) {
+            // Sudah set di atas, tidak perlu fetch Firebase
+            console.log('[Auth] Offline mode — gunakan cached session')
+          } else {
+            setStep('login') // Belum pernah login, perlu internet
+          }
+          return
+        }
         try {
           const snap = await getDoc(doc(dbChat, 'chatUsers', u.uid))
           if (snap.exists() && snap.data().username) {
@@ -1133,6 +1206,17 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
 
   useEffect(() => {
     if (step !== 'main') return
+    // Load cache DULU → tampil instant, tidak blank saat buka chat
+    try {
+      const cached = localStorage.getItem(CHAT_CACHE_KEY)
+      if (cached) {
+        const parsed = JSON.parse(cached) as GcMessage[]
+        if (Array.isArray(parsed) && parsed.length > 0) setMessages(parsed)
+      }
+    } catch { /* ignore */ }
+    // Reset window saat panel dibuka
+    setMsgWindowExtra(0)
+
     const q = query(collection(dbChat, 'globalChat'), orderBy('createdAt', 'desc'), limit(100))
     return onSnapshot(q, (snap) => {
       const msgs = snap.docs.map(d => ({
@@ -1140,6 +1224,10 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
         createdAt: d.data().createdAt?.toMillis?.() ?? Date.now()
       })).reverse()
       setMessages(msgs)
+      // Simpan 60 pesan terakhir ke cache (untuk instant load berikutnya)
+      try {
+        localStorage.setItem(CHAT_CACHE_KEY, JSON.stringify(msgs.slice(-60)))
+      } catch { /* ignore quota */ }
     }, (err) => {
       console.error('globalChat onSnapshot error:', err)
     })
@@ -1188,11 +1276,62 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
 
   useEffect(() => {
     if (step !== 'main' || !user) return
-    // rpgChar: getDoc sekali, update local state setelah setiap write
+    // rpgChar: load IndexedDB DULU (instant + offline-capable), lalu update dari Firebase
     const fetchRpgChar = async () => {
-      const snap = await getDoc(doc(getRpgDb(user!.uid), 'rpgChars', user.uid))
-      if (snap.exists()) setRpgChar(snap.data() as RpgChar)
-      else setRpgChar(null)
+      // 1. Load lokal (instant, works offline)
+      const localChar = await rpgLoadLocal(user!.uid)
+      if (localChar) {
+        setRpgChar(localChar as RpgChar)
+        rpgCharRef.current = localChar as RpgChar
+      }
+
+      // 2. Fetch Firebase (update jika online)
+      if (navigator.onLine) {
+        try {
+          const snap = await getDoc(doc(getRpgDb(user!.uid), 'rpgChars', user.uid))
+          if (snap.exists()) {
+            const fbChar = snap.data() as RpgChar
+            setRpgChar(fbChar)
+            rpgCharRef.current = fbChar
+            // Update IndexedDB dengan data Firebase (truth source terbaru)
+            await rpgSaveLocal(user!.uid, fbChar)
+            await setSyncMeta(user!.uid, {
+              lastSync: Date.now(),
+              lastSyncedGold: fbChar.gold || 0,
+              hasLocalChanges: false,
+            })
+          } else if (!localChar) {
+            setRpgChar(null)
+          }
+
+          // Execute pending transfers dari saat offline
+          const charForTransfer = rpgCharRef.current
+          if (charForTransfer) {
+            const count = await executePendingTransfers(
+              user!.uid, charForTransfer.gold || 0, getRpgDb,
+              (msg, ok) => showToast(ok ? 'success' : 'info', msg, '')
+            )
+            if (count > 0) {
+              // Refresh gold dari Firebase setelah transfer
+              const snap2 = await getDoc(doc(getRpgDb(user!.uid), 'rpgChars', user.uid))
+              if (snap2.exists()) {
+                const refreshed = snap2.data() as RpgChar
+                setRpgChar(refreshed); rpgCharRef.current = refreshed
+                await rpgSaveLocal(user!.uid, refreshed)
+              }
+            }
+            // Update pending transfer count badge
+            const pending = await getPendingTransfers(user!.uid)
+            setPendingTransferCount(pending.length)
+          }
+        } catch {
+          console.log('[RPG] Firebase tidak bisa diakses, gunakan data lokal')
+        }
+      } else {
+        // Offline: tampilkan pending transfer count
+        const pending = await getPendingTransfers(user!.uid)
+        setPendingTransferCount(pending.length)
+      }
     }
     fetchRpgChar()
   }, [step, user])
@@ -1228,8 +1367,8 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
   }
   }, [step, user, groupInfo?.ownerId])
 
-  // Leaderboard: on-demand + cache 1 hari — fetch hanya saat buka leaderboard/duel/transfer
-  const LEADERBOARD_CACHE_MS = 24 * 60 * 60 * 1000
+  // Leaderboard: on-demand + cache 6 jam — fetch hanya saat buka leaderboard/duel/transfer
+  const LEADERBOARD_CACHE_MS = 6 * 60 * 60 * 1000
   const fetchLeaderboard = useCallback(async (force = false) => {
     if (!user) return
     const now = Date.now()
@@ -2646,17 +2785,38 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
     if (!transferTarget.trim()) { setTransferMsg('❌ Masukkan username tujuan!'); return }
     if (!amount || amount < 10) { setTransferMsg('❌ Minimal transfer 10 Gold!'); return }
     if (rpgChar.gold < amount) { setTransferMsg('❌ Gold tidak cukup!'); return }
-    // Find target by username in leaderboard
     const target = leaderboard.find(l => l.username.toLowerCase() === transferTarget.trim().toLowerCase())
     if (!target) { setTransferMsg('❌ Player tidak ditemukan! Cek leaderboard.'); return }
     if (target.uid === user.uid) { setTransferMsg('❌ Tidak bisa transfer ke diri sendiri!'); return }
-    // Deduct from sender
-    await updateDoc(doc(getRpgDb(user!.uid), 'rpgChars', user.uid), { gold: rpgChar.gold - amount })
-    // Add to receiver
-    await updateDoc(doc(getRpgDb(user!.uid), 'rpgChars', target.uid), { gold: (target.gold || 0) + amount }).catch(() => {})
-    setTransferMsg(`✅ Berhasil transfer ${amount}G ke ${transferTarget}!`)
+
+    // Kurangi gold lokal DULU (instant, tidak tunggu network)
+    await updateRpgChar({ gold: rpgChar.gold - amount })
+
+    if (navigator.onLine) {
+      try {
+        // Online: eksekusi langsung ke Firebase
+        await updateDoc(doc(getRpgDb(user!.uid), 'rpgChars', user.uid), { gold: rpgChar.gold - amount })
+        await updateDoc(doc(getRpgDb(target.uid), 'rpgChars', target.uid), { gold: (target.gold || 0) + amount }).catch(() => {})
+        // Update last synced gold di meta
+        await setSyncMeta(user.uid, { lastSyncedGold: rpgChar.gold - amount })
+        setTransferMsg(`✅ Berhasil transfer ${amount}G ke ${transferTarget}!`)
+      } catch {
+        // Firebase error: queue untuk nanti
+        await queueTransfer({ fromUid: user.uid, toUid: target.uid, toUsername: target.username, amount, queuedAt: Date.now() })
+        const pending = await getPendingTransfers(user.uid)
+        setPendingTransferCount(pending.length)
+        setTransferMsg(`📤 Transfer ${amount}G ke ${transferTarget} di-queue (error jaringan). Akan dikirim otomatis.`)
+      }
+    } else {
+      // Offline: queue transfer, akan execute saat online
+      await queueTransfer({ fromUid: user.uid, toUid: target.uid, toUsername: target.username, amount, queuedAt: Date.now() })
+      const pending = await getPendingTransfers(user.uid)
+      setPendingTransferCount(pending.length)
+      setTransferMsg(`📤 Offline! Transfer ${amount}G ke ${transferTarget} di-queue. Akan dikirim otomatis saat online.`)
+    }
+
     setTransferTarget(''); setTransferAmount('')
-    setTimeout(() => setTransferMsg(''), 4000)
+    setTimeout(() => setTransferMsg(''), 6000)
   }
 
   // ── RPG: Weapon Upgrade ───────────────────────────────────────
@@ -3521,9 +3681,28 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
                   {messages.length === 0 && (
                     <div className="gc-empty"><div className="gc-empty-icon">💬</div><p>Belum ada pesan. Jadilah yang pertama!</p></div>
                   )}
-                  {messages.map((msg, i) => {
+                  {/* VIRTUAL WINDOW: hanya render MSG_WINDOW_SIZE + extra pesan, hemat DOM */}
+                  {(() => {
+                    const windowSize = MSG_WINDOW_SIZE + msgWindowExtra
+                    const windowedMsgs = messages.slice(Math.max(0, messages.length - windowSize))
+                    const hiddenCount = messages.length - windowedMsgs.length
+                    return (
+                      <>
+                        {hiddenCount > 0 && (
+                          <div style={{ textAlign: 'center', padding: '8px 0' }}>
+                            <button
+                              onClick={() => setMsgWindowExtra(e => e + 30)}
+                              style={{
+                                background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)',
+                                borderRadius: 20, padding: '4px 16px', color: 'rgba(255,255,255,0.6)',
+                                fontSize: 12, cursor: 'pointer'
+                              }}
+                            >⬆️ Load {Math.min(30, hiddenCount)} pesan lama ({hiddenCount} tersembunyi)</button>
+                          </div>
+                        )}
+                        {windowedMsgs.map((msg, i) => {
                     const isMe = msg.uid === user?.uid
-                    const prev = messages[i-1]
+                    const prev = windowedMsgs[i-1]
                     const sameUser = prev && prev.uid === msg.uid
                     const canDelete = isMe || isAdmin
                     const isSwiping = swipingMsgId === msg.id
@@ -3603,6 +3782,9 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
                       </div>
                     )
                   })}
+                      </>
+                    )
+                  })()}
                   {typingUsers.length > 0 && (
                     <div className="gc2-typing-row">
                       <div className="gc2-typing-bubble">
@@ -3989,6 +4171,25 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
             {/* ── RPG TAB ── */}
             {activeTab === 'rpg' && activeGachaTab === 'rpg' && (
               <div className="gc2-rpg-wrap">
+                {/* Online/Offline + pending transfer indicator */}
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:8, padding:'4px 12px 0', fontSize:11 }}>
+                  <span style={{
+                    background: isAppOnline ? 'rgba(52,211,153,0.15)' : 'rgba(255,100,50,0.15)',
+                    border: `1px solid ${isAppOnline ? 'rgba(52,211,153,0.4)' : 'rgba(255,100,50,0.4)'}`,
+                    borderRadius: 20, padding: '2px 8px',
+                    color: isAppOnline ? '#34d399' : '#ff6432', fontWeight: 700,
+                  }}>
+                    {isAppOnline ? '🌐 Online' : '📴 Offline'}
+                  </span>
+                  {pendingTransferCount > 0 && (
+                    <span style={{
+                      background:'rgba(255,165,50,0.15)', border:'1px solid rgba(255,165,50,0.4)',
+                      borderRadius:20, padding:'2px 8px', color:'#ffa032', fontWeight:700,
+                    }}>
+                      📤 {pendingTransferCount} transfer pending
+                    </span>
+                  )}
+                </div>
                 {loadingActive && (
                   <div className="gc2-loading-overlay">
                     <div className="gc2-loading-content">
@@ -4000,7 +4201,6 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
                     </div>
                   </div>
                 )}
-
                 {!rpgChar && rpgView !== 'create' && (
                   <div className="gc2-rpg-empty">
                     <div style={{fontSize:48}}>⚔️</div>
@@ -4117,7 +4317,7 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
                   <RpgWeaponUpgrade char={rpgChar} msg={weaponMsg} onUpgrade={doWeaponUpgrade} onBack={() => setRpgView('dashboard')}/>
                 )}
                 {rpgChar && rpgView === 'transfer' && (
-                  <RpgTransfer char={rpgChar} msg={transferMsg} target={transferTarget} amount={transferAmount} onTarget={setTransferTarget} onAmount={setTransferAmount} onTransfer={doTransfer} onBack={() => setRpgView('dashboard')} leaderboard={leaderboard}/>
+                  <RpgTransfer char={rpgChar} msg={transferMsg} target={transferTarget} amount={transferAmount} onTarget={setTransferTarget} onAmount={setTransferAmount} onTransfer={doTransfer} onBack={() => setRpgView('dashboard')} leaderboard={leaderboard} isOnline={isAppOnline} pendingCount={pendingTransferCount}/>
                 )}
               </div>
             )}
@@ -5462,21 +5662,42 @@ function RpgWeaponUpgrade({ char, msg, onUpgrade, onBack }: { char: RpgChar; msg
 // ═══════════════════════════════════════════════════════════════
 // RPG TRANSFER COMPONENT
 // ═══════════════════════════════════════════════════════════════
-function RpgTransfer({ char, msg, target, amount, onTarget, onAmount, onTransfer, onBack, leaderboard }: { char: RpgChar; msg: string; target: string; amount: string; onTarget: (v:string)=>void; onAmount: (v:string)=>void; onTransfer: () => void; onBack: () => void; leaderboard: {uid:string;username:string;gold?:number}[] }) {
+function RpgTransfer({ char, msg, target, amount, onTarget, onAmount, onTransfer, onBack, leaderboard, isOnline, pendingCount }: { char: RpgChar; msg: string; target: string; amount: string; onTarget: (v:string)=>void; onAmount: (v:string)=>void; onTransfer: () => void; onBack: () => void; leaderboard: {uid:string;username:string;gold?:number}[]; isOnline: boolean; pendingCount: number }) {
   const [showDrop, setShowDrop] = useState(false)
+  const [syncedGold, setSyncedGold] = useState<number | null>(null)
   const inputRef = React.useRef<HTMLInputElement>(null)
+  // Load last-synced gold dari meta (bukan real-time local gold, anti-abuse)
+  useEffect(() => {
+    getSyncMeta(char.uid).then(m => setSyncedGold(m.lastSyncedGold)).catch(() => setSyncedGold(char.gold))
+  }, [char.uid, char.gold])
   const S = { wrap:{padding:'14px',overflowY:'auto' as const,height:'100%',boxSizing:'border-box' as const}, back:{background:'none',border:'none',color:'rgba(255,255,255,0.4)',fontSize:12,cursor:'pointer',marginBottom:10,padding:0}, title:{fontSize:16,fontWeight:900,color:'#c8f500',marginBottom:4}, inp:{width:'100%',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:8,padding:'9px 11px',color:'#fff',fontSize:12,boxSizing:'border-box' as const,marginBottom:0,outline:'none'} }
   const filtered = leaderboard.filter(l => l.username.toLowerCase() !== char.username?.toLowerCase() && l.username.toLowerCase().includes(target.toLowerCase())).slice(0, 8)
   return (
     <div style={S.wrap} className="gc2-fadein">
       <button style={S.back} onClick={onBack}>← Kembali</button>
       <div style={S.title}>💸 Transfer Gold</div>
+      {/* Online/Offline status */}
+      <div style={{display:'flex',gap:6,marginBottom:10,flexWrap:'wrap' as const}}>
+        <span style={{fontSize:11,background:isOnline?'rgba(52,211,153,0.12)':'rgba(255,100,50,0.12)',border:`1px solid ${isOnline?'rgba(52,211,153,0.3)':'rgba(255,100,50,0.3)'}`,borderRadius:20,padding:'2px 8px',color:isOnline?'#34d399':'#ff6432',fontWeight:700}}>
+          {isOnline ? '🌐 Online — transfer langsung' : '📴 Offline — transfer di-queue'}
+        </span>
+        {pendingCount > 0 && (
+          <span style={{fontSize:11,background:'rgba(255,165,50,0.12)',border:'1px solid rgba(255,165,50,0.3)',borderRadius:20,padding:'2px 8px',color:'#ffa032',fontWeight:700}}>
+            📤 {pendingCount} pending (akan kirim saat online)
+          </span>
+        )}
+      </div>
       <p style={{fontSize:11,color:'rgba(255,255,255,0.4)',marginBottom:12}}>Kirim Gold ke player lain. Masukkan username mereka yang ada di leaderboard.</p>
       <div style={{background:'rgba(0,200,150,0.08)',border:'1px solid rgba(0,200,150,0.2)',borderRadius:12,padding:'10px 12px',marginBottom:12}}>
-        <div style={{fontSize:12,color:'rgba(255,255,255,0.6)'}}>Gold kamu</div>
-        <div style={{fontSize:22,fontWeight:900,color:'#ffd700'}}>{char.gold.toLocaleString()} G</div>
+        <div style={{fontSize:12,color:'rgba(255,255,255,0.6)'}}>Gold kamu (tersinkronisasi)</div>
+        <div style={{fontSize:22,fontWeight:900,color:'#ffd700'}}>{(syncedGold ?? char.gold).toLocaleString()} G</div>
+        {syncedGold !== null && syncedGold !== char.gold && (
+          <div style={{fontSize:10,color:'rgba(255,165,50,0.8)',marginTop:2}}>
+            ⚡ Local: {char.gold.toLocaleString()} G (akan tersync nanti)
+          </div>
+        )}
       </div>
-      {msg && <div style={{background:msg.startsWith('✅')?'rgba(0,200,150,0.1)':'rgba(255,50,50,0.1)',border:`1px solid ${msg.startsWith('✅')?'rgba(0,200,150,0.3)':'rgba(255,50,50,0.3)'}`,borderRadius:8,padding:'8px 12px',fontSize:12,color:msg.startsWith('✅')?'#34d399':'#ff6b6b',marginBottom:10}}>{msg}</div>}
+      {msg && <div style={{background:msg.startsWith('✅')?'rgba(0,200,150,0.1)':msg.startsWith('📤')?'rgba(255,165,50,0.1)':'rgba(255,50,50,0.1)',border:`1px solid ${msg.startsWith('✅')?'rgba(0,200,150,0.3)':msg.startsWith('📤')?'rgba(255,165,50,0.3)':'rgba(255,50,50,0.3)'}`,borderRadius:8,padding:'8px 12px',fontSize:12,color:msg.startsWith('✅')?'#34d399':msg.startsWith('📤')?'#ffa032':'#ff6b6b',marginBottom:10}}>{msg}</div>}
       <div style={{fontSize:11,color:'rgba(255,255,255,0.5)',marginBottom:4}}>Username tujuan</div>
       <div style={{position:'relative',marginBottom:8}}>
         <input
