@@ -78,6 +78,76 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync android
 
+      - name: Patch MainActivity - Enable WebView iframe & mixed content
+        run: |
+          # Cari path MainActivity (bisa .java atau .kt)
+          MAIN_JAVA="android/app/src/main/java/com/kyokoapp/app/MainActivity.java"
+          MAIN_KT="android/app/src/main/java/com/kyokoapp/app/MainActivity.kt"
+
+          if [ -f "$MAIN_KT" ]; then
+            cat > "$MAIN_KT" << 'EOF'
+          package com.kyokoapp.app
+
+          import android.os.Bundle
+          import android.webkit.WebSettings
+          import android.webkit.WebView
+          import com.getcapacitor.BridgeActivity
+
+          class MainActivity : BridgeActivity() {
+            override fun onCreate(savedInstanceState: Bundle?) {
+              super.onCreate(savedInstanceState)
+              val webView: WebView = bridge.webView
+              val settings: WebSettings = webView.settings
+              settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+              settings.domStorageEnabled = true
+              settings.javaScriptEnabled = true
+              settings.allowUniversalAccessFromFileURLs = true
+              settings.allowFileAccessFromFileURLs = true
+              settings.mediaPlaybackRequiresUserGesture = false
+              WebView.setWebContentsDebuggingEnabled(true)
+            }
+          }
+          EOF
+            echo "Patched MainActivity.kt"
+          else
+            cat > "$MAIN_JAVA" << 'EOF'
+          package com.kyokoapp.app;
+
+          import android.os.Bundle;
+          import android.webkit.WebSettings;
+          import android.webkit.WebView;
+          import com.getcapacitor.BridgeActivity;
+
+          public class MainActivity extends BridgeActivity {
+            @Override
+            public void onCreate(Bundle savedInstanceState) {
+              super.onCreate(savedInstanceState);
+              WebView webView = getBridge().getWebView();
+              WebSettings settings = webView.getSettings();
+              settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+              settings.setDomStorageEnabled(true);
+              settings.setJavaScriptEnabled(true);
+              settings.setAllowUniversalAccessFromFileURLs(true);
+              settings.setAllowFileAccessFromFileURLs(true);
+              settings.setMediaPlaybackRequiresUserGesture(false);
+              WebView.setWebContentsDebuggingEnabled(true);
+            }
+          }
+          EOF
+            echo "Patched MainActivity.java"
+          fi
+
+      - name: Patch AndroidManifest - Allow cleartext & hardware acceleration
+        run: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          # Tambah usesCleartextTraffic dan hardwareAccelerated jika belum ada
+          if ! grep -q "usesCleartextTraffic" "$MANIFEST"; then
+            sed -i 's|android:label="@string/app_name"|android:label="@string/app_name"\n        android:usesCleartextTraffic="true"\n        android:hardwareAccelerated="true"|g' "$MANIFEST"
+            echo "Patched AndroidManifest.xml"
+          else
+            echo "AndroidManifest already patched"
+          fi
+
       - name: Inject Google Auth client ID into strings.xml
         run: |
           STRINGS_FILE="android/app/src/main/res/values/strings.xml"
