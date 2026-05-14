@@ -1082,8 +1082,7 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
       () => rpgCharRef.current as (object & { gold?: number; level?: number }),
       getRpgDb,
       (msg, ok) => {
-        showToast(ok ? 'success' : 'info', msg, '')
-        // Update pending count setelah execute
+        showToast(ok ? 'win' : 'info', msg, '')
         getPendingTransfers(user.uid).then(p => setPendingTransferCount(p.length))
       }
     )
@@ -1319,7 +1318,7 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
           if (charForTransfer) {
             const count = await executePendingTransfers(
               user!.uid, charForTransfer.gold || 0, getRpgDb,
-              (msg, ok) => showToast(ok ? 'success' : 'info', msg, '')
+              (msg, ok) => showToast(ok ? 'win' : 'info', msg, '')
             )
             if (count > 0) {
               // Refresh gold dari Firebase setelah transfer
@@ -4287,7 +4286,7 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
                 )}
                 {rpgChar && rpgView === 'battle' && battleState && (
                   <RpgBattle
-                    char={rpgChar} bs={battleState} anim={battleAnim}
+                    char={rpgChar} bs={battleState}
                     onConfirm={() => setBattleState(prev => prev ? { ...prev, phase: 'running' } : prev)}
                     onCancel={endBattle} onEnd={endBattle}
                     autoBattle={autoBattle} onToggleAuto={() => { setAutoBattle(v => !v); autoBattleRef.current = !autoBattleRef.current }}
