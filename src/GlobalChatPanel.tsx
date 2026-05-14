@@ -1072,7 +1072,7 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
       () => rpgCharRef.current as (object & { gold?: number; level?: number }),
       getRpgDb,
       (msg, ok) => {
-        showToast(ok ? 'success' : 'info', msg, '')
+        showToast(ok ? 'win' : 'info', msg, '')
         // Update pending count setelah execute
         getPendingTransfers(user.uid).then(p => setPendingTransferCount(p.length))
       }
@@ -1309,7 +1309,7 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
           if (charForTransfer) {
             const count = await executePendingTransfers(
               user!.uid, charForTransfer.gold || 0, getRpgDb,
-              (msg, ok) => showToast(ok ? 'success' : 'info', msg, '')
+              (msg, ok) => showToast(ok ? 'win' : 'info', msg, '')
             )
             if (count > 0) {
               // Refresh gold dari Firebase setelah transfer
