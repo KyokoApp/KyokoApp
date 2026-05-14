@@ -756,7 +756,7 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
   // Lazy mount: track tab yang pernah dibuka - sekali dibuka tetap mounted
   const [mountedTabs, setMountedTabs] = useState<Set<string>>(new Set(['chat']))
   const handleTabChange = React.useCallback((tab: 'chat'|'rpg'|'fishing'|'voice'|'music'|'anime') => {
-    handleTabChange(tab)
+    setActiveTab(tab)
     setMountedTabs(prev => new Set([...prev, tab]))
   }, [])
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -1624,7 +1624,7 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
       showToast('info', '❌ Gagal kirim', 'Pesan gagal terkirim, coba lagi')
     }
     finally { setSending(false); inputRef.current?.focus() }
-  }
+  }, [input, sending, user, username, replyTo, showToast])
 
   const handleLogout = async () => {
     // 1. Langsung ke login screen - UI responsif
