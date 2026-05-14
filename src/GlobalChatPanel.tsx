@@ -142,6 +142,27 @@ const MONSTERS = [
   { name: 'Celestial Beast',emoji: '🦁', hp: 9500,  atk: 135, def: 65, exp: 900, gold: 500, rank: 'S', drop: 'Kristal Langit', canHeal: true,  canShield: true  },
   // rank SS
   { name: 'World Serpent',  emoji: '🐍', hp: 13000, atk: 160, def: 75, exp: 1200,gold: 700, rank: 'SS',drop: 'Sisik Dunia',    canHeal: true,  canShield: true  },
+  // rank SSS (20 musuh tambahan, semakin tinggi semakin kuat)
+  { name: 'Shadow Phantom',  emoji: '👁️', hp: 16000, atk: 180, def: 85,  exp: 1600, gold: 900,  rank: 'SSS', drop: 'Inti Bayangan',    canHeal: true,  canShield: true  },
+  { name: 'Crimson Hydra',   emoji: '🐉', hp: 18500, atk: 195, def: 90,  exp: 1900, gold: 1050, rank: 'SSS', drop: 'Darah Hydra',      canHeal: true,  canShield: true  },
+  { name: 'Soul Reaper',     emoji: '💫', hp: 21000, atk: 215, def: 98,  exp: 2200, gold: 1200, rank: 'SSS', drop: 'Sabit Jiwa',       canHeal: true,  canShield: true  },
+  { name: 'Abyssal Kraken',  emoji: '🦑', hp: 24000, atk: 230, def: 105, exp: 2600, gold: 1400, rank: 'SSS', drop: 'Tentakel Abyss',   canHeal: true,  canShield: true  },
+  { name: 'Void Archon',     emoji: '🌀', hp: 27500, atk: 250, def: 115, exp: 3000, gold: 1650, rank: 'SSS', drop: 'Kristal Void',     canHeal: true,  canShield: true  },
+  { name: 'Titan Berserker', emoji: '🪓', hp: 31000, atk: 275, def: 122, exp: 3500, gold: 1900, rank: 'SSS', drop: 'Kapak Titan',      canHeal: true,  canShield: true  },
+  { name: 'Fallen Seraph',   emoji: '👼', hp: 35000, atk: 295, def: 132, exp: 4000, gold: 2200, rank: 'SSS', drop: 'Sayap Malaikat',   canHeal: true,  canShield: true  },
+  { name: 'Chaos Leviathan', emoji: '🌊', hp: 40000, atk: 320, def: 142, exp: 4600, gold: 2500, rank: 'SSS', drop: 'Sisik Leviathan',  canHeal: true,  canShield: true  },
+  { name: 'Hellfire Golem',  emoji: '🔥', hp: 45000, atk: 345, def: 155, exp: 5200, gold: 2900, rank: 'SSS', drop: 'Batu Api Neraka',  canHeal: true,  canShield: true  },
+  { name: 'Thunder God',     emoji: '⚡', hp: 51000, atk: 375, def: 168, exp: 6000, gold: 3300, rank: 'SSS', drop: 'Petir Dewa',       canHeal: true,  canShield: true  },
+  { name: 'Frost Ancient',   emoji: '❄️', hp: 58000, atk: 400, def: 182, exp: 6800, gold: 3800, rank: 'SSS', drop: 'Es Abadi',         canHeal: true,  canShield: true  },
+  { name: 'Dusk Sovereign',  emoji: '🌑', hp: 66000, atk: 430, def: 198, exp: 7800, gold: 4400, rank: 'SSS', drop: 'Mahkota Senja',    canHeal: true,  canShield: true  },
+  { name: 'Primal Beast',    emoji: '🦬', hp: 75000, atk: 465, def: 215, exp: 8800, gold: 5000, rank: 'SSS', drop: 'Taring Purba',     canHeal: true,  canShield: true  },
+  { name: 'Astral Colossus', emoji: '🌟', hp: 85000, atk: 500, def: 235, exp: 1e4,  gold: 5800, rank: 'SSS', drop: 'Shard Astral',     canHeal: true,  canShield: true  },
+  { name: 'Nether Wraith',   emoji: '🩻', hp: 96000, atk: 540, def: 255, exp: 11500,gold: 6600, rank: 'SSS', drop: 'Jiwa Nether',      canHeal: true,  canShield: true  },
+  { name: 'Undying Titan',   emoji: '🤖', hp: 110000,atk: 580, def: 278, exp: 13000,gold: 7600, rank: 'SSS', drop: 'Inti Abadi',       canHeal: true,  canShield: true  },
+  { name: 'Dimensional Rift',emoji: '🕳️', hp: 125000,atk: 625, def: 302, exp: 15000,gold: 8800, rank: 'SSS', drop: 'Celah Dimensi',    canHeal: true,  canShield: true  },
+  { name: 'God of Ruin',     emoji: '💀', hp: 145000,atk: 680, def: 330, exp: 17500,gold: 10000,rank: 'SSS', drop: 'Mahkota Kehancuran',canHeal:true,  canShield: true  },
+  { name: 'Eternal Dragon',  emoji: '🐲', hp: 170000,atk: 740, def: 362, exp: 20000,gold: 12000,rank: 'SSS', drop: 'Sisik Naga Abadi', canHeal: true,  canShield: true  },
+  { name: 'Omnigod',         emoji: '👁️', hp: 200000,atk: 820, def: 400, exp: 25000,gold: 15000,rank: 'SSS', drop: 'Inti Omnigod',     canHeal: true,  canShield: true  },
 ]
 const QUESTS = [
   { id: 'q1', name: 'Pembersihan Hutan',     desc: 'Bunuh 5 monster rank F-E',    kills: 5,  ranks: ['F','E'],         expReward: 100, goldReward: 50,  itemReward: 'Pedang Besi' },
@@ -196,6 +217,27 @@ const ITEM_SELL_PRICES: Record<string, number> = {
   'Jiwa Jurang':     1500,
   'Kristal Langit':  2000,
   'Sisik Dunia':     3500,
+  // SSS monster drops
+  'Inti Bayangan':       4500,
+  'Darah Hydra':         5500,
+  'Sabit Jiwa':          6500,
+  'Tentakel Abyss':      8000,
+  'Kristal Void':        9500,
+  'Kapak Titan':         11000,
+  'Sayap Malaikat':      13000,
+  'Sisik Leviathan':     15500,
+  'Batu Api Neraka':     18000,
+  'Petir Dewa':          21000,
+  'Es Abadi':            25000,
+  'Mahkota Senja':       30000,
+  'Taring Purba':        36000,
+  'Shard Astral':        43000,
+  'Jiwa Nether':         52000,
+  'Inti Abadi':          62000,
+  'Celah Dimensi':       75000,
+  'Mahkota Kehancuran':  90000,
+  'Sisik Naga Abadi':    110000,
+  'Inti Omnigod':        150000,
   // Dungeon boss drops
   'Anemo Crystal':      300,
   'Agnidus Agate':      400,
@@ -2332,33 +2374,119 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
     setTimeout(() => { setGachaAnim(false); setGachaResult(results) }, 800)
   }
 
+  // ── RPG: Shop cooldown ref (anti-spam 2 detik) ───────────────
+  const shopCooldownRef = useRef<number>(0)
+
+  // ── RPG: Hitung harga item berdasarkan level ──────────────────
+  // Harga naik 50% per 10 level mulai dari level 10
+  // Max kenaikan 100% (2x) di level 70+
+  // Potion HP & MP TIDAK dinaikkan harganya
+  const getShopItemPrice = (item: typeof ITEMS_SHOP[0], level: number): number => {
+    const isPotion = item.effect.includes('hp+') || item.effect.includes('mp+')
+    if (isPotion) return item.price
+    // Setiap 10 level = +50%, max 100% di level 70
+    const tiers = Math.min(Math.floor((level - 1) / 10), 2) // 0, 1, 2 tiers
+    const mult = 1 + tiers * 0.5  // 1.0, 1.5, 2.0
+    return Math.round(item.price * mult)
+  }
+
   // ── RPG: Shop ─────────────────────────────────────────────────
-  const buyItem = async (item: typeof ITEMS_SHOP[0]) => {
+  const buyItem = async (item: typeof ITEMS_SHOP[0], countOverride?: number) => {
     if (!rpgChar) return
-    // Harga naik 50% per 50 level, max 2x di level 100+
+    // Anti-spam cooldown 2 detik
+    const now = Date.now()
+    if (now - shopCooldownRef.current < 2000) {
+      setShopMsg('⏳ Tunggu 2 detik sebelum beli lagi!')
+      setTimeout(() => setShopMsg(''), 2000)
+      return
+    }
+    shopCooldownRef.current = now
+
     const lvl = rpgChar.level || 1
-    const priceMult = lvl >= 100 ? 2.0 : lvl >= 50 ? 1.5 : 1.0
-    const finalPrice = Math.round(item.price * priceMult)
-    if (rpgChar.gold < finalPrice) { setShopMsg(`Gold tidak cukup! (Harga: ${finalPrice})`); return }
+    const finalPrice = getShopItemPrice(item, lvl)
+    const isPotion = item.effect.includes('hp+') || item.effect.includes('mp+')
+
+    if (isPotion) {
+      // Auto-max: hitung berapa banyak yang bisa dibeli sekaligus untuk full HP/MP
+      let hpNeeded = 0, mpNeeded = 0
+      const efx = item.effect.split(',')
+      efx.forEach(e => {
+        const [k, v] = e.split('+')
+        if (k === 'hp') hpNeeded = Math.max(0, rpgChar.maxHp - rpgChar.hp)
+        if (k === 'mp') mpNeeded = Math.max(0, rpgChar.maxMp - rpgChar.mp)
+      })
+      // Cari berapa hp/mp per item
+      let hpPerItem = 0, mpPerItem = 0
+      efx.forEach(e => {
+        const [k, v] = e.split('+')
+        if (k === 'hp') hpPerItem = parseInt(v)
+        if (k === 'mp') mpPerItem = parseInt(v)
+      })
+      // Hitung berapa kali beli untuk full (minimal 1x)
+      let count = 1
+      if (hpPerItem > 0 && mpPerItem === 0) count = Math.max(1, Math.ceil(hpNeeded / hpPerItem))
+      else if (mpPerItem > 0 && hpPerItem === 0) count = Math.max(1, Math.ceil(mpNeeded / mpPerItem))
+      else count = Math.max(1, Math.max(Math.ceil(hpNeeded / hpPerItem), Math.ceil(mpNeeded / mpPerItem)))
+
+      // Sesuaikan dengan uang yang ada (1% HP/MP per 80 coin rule)
+      const totalCost = finalPrice * count
+      if (rpgChar.gold < finalPrice) {
+        // Tidak punya cukup untuk satu pun — cek berapa % HP/MP yang bisa dibeli dengan uang ada
+        const canAfford = Math.floor(rpgChar.gold / finalPrice)
+        if (canAfford === 0) {
+          // Gunakan uang yang ada untuk mendapat 1% HP/MP per 80 coin
+          const partialHpRestore = Math.floor((rpgChar.gold / 80) * rpgChar.maxHp / 100)
+          const partialMpRestore = Math.floor((rpgChar.gold / 80) * rpgChar.maxMp / 100)
+          const updates: Partial<RpgChar> = { gold: 0 }
+          if (hpPerItem > 0) updates.hp = Math.min(rpgChar.maxHp, rpgChar.hp + partialHpRestore)
+          if (mpPerItem > 0) updates.mp = Math.min(rpgChar.maxMp, rpgChar.mp + partialMpRestore)
+          await updateRpgChar(updates)
+          setShopMsg(`💸 Gold pas-pasan! Pulihkan HP/MP sesuai saldo (${rpgChar.gold} coin)`)
+          setTimeout(() => setShopMsg(''), 3000)
+          return
+        }
+        count = canAfford
+      } else if (rpgChar.gold < totalCost) {
+        count = Math.floor(rpgChar.gold / finalPrice)
+      }
+
+      const updates: Partial<RpgChar> = { gold: rpgChar.gold - (finalPrice * count) }
+      efx.forEach(e => {
+        const [k, v] = e.split('+')
+        const val = parseInt(v)
+        if (k === 'hp') updates.hp = Math.min(rpgChar.maxHp, rpgChar.hp + val * count)
+        if (k === 'mp') updates.mp = Math.min(rpgChar.maxMp, rpgChar.mp + val * count)
+      })
+      await updateRpgChar(updates)
+      const hpLabel = hpPerItem > 0 ? `HP: ${rpgChar.hp} → ${updates.hp}` : ''
+      const mpLabel = mpPerItem > 0 ? `MP: ${rpgChar.mp} → ${updates.mp}` : ''
+      setShopMsg(`✅ ${item.name} ×${count}! ${hpLabel}${hpLabel&&mpLabel?' · ':''}${mpLabel} (-${finalPrice*count} Gold)`)
+      setTimeout(() => setShopMsg(''), 3500)
+      return
+    }
+
+    // Item permanen (bukan potion)
+    if (rpgChar.gold < finalPrice) {
+      setShopMsg(`❌ Gold tidak cukup! Harga: ${finalPrice} (Kamu: ${rpgChar.gold})`)
+      setTimeout(() => setShopMsg(''), 3000)
+      return
+    }
     const updates: Partial<RpgChar> = { gold: rpgChar.gold - finalPrice }
     const efx = item.effect.split(',')
     efx.forEach(e => {
       const [k, v] = e.split('+')
       const val = parseInt(v)
-      if (k === 'hp') updates.hp = Math.min(rpgChar.maxHp, rpgChar.hp + val)
-      else if (k === 'mp') updates.mp = Math.min(rpgChar.maxMp, rpgChar.mp + val)
-      else if (k === 'atk') updates.atk = rpgChar.atk + val
+      if (k === 'atk') updates.atk = rpgChar.atk + val
       else if (k === 'def') updates.def = rpgChar.def + val
       else if (k === 'spd') updates.spd = rpgChar.spd + val
       else if (k === 'luck') updates.luck = rpgChar.luck + val
-      else if (k === 'maxHp') { updates.maxHp = rpgChar.maxHp + val; updates.hp = rpgChar.hp + val }
-      else if (k === 'maxMp') { updates.maxMp = rpgChar.maxMp + val; updates.mp = rpgChar.mp + val }
+      else if (k === 'maxHp') { updates.maxHp = rpgChar.maxHp + val; updates.hp = Math.min(rpgChar.hp + val, rpgChar.maxHp + val) }
+      else if (k === 'maxMp') { updates.maxMp = rpgChar.maxMp + val; updates.mp = Math.min(rpgChar.mp + val, rpgChar.maxMp + val) }
     })
-    if (!item.effect.includes('hp+') && !item.effect.includes('mp+')) {
-      updates.inventory = [...(rpgChar.inventory || []), item.name].slice(-20)
-    }
+    updates.inventory = [...(rpgChar.inventory || []), item.name].slice(-20)
     await updateRpgChar(updates)
-    const multLabel = priceMult > 1 ? ` (Harga Lv${lvl}+: x${priceMult})` : ''
+    const tiers = Math.min(Math.floor((lvl - 1) / 10), 2)
+    const multLabel = tiers > 0 ? ` (Harga ×${1+tiers*0.5} krn Lv${lvl})` : ''
     setShopMsg(`✅ ${item.name} berhasil dibeli!${multLabel}`)
     setTimeout(() => setShopMsg(''), 3000)
   }
@@ -6738,40 +6866,255 @@ function RpgShop({ char, items, msg, onBuy, onBack }: {
   onBuy: (item: typeof ITEMS_SHOP[0]) => void; onBack: () => void
 }) {
   const lvl = char.level || 1
-  const priceMult = lvl >= 100 ? 2.0 : lvl >= 50 ? 1.5 : 1.0
-  const multLabel = priceMult > 1 ? ` (Lv${lvl >= 100 ? '100' : '50'}+ ×${priceMult})` : ''
+  const [cooldownUntil, setCooldownUntil] = React.useState(0)
+  const [buying, setBuying] = React.useState<string|null>(null)
+  const [tick, setTick] = React.useState(0)
+
+  React.useEffect(() => {
+    if (cooldownUntil > Date.now()) {
+      const t = setInterval(() => { setTick(v=>v+1); if (Date.now() >= cooldownUntil) clearInterval(t) }, 100)
+      return () => clearInterval(t)
+    }
+  }, [cooldownUntil])
+
+  const isPotion = (item: typeof ITEMS_SHOP[0]) => item.effect.includes('hp+') || item.effect.includes('mp+')
+
+  const getPrice = (item: typeof ITEMS_SHOP[0]) => {
+    if (isPotion(item)) return item.price
+    const tiers = Math.min(Math.floor((lvl - 1) / 10), 2)
+    return Math.round(item.price * (1 + tiers * 0.5))
+  }
+
+  const getDiscount = (item: typeof ITEMS_SHOP[0]) => {
+    if (isPotion(item)) return null
+    const tiers = Math.min(Math.floor((lvl - 1) / 10), 2)
+    if (tiers === 0) return null
+    return `+${tiers * 50}%`
+  }
+
+  const getMaxBuyCount = (item: typeof ITEMS_SHOP[0]) => {
+    const price = getPrice(item)
+    if (!isPotion(item)) return 1
+    const efx = item.effect.split(',')
+    let hpPerItem = 0, mpPerItem = 0
+    efx.forEach(e => { const [k,v] = e.split('+'); if(k==='hp') hpPerItem=parseInt(v); if(k==='mp') mpPerItem=parseInt(v) })
+    const hpNeeded = hpPerItem > 0 ? Math.max(0, char.maxHp - char.hp) : 0
+    const mpNeeded = mpPerItem > 0 ? Math.max(0, char.maxMp - char.mp) : 0
+    const neededCount = hpPerItem > 0 && mpPerItem > 0
+      ? Math.max(Math.ceil(hpNeeded/hpPerItem), Math.ceil(mpNeeded/mpPerItem))
+      : hpPerItem > 0 ? Math.ceil(hpNeeded/hpPerItem) : Math.ceil(mpNeeded/mpPerItem)
+    const affordCount = Math.floor(char.gold / price)
+    return Math.max(1, Math.min(neededCount, affordCount))
+  }
+
+  const getTotalCost = (item: typeof ITEMS_SHOP[0]) => getPrice(item) * getMaxBuyCount(item)
+
+  const onBuyWithCooldown = (item: typeof ITEMS_SHOP[0]) => {
+    const now = Date.now()
+    if (now < cooldownUntil) return
+    setCooldownUntil(now + 2000)
+    setBuying(item.id)
+    onBuy(item)
+    setTimeout(() => setBuying(null), 600)
+  }
+
+  const cdLeft = Math.max(0, (cooldownUntil - Date.now()) / 1000)
+
+  const ITEM_CATEGORIES = [
+    { key: 'potion', label: '💊 Pemulihan', filter: (i: typeof ITEMS_SHOP[0]) => isPotion(i) },
+    { key: 'equip',  label: '⚔️ Permanen',  filter: (i: typeof ITEMS_SHOP[0]) => !isPotion(i) },
+  ]
+
+  const [activeCategory, setActiveCategory] = React.useState<'potion'|'equip'>('potion')
+  const cat = ITEM_CATEGORIES.find(c => c.key === activeCategory)!
+  const filteredItems = items.filter(cat.filter)
+
+  const levelUpTier = Math.min(Math.floor((lvl - 1) / 10), 2)
+
   return (
-    <div style={{ padding: 16 }} className="gc2-fadein">
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button className="gc2-rpg-btn secondary" onClick={onBack} style={{ padding: '6px 12px', fontSize: 12 }}>← Kembali</button>
-          <span style={{ color: '#fff', fontWeight: 700, fontSize: 15 }}>🛒 Toko</span>
+    <div className="gc2-fadein" style={{ display:'flex', flexDirection:'column', height:'100%', background:'#080810' }}>
+      {/* ── ZZZ SHOP HEADER ── */}
+      <div style={{
+        background: 'linear-gradient(135deg, rgba(200,245,0,0.08) 0%, rgba(0,0,0,0) 100%)',
+        borderBottom: '1px solid rgba(200,245,0,0.12)',
+        padding: '12px 16px 10px',
+        flexShrink: 0,
+      }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+            <button className="gc2-rpg-btn secondary" onClick={onBack} style={{ padding:'5px 10px', fontSize:11, borderRadius:8 }}>← Kembali</button>
+            <div>
+              <div style={{ fontSize:15, fontWeight:900, color:'#c8f500', letterSpacing:.5, lineHeight:1 }}>🛒 TOKO</div>
+              <div style={{ fontSize:9, color:'rgba(255,255,255,0.3)', fontFamily:'monospace', letterSpacing:2 }}>ITEM SHOP • LV {lvl}</div>
+            </div>
+          </div>
+          <div style={{
+            display:'flex', alignItems:'center', gap:6,
+            background:'rgba(255,215,0,0.1)', border:'1px solid rgba(255,215,0,0.25)',
+            borderRadius:10, padding:'6px 12px'
+          }}>
+            <span style={{ fontSize:16 }}>💰</span>
+            <span style={{ fontSize:15, fontWeight:900, color:'#ffd700', fontFamily:'monospace' }}>
+              {char.gold.toLocaleString()}
+            </span>
+          </div>
         </div>
-        <div style={{ fontSize: 13, color: '#ffd700', fontWeight: 700 }}>💰 {char.gold}</div>
+
+        {/* Level tier warning */}
+        {levelUpTier > 0 && (
+          <div style={{
+            marginTop:8,
+            background:'rgba(255,120,0,0.1)', border:'1px solid rgba(255,120,0,0.25)',
+            borderRadius:8, padding:'5px 10px', fontSize:10,
+            color:'#ffaa44', display:'flex', alignItems:'center', gap:6
+          }}>
+            <span>⚠️</span>
+            <span>Harga item permanen naik <strong style={{color:'#ffcc00'}}>{levelUpTier*50}%</strong> (Level {lvl} — setiap 10 level +50%, max 100% di Lv70+)</span>
+          </div>
+        )}
       </div>
-      {priceMult > 1 && <div style={{ background:'rgba(255,150,0,0.12)', border:'1px solid rgba(255,150,0,0.3)', borderRadius:8, padding:'6px 12px', fontSize:11, color:'#ffb347', marginBottom:10 }}>
-        ⚠️ Harga naik {priceMult === 2 ? '100%' : '50%'}{multLabel} karena levelmu tinggi!
-      </div>}
-      {msg && <div style={{ background: msg.startsWith('✅') ? 'rgba(80,200,80,0.1)' : 'rgba(255,80,80,0.1)', border: `1px solid ${msg.startsWith('✅') ? 'rgba(80,200,80,0.2)' : 'rgba(255,80,80,0.2)'}`, borderRadius: 8, padding: '8px 12px', fontSize: 12, color: msg.startsWith('✅') ? '#80ff80' : '#ff8080', marginBottom: 10 }}>{msg}</div>}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {items.map(item => {
-          const finalPrice = Math.round(item.price * priceMult)
+
+      {/* ── CATEGORY TABS ── */}
+      <div style={{ display:'flex', gap:0, padding:'8px 12px 0', flexShrink:0 }}>
+        {ITEM_CATEGORIES.map(c => (
+          <button key={c.key} onClick={() => setActiveCategory(c.key as any)} style={{
+            flex:1, padding:'7px 4px', fontSize:11, fontWeight:700, cursor:'pointer',
+            background: activeCategory===c.key ? 'rgba(200,245,0,0.12)' : 'transparent',
+            border:'none', borderBottom: activeCategory===c.key ? '2px solid #c8f500' : '2px solid transparent',
+            color: activeCategory===c.key ? '#c8f500' : 'rgba(255,255,255,0.35)',
+            transition:'all .2s', borderRadius:'6px 6px 0 0'
+          }}>
+            {c.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── MSG ── */}
+      {msg && (
+        <div style={{
+          margin:'8px 12px 0', padding:'8px 12px', borderRadius:10, fontSize:12, fontWeight:700,
+          background: msg.startsWith('✅') ? 'rgba(80,220,80,0.1)' : msg.startsWith('⏳') ? 'rgba(255,215,0,0.1)' : 'rgba(255,80,80,0.1)',
+          border: `1px solid ${msg.startsWith('✅') ? 'rgba(80,220,80,0.25)' : msg.startsWith('⏳') ? 'rgba(255,215,0,0.25)' : 'rgba(255,80,80,0.25)'}`,
+          color: msg.startsWith('✅') ? '#80ff99' : msg.startsWith('⏳') ? '#ffd700' : '#ff8080',
+          animation:'fadeInUp .2s ease', flexShrink:0,
+        }}>{msg}</div>
+      )}
+
+      {/* ── COOLDOWN BAR ── */}
+      {cdLeft > 0 && (
+        <div style={{ margin:'4px 12px 0', flexShrink:0 }}>
+          <div style={{ height:3, background:'rgba(255,255,255,0.08)', borderRadius:2, overflow:'hidden' }}>
+            <div style={{
+              height:'100%', borderRadius:2,
+              background:'linear-gradient(90deg,#c8f500,#00e5ff)',
+              width:`${(cdLeft/2)*100}%`,
+              transition:'width .1s linear'
+            }}/>
+          </div>
+          <div style={{ fontSize:9, color:'rgba(255,255,255,0.3)', marginTop:2, fontFamily:'monospace' }}>
+            ⏳ Cooldown: {cdLeft.toFixed(1)}s
+          </div>
+        </div>
+      )}
+
+      {/* ── ITEMS LIST ── */}
+      <div style={{ flex:1, overflowY:'auto', padding:'8px 12px 16px', display:'flex', flexDirection:'column', gap:8 }}>
+        {filteredItems.map(item => {
+          const price = getPrice(item)
+          const discount = getDiscount(item)
+          const canAfford = char.gold >= price
+          const maxCount = getMaxBuyCount(item)
+          const totalCost = getTotalCost(item)
+          const isBuying = buying === item.id
+          const onCooldown = cdLeft > 0
+          const isHpMp = isPotion(item)
+          const alreadyFull = isHpMp && (() => {
+            const efx = item.effect.split(',')
+            let full = true
+            efx.forEach(e => { const [k] = e.split('+'); if(k==='hp' && char.hp < char.maxHp) full=false; if(k==='mp' && char.mp < char.maxMp) full=false })
+            return full
+          })()
+
           return (
-            <div key={item.id} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ fontSize: 28, lineHeight: 1 }}>{item.emoji}</div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{item.name}</div>
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>{item.desc}</div>
-                {priceMult > 1 && <div style={{ fontSize: 10, color: 'rgba(255,150,0,0.6)', textDecoration: 'line-through' }}>💰{item.price}</div>}
+            <div key={item.id} style={{
+              background: isBuying ? 'rgba(200,245,0,0.08)' : 'rgba(255,255,255,0.03)',
+              border: `1px solid ${isBuying ? 'rgba(200,245,0,0.3)' : canAfford ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)'}`,
+              borderRadius:14, padding:'11px 12px',
+              display:'flex', alignItems:'center', gap:12,
+              transition:'all .25s cubic-bezier(.4,0,.2,1)',
+              transform: isBuying ? 'scale(1.01)' : 'scale(1)',
+              opacity: (!canAfford && !isHpMp) ? 0.5 : 1,
+            }}>
+              {/* Icon */}
+              <div style={{
+                width:46, height:46, borderRadius:12, flexShrink:0,
+                background: isHpMp ? 'rgba(79,195,247,0.1)' : 'rgba(200,245,0,0.07)',
+                border: `1px solid ${isHpMp ? 'rgba(79,195,247,0.2)' : 'rgba(200,245,0,0.15)'}`,
+                display:'flex', alignItems:'center', justifyContent:'center', fontSize:26,
+              }}>
+                {item.emoji}
               </div>
-              <button className="gc2-rpg-btn primary" onClick={() => onBuy(item)}
-                disabled={char.gold < finalPrice}
-                style={{ fontSize: 11, padding: '5px 10px', flexShrink: 0, background: priceMult > 1 ? 'rgba(255,150,0,0.3)' : undefined }}>
-                💰{finalPrice}
+
+              {/* Info */}
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                  <div style={{ fontSize:13, fontWeight:800, color: alreadyFull ? 'rgba(255,255,255,0.4)' : '#fff', lineHeight:1.2 }}>{item.name}</div>
+                  {isHpMp && <span style={{ fontSize:9, background:'rgba(79,195,247,0.15)', color:'#4fc3f7', border:'1px solid rgba(79,195,247,0.3)', borderRadius:4, padding:'1px 5px', fontWeight:700 }}>AUTO</span>}
+                  {discount && <span style={{ fontSize:9, background:'rgba(255,120,0,0.15)', color:'#ff8844', border:'1px solid rgba(255,120,0,0.3)', borderRadius:4, padding:'1px 5px', fontWeight:700 }}>{discount}</span>}
+                </div>
+                <div style={{ fontSize:10, color:'rgba(255,255,255,0.4)', marginTop:1 }}>{item.desc}</div>
+                {isHpMp && alreadyFull && <div style={{ fontSize:9, color:'#c8f500', marginTop:2, fontWeight:700 }}>✅ Sudah penuh!</div>}
+                {isHpMp && !alreadyFull && maxCount > 1 && (
+                  <div style={{ fontSize:9, color:'rgba(200,245,0,0.6)', marginTop:2 }}>
+                    ×{maxCount} otomatis · Total: 💰{totalCost.toLocaleString()}
+                  </div>
+                )}
+                {discount && <div style={{ fontSize:9, color:'rgba(255,255,255,0.3)', textDecoration:'line-through', marginTop:1 }}>💰{item.price}</div>}
+              </div>
+
+              {/* Buy button */}
+              <button
+                onClick={() => !onCooldown && !alreadyFull && onBuyWithCooldown(item)}
+                disabled={(!canAfford && !isHpMp) || alreadyFull || onCooldown}
+                style={{
+                  minWidth:60, padding:'7px 12px', borderRadius:10,
+                  border:'none', cursor: (!canAfford && !isHpMp) || alreadyFull || onCooldown ? 'not-allowed' : 'pointer',
+                  background: alreadyFull ? 'rgba(200,245,0,0.07)'
+                    : onCooldown ? 'rgba(255,255,255,0.05)'
+                    : canAfford ? (isHpMp ? 'linear-gradient(135deg,#4fc3f7,#0288d1)' : 'linear-gradient(135deg,#c8f500,#a0c800)')
+                    : 'rgba(255,255,255,0.06)',
+                  color: alreadyFull ? 'rgba(200,245,0,0.4)'
+                    : onCooldown ? 'rgba(255,255,255,0.3)'
+                    : canAfford ? '#000'
+                    : 'rgba(255,255,255,0.25)',
+                  fontSize:11, fontWeight:900,
+                  transition:'all .2s cubic-bezier(.4,0,.2,1)',
+                  transform: isBuying ? 'scale(.95)' : 'scale(1)',
+                  boxShadow: canAfford && !alreadyFull && !onCooldown
+                    ? (isHpMp ? '0 3px 12px rgba(79,195,247,0.35)' : '0 3px 12px rgba(200,245,0,0.35)')
+                    : 'none',
+                  flexShrink:0, textAlign:'center', lineHeight:1.3,
+                }}>
+                {alreadyFull ? '✅' : onCooldown ? '⏳' : (
+                  <>
+                    <div>💰{price.toLocaleString()}</div>
+                    {isHpMp && maxCount > 1 && <div style={{fontSize:9,opacity:.8}}>×{maxCount}</div>}
+                  </>
+                )}
               </button>
             </div>
           )
         })}
+      </div>
+
+      {/* ── BOTTOM HINT ── */}
+      <div style={{
+        padding:'6px 16px 10px', flexShrink:0,
+        fontSize:9, color:'rgba(255,255,255,0.18)', textAlign:'center', lineHeight:1.6
+      }}>
+        💊 Potion HP/MP: harga tetap • beli otomatis sampai full sesuai saldo<br/>
+        ⚔️ Item permanen: harga naik +50% per 10 level (max +100% di Lv70+)<br/>
+        🛡️ Cooldown 2 detik per pembelian untuk hemat Firebase
       </div>
     </div>
   )
