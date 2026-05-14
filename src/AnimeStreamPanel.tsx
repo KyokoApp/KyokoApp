@@ -45,31 +45,31 @@ const EMBED_PLAYERS: EmbedPlayer[] = [
       `https://vidsrc.to/embed/anime/${animeId || 0}/${ep}`,
   },
   {
-    // vidsrc.su — mirror stabil
+    // vidsrc.me — mirror stabil, support MAL ID
     id: 'vidsrc2',
     name: 'VidSrc 2',
     icon: '🟩',
     color: '#86efac',
     getUrl: (_title, ep, animeId) =>
-      `https://vidsrc.su/embed/anime/${animeId || 0}/${ep}/1`,
+      `https://vidsrc.me/embed/anime?mal=${animeId || 0}&episode=${ep}`,
   },
   {
-    // vidsrc.in — mirror ke-3
+    // vidsrc.xyz — mirror ke-3, support MAL ID
     id: 'vidsrc3',
     name: 'VidSrc 3',
     icon: '🔵',
     color: '#60a5fa',
     getUrl: (_title, ep, animeId) =>
-      `https://vidsrc.in/embed/anime?mal=${animeId || 0}&episode=${ep}`,
+      `https://vidsrc.xyz/embed/anime?mal=${animeId || 0}&episode=${ep}`,
   },
   {
-    // embed.su — MAL ID based, stabil
+    // smashystream — MAL ID based, iframe-friendly
     id: 'embedsu',
-    name: 'Embed.su',
+    name: 'SmashyStream',
     icon: '🟣',
     color: '#a78bfa',
     getUrl: (_title, ep, animeId) =>
-      `https://embed.su/embed/anime/${animeId || 0}/${ep}`,
+      `https://player.smashy.stream/anime/${animeId || 0}?ep=${ep}`,
   },
   {
     // 2anime.xyz — khusus anime embed
@@ -81,13 +81,13 @@ const EMBED_PLAYERS: EmbedPlayer[] = [
       `https://2anime.xyz/embed/anime/${animeId || 0}/${ep}`,
   },
   {
-    // anify embed — by MAL ID
+    // anime-js.online — by MAL ID
     id: 'anify',
-    name: 'Anify',
+    name: 'AnimeJS',
     icon: '🩵',
     color: '#38bdf8',
     getUrl: (_title, ep, animeId) =>
-      `https://anify.tv/embed/anime/${animeId || 0}?episode=${ep}`,
+      `https://anime-js.online/api/mal?id=${animeId || 0}&ep=${ep}`,
   },
 ]
 
@@ -716,8 +716,7 @@ export default function AnimeStreamPanel({ isAdmin, userId }: Props) {
                 ref={iframeRef}
                 src={currentUrl}
                 allowFullScreen
-                allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
-                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation"
+                allow="autoplay; fullscreen; encrypted-media; picture-in-picture; web-share"
                 key={`${activePlayer.id}-${selectedEp}`}
                 style={{ border: 'none', width: '100%', height: '100%', display: 'block', background: '#000' }}
               />
