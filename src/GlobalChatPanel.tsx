@@ -2661,6 +2661,33 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
     setRpgView('dashboard')
   }
 
+  const handleDungeonWin = async (boss: DungeonBoss) => {
+    if (!rpgChar || !user) return
+    showToast('win', `🏰 DUNGEON CLEAR!`, `${boss.name} dikalahkan! +${boss.primogems}💎`)
+    const todayStr = new Date().toDateString()
+    const dailyData = rpgChar.dailyMissions?.date === todayStr
+      ? rpgChar.dailyMissions
+      : { date: todayStr, completed: [], claimed: [] }
+    const newCompleted = [...new Set([...dailyData.completed, 'dm_dungeon'])]
+    const newDungeonKills = (rpgChar.dungeonKills || 0) + 1
+    const updates: Partial<RpgChar> = {
+      exp: rpgChar.exp + boss.exp,
+      gold: rpgChar.gold + boss.gold,
+      inventory: [...(rpgChar.inventory || []), boss.dropItem].slice(-20),
+      dungeonKills: newDungeonKills,
+      dailyMissions: { ...dailyData, completed: newCompleted }
+    }
+    const newLevel = getLevel(updates.exp!)
+    if (newLevel > rpgChar.level) {
+      updates.level = newLevel; updates.maxHp = rpgChar.maxHp + 20; updates.maxMp = rpgChar.maxMp + 15
+      updates.atk = rpgChar.atk + 3; updates.def = rpgChar.def + 2
+      showToast('info', '🎉 LEVEL UP!', `Naik ke Level ${newLevel}!`)
+    }
+    await updateRpgChar(updates)
+    await updateDoc(doc(getRpgDb(user.uid), 'playerGacha', user.uid), { primogems: (gachaData?.primogems || 0) + boss.primogems })
+    setGachaData(prev => prev ? { ...prev, primogems: (prev.primogems || 0) + boss.primogems } : prev)
+  }
+
   // ── Daily Missions: Claim ─────────────────────────────────────
   const claimDailyMission = async (missionId: string) => {
     if (!rpgChar || !user) return
@@ -4442,11 +4469,8 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
                 )}
                 {rpgChar && rpgView === 'dungeon' && dungeonState && (
                   <DungeonBattle char={rpgChar} ds={dungeonState}
-                    onAttack={() => doDungeonAttack('normal')}
-                    onSkill={() => doDungeonAttack('skill')}
-                    onBurst={() => doDungeonAttack('burst')}
-                    onSwitch={switchDungeonChar}
                     onEnd={endDungeon}
+                    onWin={() => handleDungeonWin(dungeonState.boss)}
                   />
                 )}
 
@@ -7327,322 +7351,482 @@ function DungeonSelect({ char, gachaData, onStart, onBack }: {
   )
 }
 
-function DungeonBattle({ char, ds, onAttack, onSkill, onBurst, onSwitch, onEnd }: {
+function DungeonBattle({ char, ds, onEnd, onWin }: {
   char: RpgChar
-  ds: { boss: DungeonBoss; bossHp: number; bossPhase: 1|2; frozenTurns: number; superconduct: boolean
-        activeChars: GachaChar[]; charHp: number[]; currentChar: number; energy: number
-        log: {text:string;type:string}[]; result?: 'win'|'lose'; phase: string }
-  onAttack: () => void; onSkill: () => void; onBurst: () => void
-  onSwitch: (idx: number) => void; onEnd: () => void
+  ds: { boss: DungeonBoss; activeChars: GachaChar[]; [key: string]: any }
+  onEnd: () => void
+  onWin: () => void
 }) {
-  const logRef = useRef<HTMLDivElement>(null)
-  const floatIdRef = useRef(0)
+  const BOSS = ds.boss
+  const PARTY = ds.activeChars
 
-  // ── Visual FX State ──
-  const [shakeScreen, setShakeScreen] = useState(false)
-  const [bigShake, setBigShake] = useState(false)
-  const [bossFlash, setBossFlash] = useState(false)
-  const [playerFlash, setPlayerFlash] = useState<number|null>(null)
-  const [floatNums, setFloatNums] = useState<{id:number;val:string;type:string;side:string}[]>([])
-  const [combo, setCombo] = useState(0)
-  const [lastPhase, setLastPhase] = useState(ds.phase)
-  const [lastBossHp, setLastBossHp] = useState(ds.bossHp)
-  const [lastCharHp, setLastCharHp] = useState(ds.charHp)
-  const [prevLog, setPrevLog] = useState(ds.log.length)
-
-  useEffect(() => { logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: 'smooth' }) }, [ds.log])
-
-  const addFloat = useCallback((val: string, type: string, side: string) => {
-    const id = ++floatIdRef.current
-    setFloatNums(prev => [...prev, { id, val, type, side }])
-    setTimeout(() => setFloatNums(prev => prev.filter(f => f.id !== id)), 1500)
-  }, [])
-
-  const triggerShake = useCallback((big = false) => {
-    if (big) { setBigShake(true); setTimeout(() => setBigShake(false), 600) }
-    else { setShakeScreen(true); setTimeout(() => setShakeScreen(false), 350) }
-  }, [])
-
-  // Detect damage / heal changes and trigger FX
-  useEffect(() => {
-    // Boss got hit
-    if (ds.bossHp < lastBossHp && ds.phase === 'player') {
-      const dmg = lastBossHp - ds.bossHp
-      addFloat(String(dmg), 'dmg', 'boss')
-      setBossFlash(true); setTimeout(() => setBossFlash(false), 300)
-      triggerShake(dmg > 80)
-      setCombo(c => c + 1)
-    }
-    setLastBossHp(ds.bossHp)
-  }, [ds.bossHp])
-
-  useEffect(() => {
-    ds.charHp.forEach((hp, i) => {
-      if (hp < lastCharHp[i]) {
-        const dmg = lastCharHp[i] - hp
-        addFloat(String(dmg), 'crit', 'party_' + i)
-        setPlayerFlash(i); setTimeout(() => setPlayerFlash(null), 400)
-        triggerShake(dmg > 60)
-      } else if (hp > lastCharHp[i]) {
-        addFloat('+' + (hp - lastCharHp[i]), 'heal', 'party_' + i)
-      }
-    })
-    setLastCharHp([...ds.charHp])
-  }, [ds.charHp])
-
-  // Phase change: enemy turn started
-  useEffect(() => {
-    if (ds.phase !== lastPhase) {
-      if (ds.phase === 'enemy') setCombo(0)
-      setLastPhase(ds.phase)
-    }
-  }, [ds.phase])
-
-  const boss = ds.boss
-  const char_ = ds.activeChars[ds.currentChar]
-  const bossHpPct = Math.max(0, (ds.bossHp / boss.hp) * 100)
-  const energyPct = ds.energy
-  const isPlayerTurn = ds.phase === 'player' && !ds.result
-  const rankColor: Record<string,string> = { Normal:'#80ff80', Elite:'#ffd700', Weekly:'#ff9d00', Archon:'#ff4444' }
-  const rColor = rankColor[boss.rank] || '#ff4444'
-  const elemColor: Record<string,string> = {
+  const ELEM_COLOR: Record<string,string> = {
     Electro:'#c86eff', Pyro:'#ff6b3d', Hydro:'#00bfff', Anemo:'#74c2a0',
     Geo:'#daa520', Dendro:'#7cbb4a', Cryo:'#98d8ea', Spectro:'#ffd700', Havoc:'#9b59b6'
   }
-  const bossColor = elemColor[boss.element] || rColor
-  const isRage = bossHpPct < 30 && ds.bossHp > 0
+  const RANK_COLOR: Record<string,string> = { Normal:'#80ff80', Elite:'#ffd700', Weekly:'#ff9d00', Archon:'#ff4444' }
+  const BOSS_ULTIS: Record<string,{name:string;desc:string;color:string;dmgMult:number}> = {
+    Archon: { name:'Musou no Hitotachi', desc:'Satu tebasan membelah dunia',   color:'#c86eff', dmgMult:2.8 },
+    Weekly: { name:'Domain Assault',     desc:'Serangan domain merusak semua', color:'#ff9d00', dmgMult:2.2 },
+    Elite:  { name:'Elemental Surge',    desc:'Ledakan elemen yang dahsyat',   color:'#ffd700', dmgMult:1.8 },
+    Normal: { name:'Rage Burst',         desc:'Serangan brutal saat HP kritis',color:'#ff4444', dmgMult:1.5 },
+  }
 
-  const DUNGEON_CSS = `
-    @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700;900&family=Orbitron:wght@700;900&display=swap');
-    .db-root { font-family: 'Rajdhani','Segoe UI',sans-serif; display:flex; flex-direction:column; height:100%; box-sizing:border-box; background:linear-gradient(160deg,#0a0a18,#07070f); overflow:hidden; position:relative; }
-    @keyframes dbShake { 0%,100%{transform:translate(0,0)} 15%{transform:translate(-5px,4px)} 30%{transform:translate(5px,-4px)} 50%{transform:translate(-4px,5px)} 70%{transform:translate(4px,-3px)} 85%{transform:translate(-2px,2px)} }
-    @keyframes dbBigShake { 0%,100%{transform:translate(0,0) rotate(0)} 10%{transform:translate(-8px,7px) rotate(-.5deg)} 25%{transform:translate(8px,-7px) rotate(.5deg)} 40%{transform:translate(-7px,8px) rotate(-.3deg)} 60%{transform:translate(7px,-6px) rotate(.3deg)} 80%{transform:translate(-4px,4px)} }
-    .db-shake { animation: dbShake .35s ease-out; }
-    .db-bigshake { animation: dbBigShake .6s ease-out; }
-    @keyframes dbFloatUp { 0%{transform:translateY(0) scale(1);opacity:1} 40%{transform:translateY(-32px) scale(1.2);opacity:1} 100%{transform:translateY(-70px) scale(.6);opacity:0} }
-    .db-float { position:absolute; left:50%; top:50%; transform:translateX(-50%); animation:dbFloatUp 1.4s ease-out forwards; pointer-events:none; z-index:99; font-family:'Orbitron',monospace; font-weight:900; letter-spacing:1px; white-space:nowrap; }
-    @keyframes dbIdleFloat { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
-    @keyframes dbRageFlicker { 0%,100%{opacity:1} 40%{opacity:.7} }
-    @keyframes dbBossHit { 0%{filter:brightness(3) saturate(0)} 100%{filter:brightness(1) saturate(1)} }
-    .db-boss-section { position:relative; padding:10px 12px 6px; border-bottom:1px solid rgba(255,55,95,.1); min-height:130px; }
-    .db-boss-hit { animation: dbBossHit .3s ease-out; }
-    @keyframes dbScan { from{top:-35%} to{top:120%} }
-    .db-scan { position:absolute; left:0; right:0; height:35%; background:linear-gradient(transparent,rgba(255,255,255,.03),transparent); animation:dbScan 5s linear infinite; pointer-events:none; }
-    .db-boss-emoji-idle { animation:dbIdleFloat 2.5s ease-in-out infinite; }
-    .db-boss-emoji-rage { animation:dbRageFlicker .8s infinite; }
-    @keyframes dbPulseBadge { 0%,100%{opacity:1} 50%{opacity:.4} }
-    .db-pulse { animation:dbPulseBadge .7s infinite; }
-    @keyframes dbCharHit { 0%{background:rgba(255,55,95,.3)} 100%{background:transparent} }
-    .db-char-hit { animation:dbCharHit .4s ease-out forwards; }
-    @keyframes dbBurstPulse { 0%,100%{box-shadow:0 2px 16px rgba(160,100,255,.35)} 50%{box-shadow:0 4px 28px rgba(160,100,255,.7),0 0 12px rgba(255,215,0,.3)} }
-    @keyframes dbComboPop { 0%{transform:translateX(-50%) scale(.2) rotate(-12deg);opacity:0} 55%{transform:translateX(-50%) scale(1.3) rotate(4deg);opacity:1} 75%{transform:translateX(-50%) scale(.95)} 100%{transform:translateX(-50%) scale(1) rotate(0);opacity:1} }
-    @keyframes dbComboPulse { 0%,100%{text-shadow:0 0 10px #ffd60a} 50%{text-shadow:0 0 28px #ffd60a,0 0 50px #ffd60a} }
-    @keyframes dbDotBlink { 0%,100%{opacity:1} 50%{opacity:.2} }
-    @keyframes dbResultIn { 0%{opacity:0;transform:scale(.8)} 60%{transform:scale(1.05)} 100%{opacity:1;transform:scale(1)} }
-    @keyframes dbResultIconPop { from{transform:scale(0) rotate(-20deg)} to{transform:scale(1) rotate(0)} }
-  `
+  const [bossHp,      setBossHp]      = useState(BOSS.hp)
+  const [bossPhase,   setBossPhase]   = useState(1)
+  const [bossEnergy,  setBossEnergy]  = useState(0)
+  const [charHp,      setCharHp]      = useState(PARTY.map((c: GachaChar) => c.hp))
+  const [charEnergy,  setCharEnergy]  = useState(PARTY.map(() => 0))
+  const [charSkillCd, setCharSkillCd] = useState(PARTY.map(() => 0))
+  const [currentChar, setCurrentChar] = useState(0)
+  const [log,         setLog]         = useState([{ text: `⚔️ DUNGEON DIMULAI! ${PARTY.map((c: GachaChar)=>c.name).join(', ')} vs ${BOSS.emoji} ${BOSS.name}!`, type: 'info' as const }])
+  const [done,        setDone]        = useState(false)
+  const [result,      setResult]      = useState<'win'|'lose'|null>(null)
+  const [turn,        setTurn]        = useState(1)
+
+  const [shakeClass,  setShakeClass]  = useState('')
+  const [bossFlash,   setBossFlash]   = useState(false)
+  const [partyFlash,  setPartyFlash]  = useState<number|null>(null)
+  const [floats,      setFloats]      = useState<{id:number;val:number;type:string;side:string}[]>([])
+  const [combo,       setCombo]       = useState(0)
+  const [bossRage,    setBossRage]    = useState(false)
+  const [showUlti,    setShowUlti]    = useState<{name:string;desc:string;color:string;dmgMult:number}|null>(null)
+  const [ultiPhase,   setUltiPhase]   = useState(0)
+
+  const logRef  = useRef<HTMLDivElement>(null)
+  const fId     = useRef(0)
+  const stopped = useRef(false)
+  const winCalled = useRef(false)
+
+  const R = useRef<any>({})
+  R.current = { bossHp, bossPhase, bossEnergy, charHp, charEnergy, charSkillCd, currentChar, turn }
+
+  useEffect(() => { logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior:'smooth' }) }, [log])
+
+  const addLog = useCallback((text: string, type = 'info') => setLog((p: any[]) => [...p.slice(-40), { text, type }]), [])
+
+  const addFloat = useCallback((val: number, type: string, side: string) => {
+    const id = ++fId.current
+    setFloats((p: any[]) => [...p, { id, val, type, side }])
+    setTimeout(() => setFloats((p: any[]) => p.filter((f: any) => f.id !== id)), 1500)
+  }, [])
+
+  const shake = useCallback((big = false) => {
+    setShakeClass(big ? 'shake-lg' : 'shake-sm')
+    setTimeout(() => setShakeClass(''), big ? 600 : 360)
+  }, [])
+
+  const wait = (ms: number) => new Promise(r => setTimeout(r, ms))
+
+  useEffect(() => {
+    stopped.current = false
+    winCalled.current = false
+    runLoop()
+    return () => { stopped.current = true }
+    // eslint-disable-next-line
+  }, [])
+
+  async function runLoop() {
+    let { bossHp: bHp, bossPhase: bPhase, bossEnergy: bEn,
+          charHp: cHp, charEnergy: cEn, charSkillCd: cCd, currentChar: cIdx } = R.current
+    let localTurn = 1
+
+    while (!stopped.current) {
+      bHp    = R.current.bossHp
+      bPhase = R.current.bossPhase
+      bEn    = R.current.bossEnergy
+      cHp    = [...R.current.charHp]
+      cEn    = [...R.current.charEnergy]
+      cCd    = [...R.current.charSkillCd]
+      cIdx   = R.current.currentChar
+
+      const alive = (cHp as number[]).map((h,i) => h > 0 ? i : -1).filter(x => x >= 0)
+      if (alive.length === 0) break
+
+      await wait(420)
+
+      // ── PLAYER ACTION ──
+      const char = PARTY[cIdx] as GachaChar
+      const isWeak = (BOSS.weakness || []).includes(char.element as any)
+      let action = 'attack'
+      if (cEn[cIdx] >= 100) action = 'burst'
+      else if (cCd[cIdx] === 0 && Math.random() < 0.42) action = 'skill'
+
+      if (action === 'burst') {
+        const dmg = Math.max(30, Math.floor((char.atk * (isWeak?4:3.5) - BOSS.def*0.2) * (0.9+Math.random()*0.2)))
+        bHp = Math.max(0, bHp - dmg)
+        setBossHp(bHp); setBossFlash(true); setTimeout(()=>setBossFlash(false), 450)
+        addFloat(dmg,'burst','boss')
+        addLog(`💥 ${char.name} → ${char.burst}! ${dmg} BURST DMG!!!`, 'burst')
+        setCombo((c: number) => c+3); cEn[cIdx]=0; setCharEnergy([...cEn])
+        bEn=Math.min(100,bEn+22); setBossEnergy(bEn); shake(true)
+
+      } else if (action === 'skill') {
+        const dmg = Math.max(10, Math.floor((char.atk*(isWeak?1.9:1.5)-BOSS.def*0.3)*(0.95+Math.random()*0.1)))
+        bHp = Math.max(0, bHp - dmg)
+        setBossHp(bHp); setBossFlash(true); setTimeout(()=>setBossFlash(false), 350)
+        addFloat(dmg,'skill','boss')
+        addLog(`✨ ${char.name} → ${char.skill}! ${dmg} Skill DMG`, 'skill')
+        setCombo((c: number) => c+1); cEn[cIdx]=Math.min(100,cEn[cIdx]+28); setCharEnergy([...cEn])
+        cCd[cIdx]=2; setCharSkillCd([...cCd])
+        bEn=Math.min(100,bEn+12); setBossEnergy(bEn); shake(false)
+
+      } else {
+        const isCrit = Math.random()<0.18
+        const dmg = Math.max(5, Math.floor((char.atk*(isWeak?1.3:1)-BOSS.def*0.4)*(isCrit?2:1)*(0.88+Math.random()*0.24)))
+        bHp = Math.max(0, bHp - dmg)
+        setBossHp(bHp); setBossFlash(true); setTimeout(()=>setBossFlash(false), 280)
+        addFloat(dmg, isCrit?'crit':'dmg', 'boss')
+        addLog(`⚔️ ${char.name} menyerang! ${dmg}${isCrit?' CRIT!':''} DMG`, isCrit?'crit':'dmg')
+        setCombo((c: number) => c+1); cEn[cIdx]=Math.min(100,cEn[cIdx]+(isCrit?22:14)); setCharEnergy([...cEn])
+        bEn=Math.min(100,bEn+(isCrit?18:10)); setBossEnergy(bEn); shake(isCrit)
+      }
+
+      // ── Check WIN ──
+      if (bHp <= 0) {
+        await wait(350)
+        addLog(`🏆 ${BOSS.name} dikalahkan! DUNGEON CLEAR!!! +${BOSS.exp}EXP +${BOSS.gold}G +${BOSS.primogems}💎`, 'win')
+        if (!winCalled.current) { winCalled.current = true; onWin() }
+        setResult('win'); setDone(true); return
+      }
+
+      // Phase 2
+      if (bHp <= BOSS.phase2Hp && bPhase === 1) {
+        bPhase = 2; setBossPhase(2)
+        addLog(`🔥 ${BOSS.name} memasuki PHASE 2! Kekuatan meningkat!`, 'boss-ulti')
+        await wait(500)
+      }
+      const bHpPct = (bHp / BOSS.hp) * 100
+      setBossRage(bHpPct < 30)
+
+      cCd = (cCd as number[]).map(cd => Math.max(0,cd-1)); setCharSkillCd([...cCd])
+
+      const aliveNow = (cHp as number[]).map((h,i) => h>0?i:-1).filter(x=>x>=0)
+      if (aliveNow.length > 0) {
+        const nx = aliveNow[(aliveNow.indexOf(cIdx)+1) % aliveNow.length]
+        cIdx = nx; setCurrentChar(nx)
+      }
+
+      await wait(380)
+
+      // ── BOSS TURN ──
+      const aliveForBoss = (cHp as number[]).map((h,i)=>h>0?i:-1).filter(x=>x>=0)
+      if (aliveForBoss.length === 0) break
+
+      // 1 — ULTI
+      if (bEn >= 100) {
+        bEn = 0; setBossEnergy(0)
+        const ulti = BOSS_ULTIS[BOSS.rank] || BOSS_ULTIS.Normal
+        setShowUlti(ulti); setUltiPhase(1)
+        await wait(300); setUltiPhase(2)
+        await wait(900); setUltiPhase(3)
+        await wait(600); setUltiPhase(0); setShowUlti(null)
+        aliveForBoss.forEach((i: number) => {
+          const dmg = Math.max(10, Math.floor((BOSS.atk*ulti.dmgMult - (PARTY[i] as GachaChar).def*0.4)*(0.88+Math.random()*0.24)))
+          cHp[i] = Math.max(0, cHp[i] - dmg)
+          addFloat(dmg,'crit',`party_${i}`)
+        })
+        setCharHp([...cHp])
+        addLog(`💥 ${BOSS.name} → ${ulti.name}! SEMUA karakter terkena!`, 'boss-ulti')
+        shake(true)
+
+      // 2 — HEAL
+      } else if (bHpPct < 35 && Math.random() < 0.38) {
+        const heal = Math.floor(BOSS.hp*0.07 + Math.random()*BOSS.hp*0.04)
+        bHp = Math.min(BOSS.hp, bHp + heal); setBossHp(bHp)
+        addFloat(heal,'heal','boss')
+        addLog(`💚 ${BOSS.name} memulihkan ${heal} HP!`, 'heal')
+        await wait(400)
+
+      // 3 — RAGE hit
+      } else if (bHpPct < 30 && Math.random() < 0.5) {
+        const tgt = aliveForBoss[Math.floor(Math.random()*aliveForBoss.length)]
+        const dmg = Math.max(12, Math.floor((BOSS.atk*(bPhase===2?1.9:1.6) - (PARTY[tgt] as GachaChar).def*0.3)*(1.1+Math.random()*0.3)))
+        cHp[tgt] = Math.max(0,cHp[tgt]-dmg); setCharHp([...cHp])
+        addFloat(dmg,'crit',`party_${tgt}`)
+        addLog(`💢 RAGE! ${BOSS.name} → ${(PARTY[tgt] as GachaChar).name}: ${dmg} CRIT!`, 'boss-skill')
+        setPartyFlash(tgt); setTimeout(()=>setPartyFlash(null), 400)
+        bEn=Math.min(100,bEn+15); setBossEnergy(bEn); shake(true)
+
+      // 4 — Normal
+      } else {
+        const tgt = aliveForBoss[Math.floor(Math.random()*aliveForBoss.length)]
+        const isCrit = Math.random()<0.2
+        const dmg = Math.max(8, Math.floor((BOSS.atk*(bPhase===2?1.25:1) - (PARTY[tgt] as GachaChar).def*0.45)*(isCrit?1.75:1)*(0.85+Math.random()*0.3)))
+        cHp[tgt] = Math.max(0,cHp[tgt]-dmg); setCharHp([...cHp])
+        addFloat(dmg, isCrit?'crit':'dmg', `party_${tgt}`)
+        addLog(`🗡️ ${BOSS.name} → ${(PARTY[tgt] as GachaChar).name}: ${dmg}${isCrit?' CRIT!':''}`, isCrit?'boss-skill':'boss-dmg')
+        setPartyFlash(tgt); setTimeout(()=>setPartyFlash(null), 350)
+        bEn=Math.min(100,bEn+(isCrit?20:13)); setBossEnergy(bEn); shake(isCrit)
+      }
+
+      // ── Check LOSE ──
+      if (!(cHp as number[]).some(h=>h>0)) {
+        await wait(350)
+        addLog('💀 Semua karakter KO! DUNGEON GAGAL...', 'lose')
+        setResult('lose'); setDone(true); return
+      }
+
+      const aliveEnd = (cHp as number[]).map((h,i)=>h>0?i:-1).filter(x=>x>=0)
+      if (!aliveEnd.includes(cIdx)) { cIdx=aliveEnd[0]; setCurrentChar(cIdx) }
+
+      localTurn++; setTurn(localTurn)
+    }
+  }
+
+  const bossHpPct = Math.max(0, (bossHp/BOSS.hp)*100)
+  const rc = RANK_COLOR[BOSS.rank] || '#ff4444'
+  const bc = ELEM_COLOR[BOSS.element] || '#ff4444'
+
+  const DB_CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700;900&family=Orbitron:wght@700;900&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+@keyframes shSm{0%,100%{transform:translate(0,0)}20%{transform:translate(-4px,3px)}40%{transform:translate(4px,-3px)}60%{transform:translate(-3px,4px)}80%{transform:translate(2px,-2px)}}
+@keyframes shLg{0%,100%{transform:translate(0,0)}12%{transform:translate(-7px,6px)}28%{transform:translate(7px,-6px)}45%{transform:translate(-6px,7px)}62%{transform:translate(6px,-5px)}80%{transform:translate(-3px,3px)}}
+.db2-shake-sm{animation:shSm .35s ease-out}.db2-shake-lg{animation:shLg .6s ease-out}
+@keyframes fUp{0%{transform:translateY(0) scale(1);opacity:1}45%{transform:translateY(-34px) scale(1.15);opacity:1}100%{transform:translateY(-72px) scale(.55);opacity:0}}
+.db2-float{position:absolute;left:50%;top:50%;transform:translateX(-50%);animation:fUp 1.4s ease-out forwards;pointer-events:none;z-index:99;font-family:'Orbitron',monospace;letter-spacing:1px;white-space:nowrap;font-weight:900}
+@keyframes idleFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+@keyframes rageFx{0%,100%{filter:drop-shadow(0 0 18px var(--bc,#f44))}40%{filter:drop-shadow(0 0 36px #ff1744) brightness(1.3) saturate(1.6)}}
+@keyframes bossHitFx{0%{background:rgba(255,255,255,.2)}100%{background:transparent}}
+.db2-idle-anim{animation:idleFloat 2.5s ease-in-out infinite}.db2-rage-anim{animation:rageFx .8s infinite}.db2-boss-hit{animation:bossHitFx .3s ease-out forwards}
+@keyframes charHitFx{0%{background:rgba(255,55,95,.3)}100%{background:transparent}}
+.db2-char-hit{animation:charHitFx .4s ease-out forwards}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+@keyframes autoPulse{0%,100%{box-shadow:0 0 0 0 rgba(255,214,0,.4)}50%{box-shadow:0 0 0 5px rgba(255,214,0,0)}}
+@keyframes comboPulse{0%,100%{text-shadow:0 0 10px #ffd60a}50%{text-shadow:0 0 28px #ffd60a,0 0 50px #ffd60a}}
+@keyframes comboIn{0%{transform:translateX(-50%) scale(.2) rotate(-12deg);opacity:0}55%{transform:translateX(-50%) scale(1.3) rotate(4deg);opacity:1}100%{transform:translateX(-50%) scale(1) rotate(0);opacity:1}}
+@keyframes dotBlink{0%,100%{opacity:1}50%{opacity:.2}}
+@keyframes scanMove{from{top:-35%}to{top:120%}}
+@keyframes resultIn{0%{opacity:0;transform:scale(.8)}60%{transform:scale(1.05)}100%{opacity:1;transform:scale(1)}}
+@keyframes iconPop{from{transform:scale(0) rotate(-20deg)}to{transform:scale(1) rotate(0)}}
+@keyframes pBadge{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes particleOut{0%{transform:rotate(var(--a)) translateX(0) scale(0);opacity:1}100%{transform:rotate(var(--a)) translateX(var(--d)) scale(1);opacity:0}}
+@keyframes ultiSlash{0%{transform:translateX(-130%) rotate(-22deg) scaleY(.3);opacity:0}8%{opacity:1}100%{transform:translateX(130%) rotate(-22deg) scaleY(.3);opacity:0}}
+.db2-root{font-family:'Rajdhani','Segoe UI',sans-serif;background:linear-gradient(160deg,#0a0a18,#07070f);display:flex;flex-direction:column;height:100%;position:relative;overflow:hidden}
+.db2-top-bar{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:rgba(0,0,0,.5);border-bottom:1px solid rgba(255,255,255,.05);flex-shrink:0}
+.db2-btn-small{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.55);border-radius:7px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:'Rajdhani',sans-serif;transition:all .2s}
+.db2-btn-small:hover{background:rgba(255,255,255,.12);color:#fff}
+.db2-mono-xs{font-family:'Orbitron',monospace;font-size:9px;color:rgba(255,255,255,.3);letter-spacing:2px;font-weight:700}
+.db2-badge{font-family:'Orbitron',monospace;font-size:9px;font-weight:900;padding:2px 7px;border-radius:4px;letter-spacing:.5px}
+.db2-badge-p{font-size:9px;font-weight:800;border:1px solid;border-radius:4px;padding:1px 6px;animation:pBadge .6s infinite}
+.db2-auto-badge{font-family:'Orbitron',monospace;font-size:9px;font-weight:900;color:#ffd60a;background:rgba(255,214,0,.12);border:1px solid rgba(255,214,0,.4);border-radius:6px;padding:3px 8px;animation:autoPulse 1.5s infinite;letter-spacing:1px}
+.db2-boss-sec{position:relative;padding:10px 14px 6px;border-bottom:1px solid rgba(255,55,95,.1);flex-shrink:0;overflow:hidden;min-height:130px}
+.db2-boss-rage{background:linear-gradient(180deg,rgba(255,23,68,.12),rgba(255,55,95,.04))}
+.db2-scan{position:absolute;left:0;right:0;height:35%;background:linear-gradient(transparent,rgba(255,255,255,.028),transparent);animation:scanMove 5s linear infinite;pointer-events:none}
+.db2-bar-row{display:flex;align-items:center;gap:6px;margin-bottom:2px}
+.db2-bar-lbl{font-size:10px;width:22px;text-align:center}
+.db2-bar-wrap{flex:1;background:rgba(255,255,255,.07);border-radius:4px;overflow:hidden;position:relative}
+.db2-bar-fill{border-radius:4px;transition:width .4s cubic-bezier(.25,.8,.25,1)}
+.db2-bar-val{font-size:9px;color:rgba(255,255,255,.35);font-family:'Orbitron',monospace;width:64px;text-align:right}
+.db2-boss-body{display:flex;flex-direction:column;align-items:center;padding:4px 0 2px;position:relative}
+.db2-boss-floats{position:absolute;inset:0;pointer-events:none;overflow:visible}
+.db2-boss-emoji{font-size:56px;line-height:1;margin-bottom:4px}
+.db2-combo-wrap{position:absolute;top:6px;left:50%;transform:translateX(-50%);text-align:center;animation:comboIn .4s cubic-bezier(.34,1.56,.64,1);pointer-events:none;z-index:20;display:flex;flex-direction:column;align-items:center}
+.db2-combo-num{font-family:'Orbitron',monospace;font-size:26px;font-weight:900;color:#ffd60a;animation:comboPulse .7s infinite}
+.db2-party-row{display:grid;gap:5px;padding:7px 10px;background:rgba(0,0,0,.3);border-bottom:1px solid rgba(255,255,255,.04);flex-shrink:0}
+.db2-char-card{position:relative;border-radius:8px;padding:6px 4px 5px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;align-items:center;gap:2px;overflow:hidden}
+.db2-char-active{background:rgba(255,255,255,.07)}
+.db2-char-ko{opacity:.35}
+.db2-char-floats{position:absolute;inset:0;pointer-events:none;overflow:visible;z-index:10}
+.db2-mini-bar{width:100%;height:4px;background:rgba(255,255,255,.08);border-radius:2px;overflow:hidden}
+.db2-active-info{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:5px 12px;background:rgba(200,245,0,.03);border-bottom:1px solid rgba(200,245,0,.06);font-family:'Rajdhani',sans-serif;flex-shrink:0}
+.db2-log{overflow-y:auto;padding:5px 10px;background:rgba(0,0,0,.35);border-bottom:1px solid rgba(255,255,255,.04);scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.1) transparent;flex:1;min-height:60px;max-height:90px}
+.db2-log-line{font-size:10.5px;line-height:1.45;padding:1px 0;font-family:'Rajdhani',sans-serif}
+.db2-log-dmg{color:#ff8a80}.db2-log-crit{color:#ffd740;font-weight:700}.db2-log-skill{color:#c8f500}.db2-log-burst{color:#ff6b3d;font-weight:800}.db2-log-heal{color:#69f0ae}.db2-log-info{color:rgba(255,255,255,.4)}.db2-log-win{color:#c8f500;font-weight:800;font-size:12px}.db2-log-lose{color:#ff5252;font-weight:800;font-size:12px}.db2-log-boss-ulti{color:#c86eff;font-weight:800}.db2-log-boss-skill{color:#ff4081;font-weight:700}.db2-log-boss-dmg{color:#ff8a80}
+.db2-status-row{display:flex;align-items:center;justify-content:center;gap:8px;padding:7px;background:rgba(0,0,0,.2);font-size:11px;color:rgba(255,255,255,.35);font-family:'Rajdhani',sans-serif;flex-shrink:0}
+.db2-status-dot{width:7px;height:7px;border-radius:50%;background:#f44;animation:dotBlink .6s infinite}
+.db2-result{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;animation:resultIn .5s cubic-bezier(.34,1.56,.64,1) forwards;z-index:80;padding:24px}
+.db2-result-win{background:radial-gradient(ellipse at center,rgba(0,40,0,.97),rgba(7,7,15,.97))}.db2-result-lose{background:radial-gradient(ellipse at center,rgba(40,0,0,.97),rgba(7,7,15,.97))}
+.db2-result-icon{font-size:52px;animation:iconPop .6s cubic-bezier(.34,1.56,.64,1) .2s both}
+.db2-result-title{font-family:'Orbitron',monospace;font-size:20px;font-weight:900;letter-spacing:2px}
+.db2-result-win .db2-result-title{color:#c8f500;text-shadow:0 0 20px rgba(200,245,0,.6)}.db2-result-lose .db2-result-title{color:#ff5252;text-shadow:0 0 20px rgba(255,82,82,.6)}
+.db2-result-rewards{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;font-family:'Rajdhani',sans-serif;font-size:12px;color:rgba(255,255,255,.6)}
+.db2-result-rewards span{background:rgba(255,255,255,.06);padding:3px 9px;border-radius:6px}
+.db2-btn-back{width:100%;max-width:220px;padding:12px 0;background:linear-gradient(135deg,rgba(255,55,95,.25),rgba(255,55,95,.1));border:1px solid rgba(255,55,95,.5);border-radius:10px;color:#fff;font-size:13px;font-weight:900;cursor:pointer;font-family:'Orbitron',monospace;letter-spacing:2px;transition:all .2s}
+.db2-btn-back:hover{background:linear-gradient(135deg,rgba(255,55,95,.35),rgba(255,55,95,.18));transform:translateY(-1px)}
+.db2-ulti-overlay{position:absolute;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.db2-ulti-bg{position:absolute;inset:0;background:radial-gradient(ellipse at center,var(--uc,#c86eff) 0%,transparent 70%);opacity:0;transition:opacity .3s}
+.db2-up0 .db2-ulti-bg{opacity:0}.db2-up1 .db2-ulti-bg{opacity:.16}.db2-up2 .db2-ulti-bg{opacity:.26}.db2-up3 .db2-ulti-bg{opacity:.45}
+.db2-ulti-particles{position:absolute;inset:0;overflow:hidden}
+.db2-up{position:absolute;top:50%;left:50%;border-radius:50%;transform-origin:0 0;opacity:0}
+.db2-up1 .db2-up,.db2-up2 .db2-up,.db2-up3 .db2-up{animation:particleOut .85s var(--dl,0s) ease-out forwards}
+.db2-ulti-slashes{position:absolute;inset:0;overflow:hidden;opacity:0;transition:opacity .1s}
+.db2-up2 .db2-ulti-slashes,.db2-up3 .db2-ulti-slashes{opacity:1}
+.db2-us{position:absolute;left:0;right:0;height:3px;top:calc(18% + calc(var(--i)*15%));background:linear-gradient(90deg,transparent,var(--uc,#c86eff),#fff,var(--uc,#c86eff),transparent);box-shadow:0 0 16px var(--uc,#c86eff);opacity:0}
+.db2-up2 .db2-us,.db2-up3 .db2-us{animation:ultiSlash .55s calc(var(--i)*.065s) ease-in forwards}
+.db2-ulti-text{position:relative;z-index:5;text-align:center;opacity:0;transform:scale(.7);transition:all .45s cubic-bezier(.34,1.56,.64,1)}
+.db2-up2 .db2-ulti-text,.db2-up3 .db2-ulti-text{opacity:1;transform:scale(1)}
+`
 
   return (
-    <div className={`db-root ${bigShake ? 'db-bigshake' : shakeScreen ? 'db-shake' : ''}`}>
-      <style>{DUNGEON_CSS}</style>
+    <div className={`db2-root ${shakeClass==='shake-lg'?'db2-shake-lg':shakeClass==='shake-sm'?'db2-shake-sm':''}`} style={{ fontFamily:"'Rajdhani','Segoe UI',sans-serif" }}>
+      <style>{DB_CSS}</style>
+
+      {/* ── ULTI OVERLAY ── */}
+      {showUlti && (
+        <div className={`db2-ulti-overlay db2-up${ultiPhase}`} style={{ '--uc':showUlti.color } as any}>
+          <div className="db2-ulti-bg"/>
+          <div className="db2-ulti-particles">
+            {[...Array(24)].map((_,i) => (
+              <div key={i} className="db2-up" style={{
+                '--a':`${(i/24)*360}deg`, '--d':`${50+Math.random()*100}px`,
+                width:`${3+Math.random()*5}px`, height:`${3+Math.random()*5}px`,
+                '--dl':`${Math.random()*.3}s`, background:showUlti.color
+              } as any}/>
+            ))}
+          </div>
+          <div className="db2-ulti-slashes">
+            {[...Array(5)].map((_,i) => <div key={i} className="db2-us" style={{'--i':i} as any}/>)}
+          </div>
+          <div className="db2-ulti-text">
+            <div style={{ fontFamily:"'Orbitron',monospace", fontSize:10, letterSpacing:4, color:'rgba(255,255,255,.5)', marginBottom:4, fontWeight:700 }}>ULTIMATE SKILL</div>
+            <div style={{ fontFamily:"'Orbitron',monospace", fontSize:22, fontWeight:900, letterSpacing:2, color:showUlti.color, textShadow:`0 0 30px ${showUlti.color}` }}>{showUlti.name}</div>
+            <div style={{ fontFamily:"'Rajdhani',sans-serif", fontSize:13, color:'rgba(255,255,255,.5)', fontWeight:700 }}>{BOSS.name}</div>
+            <div style={{ fontFamily:"'Rajdhani',sans-serif", fontSize:11, color:'rgba(255,255,255,.35)', marginTop:3 }}>{showUlti.desc}</div>
+          </div>
+        </div>
+      )}
 
       {/* ── TOP BAR ── */}
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'7px 12px', background:'rgba(0,0,0,.5)', borderBottom:'1px solid rgba(255,255,255,.05)', flexShrink:0 }}>
-        <button onClick={onEnd} style={{ background:'rgba(255,255,255,.06)', border:'1px solid rgba(255,255,255,.1)', color:'rgba(255,255,255,.55)', borderRadius:7, padding:'4px 10px', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'Rajdhani,sans-serif' }}>
-          ‹ Kembali
-        </button>
+      <div className="db2-top-bar">
+        <button className="db2-btn-small" onClick={onEnd}>‹ Kembali</button>
         <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-          <span style={{ fontFamily:'Orbitron,monospace', fontSize:9, color:'rgba(255,255,255,.3)', letterSpacing:2, fontWeight:700 }}>DUNGEON</span>
-          <span style={{ fontFamily:'Orbitron,monospace', fontSize:9, fontWeight:900, padding:'2px 7px', borderRadius:4, background:`${rColor}22`, color:rColor, border:`1px solid ${rColor}55` }}>{boss.rank}</span>
+          <span className="db2-mono-xs" style={{ color:'rgba(255,55,95,.7)' }}>DUNGEON</span>
+          <span className="db2-badge" style={{ background:`${rc}22`, color:rc, border:`1px solid ${rc}55` }}>{BOSS.rank}</span>
+          <span className="db2-mono-xs">TURN {turn}</span>
         </div>
-        <div style={{ width:60 }} />
+        <span className="db2-auto-badge">⚡ AUTO</span>
       </div>
 
       {/* ── BOSS SECTION ── */}
-      <div className={`db-boss-section ${bossFlash ? 'db-boss-hit' : ''}`} style={{ background: isRage ? 'linear-gradient(180deg,rgba(255,23,68,.12),rgba(255,55,95,.04))' : 'linear-gradient(180deg,rgba(255,55,95,.06),transparent)', flexShrink:0 }}>
-        <div className="db-scan" />
+      <div className={`db2-boss-sec ${bossRage?'db2-boss-rage':''} ${bossFlash?'db2-boss-hit':''}`} style={{ background: bossRage?'linear-gradient(180deg,rgba(255,23,68,.12),rgba(255,55,95,.04))':'linear-gradient(180deg,rgba(255,55,95,.06),transparent)' }}>
+        <div className="db2-scan"/>
 
-        {/* HP Row */}
-        <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:3 }}>
-          <span style={{ fontSize:9, color:'rgba(255,55,95,.7)', fontFamily:'Orbitron,monospace', fontWeight:700, width:22 }}>❤️</span>
-          <div style={{ flex:1, height:8, background:'rgba(255,255,255,.07)', borderRadius:4, overflow:'hidden', position:'relative' }}>
-            <div style={{ height:'100%', borderRadius:4, transition:'width .4s cubic-bezier(.25,.8,.25,1)', width:`${bossHpPct}%`,
-              background: isRage ? 'linear-gradient(90deg,#ff1744,#ff4444)' : ds.bossPhase===2 ? 'linear-gradient(90deg,#ff4444,#ff9d00)' : `linear-gradient(90deg,${bossColor}cc,${bossColor})` }} />
-            {ds.bossPhase===2 && <div style={{ position:'absolute', top:0, bottom:0, width:2, background:'rgba(255,255,255,.5)', left:`${(1500/boss.hp)*100}%`, transform:'translateX(-1px)' }} />}
+        {/* HP Bar */}
+        <div className="db2-bar-row">
+          <span className="db2-bar-lbl" style={{ color:'rgba(255,55,95,.7)' }}>❤️</span>
+          <div className="db2-bar-wrap" style={{ height:8 }}>
+            <div className="db2-bar-fill" style={{
+              width:`${bossHpPct}%`, height:'100%',
+              background: bossRage?'linear-gradient(90deg,#ff1744,#f44)':bossPhase===2?'linear-gradient(90deg,#f44,#ff9d00)':`linear-gradient(90deg,${bc}bb,${bc})`,
+              boxShadow:`0 0 8px ${bc}88`
+            }}/>
+            {bossPhase===2 && <div style={{ position:'absolute', top:0, bottom:0, left:`${(BOSS.phase2Hp/BOSS.hp)*100}%`, width:2, background:'rgba(255,255,255,.4)' }}/>}
           </div>
-          <span style={{ fontSize:9, color:'rgba(255,255,255,.35)', fontFamily:'Orbitron,monospace', width:60, textAlign:'right' }}>{ds.bossHp}/{boss.hp}</span>
+          <span className="db2-bar-val">{bossHp}/{BOSS.hp}</span>
+        </div>
+
+        {/* Energy Bar */}
+        <div className="db2-bar-row" style={{ marginTop:3 }}>
+          <span className="db2-bar-lbl" style={{ color:bossEnergy>=80?'#f44':'#555' }}>⚡</span>
+          <div className="db2-bar-wrap" style={{ height:4 }}>
+            <div className="db2-bar-fill" style={{ width:`${bossEnergy}%`, height:'100%', background:'linear-gradient(90deg,#f44,#ff9d00)', boxShadow:'0 0 6px rgba(255,68,68,.6)', transition:'width .25s' }}/>
+          </div>
+          <span className="db2-bar-val" style={{ color:bossEnergy>=100?'#f44':'rgba(255,255,255,.3)', fontWeight:bossEnergy>=100?900:400 }}>
+            {bossEnergy>=100?'⚠️ ULTI!':bossEnergy+'/100'}
+          </span>
         </div>
 
         {/* Boss Body */}
-        <div style={{ display:'flex', flexDirection:'column', alignItems:'center', padding:'4px 0 2px', position:'relative' }}>
-          {/* Float numbers on boss */}
-          <div style={{ position:'absolute', inset:0, pointerEvents:'none', overflow:'visible' }}>
-            {floatNums.filter(f => f.side==='boss').map(f => {
-              const col = f.type==='crit'?'#ffd700':f.type==='skill'?'#c86eff':f.type==='heal'?'#30d158':'#ff6b6b'
-              return <div key={f.id} className="db-float" style={{ color:col, fontSize:18, textShadow:`0 0 12px ${col}` }}>{f.val}</div>
+        <div className="db2-boss-body">
+          <div className="db2-boss-floats">
+            {floats.filter((f: any) => f.side==='boss').map((f: any) => {
+              const c = f.type==='crit'?'#ffd700':f.type==='burst'?'#ff6b3d':f.type==='skill'?'#c86eff':f.type==='heal'?'#30d158':'#ff8a80'
+              const sz = (f.type==='crit'||f.type==='burst')?22:16
+              return <div key={f.id} className="db2-float" style={{ color:c, fontSize:sz, textShadow:`0 0 12px ${c}` }}>
+                {f.type==='heal'?'+':''}{f.val}{(f.type==='crit'||f.type==='burst')&&<span style={{fontSize:9,marginLeft:2}}>{f.type.toUpperCase()}!</span>}
+              </div>
             })}
           </div>
-
-          <div className={isRage ? 'db-boss-emoji-rage' : 'db-boss-emoji-idle'} style={{ fontSize:56, lineHeight:1, marginBottom:3, filter:`drop-shadow(0 0 ${isRage?'28px':'12px'} ${bossColor})` }}>
-            {boss.emoji}
+          <div className={bossRage?'db2-rage-anim':'db2-idle-anim'} style={{ fontSize:56, lineHeight:1, marginBottom:4, filter:`drop-shadow(0 0 ${bossRage?'28px':'14px'} ${bc})` }}>
+            {BOSS.emoji}
           </div>
-
           <div style={{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap', justifyContent:'center' }}>
-            <span style={{ fontFamily:'Orbitron,monospace', fontSize:13, fontWeight:900, color:'#fff' }}>{boss.name}</span>
-            {ds.bossPhase===2 && <span className="db-pulse" style={{ fontSize:9, background:'rgba(255,68,68,.2)', color:'#ff4444', border:'1px solid rgba(255,68,68,.4)', borderRadius:4, padding:'1px 6px', fontWeight:800 }}>PHASE 2</span>}
-            {isRage && <span className="db-pulse" style={{ fontSize:9, background:'rgba(255,23,68,.25)', color:'#ff1744', border:'1px solid rgba(255,23,68,.5)', borderRadius:4, padding:'1px 6px', fontWeight:800 }}>💢 RAGE</span>}
-            {ds.frozenTurns > 0 && <span style={{ fontSize:9, color:'#98d8ea', fontWeight:800 }}>❄️ FROZEN({ds.frozenTurns})</span>}
-            {ds.superconduct && <span style={{ fontSize:9, color:'#c86eff', fontWeight:800 }}>⚡SC</span>}
+            <span style={{ fontFamily:"'Orbitron',monospace", fontSize:14, fontWeight:900, color:'#fff', letterSpacing:1 }}>{BOSS.name}</span>
+            {bossPhase===2 && <span className="db2-badge-p" style={{ color:'#f44', borderColor:'rgba(255,68,68,.4)' }}>PHASE 2</span>}
+            {bossRage && <span className="db2-badge-p" style={{ color:'#ff1744', borderColor:'rgba(255,23,68,.5)' }}>💢 RAGE</span>}
+            {bossEnergy>=80 && bossEnergy<100 && <span style={{ fontSize:9, color:'#ff9d00', fontWeight:800, animation:'blink .7s infinite' }}>⚡ Charging...</span>}
           </div>
-          <div style={{ fontSize:10, marginTop:2, fontWeight:700, color: elemColor[boss.element] || rColor }}>{boss.element}</div>
+          <div style={{ fontSize:10, color:bc, marginTop:2, fontWeight:700 }}>{BOSS.element} · {BOSS.skills[0]}</div>
         </div>
 
-        {/* Combo counter */}
-        {combo >= 2 && (
-          <div style={{ position:'absolute', top:8, left:'50%', transform:'translateX(-50%)', display:'flex', flexDirection:'column', alignItems:'center', animation:'dbComboPop .4s cubic-bezier(.34,1.56,.64,1)', pointerEvents:'none', zIndex:20 }}>
-            <span style={{ fontFamily:'Orbitron,monospace', fontSize:24, fontWeight:900, color:'#ffd60a', animation:'dbComboPulse .6s infinite' }}>{combo}</span>
-            <span style={{ fontSize:8, letterSpacing:3, color:'rgba(255,214,0,.6)', fontFamily:'Orbitron,monospace', fontWeight:700 }}>COMBO</span>
+        {combo>=2 && (
+          <div className="db2-combo-wrap">
+            <span className="db2-combo-num">{combo}</span>
+            <span style={{ fontSize:8, letterSpacing:3, color:'rgba(255,214,0,.6)', fontFamily:"'Orbitron',monospace", fontWeight:700 }}>HIT COMBO</span>
           </div>
         )}
       </div>
 
-      {/* ── PARTY SECTION ── */}
-      <div style={{ display:'grid', gridTemplateColumns:`repeat(${ds.activeChars.length},1fr)`, gap:5, padding:'7px 10px', background:'rgba(0,0,0,.3)', borderBottom:'1px solid rgba(255,255,255,.04)', flexShrink:0 }}>
-        {ds.activeChars.map((c, i) => {
-          const alive = ds.charHp[i] > 0
-          const isActive = i === ds.currentChar
-          const hpPct = Math.max(0, (ds.charHp[i] / c.hp) * 100)
-          const cColor = elemColor[c.element] || '#c8f500'
+      {/* ── PARTY ── */}
+      <div className="db2-party-row" style={{ gridTemplateColumns:`repeat(${PARTY.length},1fr)` }}>
+        {PARTY.map((c: GachaChar, i: number) => {
+          const alive = charHp[i] > 0
+          const hpPct = Math.max(0, (charHp[i]/c.hp)*100)
+          const enPct = charEnergy[i]
+          const isActive = i === currentChar
+          const cColor = ELEM_COLOR[c.element] || '#c8f500'
           return (
-            <div key={c.id} className={playerFlash===i ? 'db-char-hit' : ''} onClick={() => alive && !isActive && onSwitch(i)} style={{
-              position:'relative', cursor: alive && !isActive ? 'pointer' : 'default',
-              borderRadius:8, padding:'5px 3px 4px',
-              background: isActive ? `${cColor}18` : alive ? 'rgba(255,255,255,.04)' : 'rgba(0,0,0,.3)',
-              border:`1px solid ${isActive ? cColor : alive ? 'rgba(255,255,255,.07)' : 'rgba(255,255,255,.03)'}`,
-              opacity: alive ? 1 : 0.35, display:'flex', flexDirection:'column', alignItems:'center', gap:2, overflow:'hidden'
-            }}>
-              {/* Float on char */}
-              <div style={{ position:'absolute', inset:0, pointerEvents:'none', overflow:'visible', zIndex:10 }}>
-                {floatNums.filter(f => f.side===`party_${i}`).map(f => {
-                  const col = f.type==='crit'?'#ffd700':f.type==='heal'?'#30d158':'#ff6b6b'
-                  return <div key={f.id} className="db-float" style={{ color:col, fontSize:14, textShadow:`0 0 10px ${col}` }}>{f.val}</div>
+            <div key={c.id} className={`db2-char-card ${isActive?'db2-char-active':''} ${!alive?'db2-char-ko':''} ${partyFlash===i?'db2-char-hit':''}`} style={{ borderColor:isActive?cColor:'rgba(255,255,255,.07)', boxShadow:isActive?`0 0 10px ${cColor}44`:undefined }}>
+              <div className="db2-char-floats">
+                {floats.filter((f: any) => f.side===`party_${i}`).map((f: any) => {
+                  const col = f.type==='crit'?'#ffd700':f.type==='heal'?'#30d158':'#ff8a80'
+                  return <div key={f.id} className="db2-float" style={{ color:col, fontSize:14, textShadow:`0 0 10px ${col}` }}>{f.val}</div>
                 })}
               </div>
               <div style={{ fontSize:18 }}>{c.emoji}</div>
-              <div style={{ fontSize:9, fontWeight:700, color: isActive ? cColor : 'rgba(255,255,255,.6)', textAlign:'center', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', width:'100%' }}>{c.name.split(' ')[0]}</div>
-              <div style={{ width:'100%', height:4, background:'rgba(255,255,255,.08)', borderRadius:2, overflow:'hidden' }}>
-                <div style={{ height:'100%', borderRadius:2, transition:'width .3s', width:`${hpPct}%`, background: hpPct>60?'#30d158':hpPct>30?'#ffd60a':'#ff375f' }} />
+              <div style={{ fontSize:9, fontWeight:700, color:isActive?cColor:'rgba(255,255,255,.65)', textAlign:'center' }}>{c.name.split(' ')[0]}</div>
+              <div className="db2-mini-bar">
+                <div style={{ height:'100%', borderRadius:2, width:`${hpPct}%`, background:hpPct>60?'#30d158':hpPct>30?'#ffd60a':'#f44', transition:'width .3s' }}/>
               </div>
-              <div style={{ fontSize:8, color:'rgba(255,255,255,.35)', fontFamily:'Orbitron,monospace' }}>{alive ? ds.charHp[i] : 'KO'}</div>
-              {isActive && <div style={{ position:'absolute', inset:0, borderRadius:8, boxShadow:`inset 0 0 8px ${cColor}25`, pointerEvents:'none' }} />}
+              <div style={{ fontSize:8, color:'rgba(255,255,255,.3)', fontFamily:'monospace' }}>{alive?charHp[i]:'KO'}</div>
+              <div className="db2-mini-bar" style={{ marginTop:1 }}>
+                <div style={{ height:'100%', borderRadius:2, width:`${enPct}%`, background:enPct>=100?'linear-gradient(90deg,#a064ff,#ffd700)':'#a064ff88', transition:'width .3s', boxShadow:enPct>=100?'0 0 6px #a064ff':undefined }}/>
+              </div>
+              {enPct>=100 && <div style={{ fontSize:7, color:'#ffd700', fontWeight:900, animation:'blink .6s infinite', fontFamily:'monospace' }}>BURST!</div>}
+              {charSkillCd[i]>0 && isActive && <div style={{ fontSize:7, color:'rgba(255,255,255,.3)', fontFamily:'monospace' }}>CD:{charSkillCd[i]}</div>}
             </div>
           )
         })}
       </div>
 
       {/* ── ACTIVE CHAR INFO ── */}
-      {char_ && (
-        <div style={{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap', padding:'5px 12px', background:'rgba(200,245,0,.04)', borderBottom:'1px solid rgba(200,245,0,.07)', flexShrink:0 }}>
-          <span style={{ fontSize:12, fontWeight:700, color: elemColor[char_.element] || '#c8f500' }}>{char_.emoji} {char_.name}</span>
-          <span style={{ fontSize:10, color:'rgba(255,255,255,.4)' }}>Skill: {char_.skill}</span>
-          <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:5 }}>
-            <span style={{ fontSize:9, color:'rgba(255,255,255,.4)' }}>⚡</span>
-            <div style={{ width:60, height:5, background:'rgba(255,255,255,.08)', borderRadius:3, overflow:'hidden' }}>
-              <div style={{ height:'100%', borderRadius:3, transition:'width .3s', width:`${energyPct}%`, background: energyPct>=100 ? 'linear-gradient(90deg,#a064ff,#ffd700)' : '#a064ff88' }} />
-            </div>
-            <span style={{ fontSize:9, color: energyPct>=100?'#ffd700':'rgba(255,255,255,.3)', fontWeight: energyPct>=100?800:400 }}>
-              {energyPct>=100 ? '✨BURST!' : `${energyPct}/100`}
-            </span>
-          </div>
-        </div>
-      )}
+      <div className="db2-active-info">
+        <span style={{ fontSize:12, fontWeight:700, color:ELEM_COLOR[PARTY[currentChar].element]||'#c8f500' }}>{(PARTY[currentChar] as GachaChar).emoji} {(PARTY[currentChar] as GachaChar).name}</span>
+        <span style={{ fontSize:10, color:ELEM_COLOR[(PARTY[currentChar] as GachaChar).element]||'#fff', fontWeight:700 }}>{(PARTY[currentChar] as GachaChar).element}</span>
+        <span style={{ fontSize:10, color:'rgba(255,255,255,.3)', marginLeft:'auto' }}>Skill: {(PARTY[currentChar] as GachaChar).skill}</span>
+      </div>
 
       {/* ── BATTLE LOG ── */}
-      <div ref={logRef} style={{ flex:1, overflowY:'auto', padding:'5px 10px', background:'rgba(0,0,0,.35)', borderBottom:'1px solid rgba(255,255,255,.04)', minHeight:60, maxHeight:80 }}>
-        {ds.log.map((l, i) => (
-          <div key={i} style={{ fontSize:10.5, lineHeight:1.45, padding:'1px 0', fontFamily:'Rajdhani,sans-serif',
-            color: l.type==='dmg'?'#ff8a80':l.type==='crit'?'#ffd740':l.type==='skill'?'#c8f500':l.type==='reaction'?'#ffd700':l.type==='heal'?'#69f0ae':l.type==='win'?'#c8f500':l.type==='lose'?'#ff5252':'rgba(255,255,255,.4)',
-            fontWeight: ['crit','win','lose'].includes(l.type) ? 700 : 400
-          }}>{l.text}</div>
+      <div className="db2-log" ref={logRef}>
+        {log.map((l: any, i: number) => (
+          <div key={i} className={`db2-log-line db2-log-${l.type}`}>{l.text}</div>
         ))}
       </div>
 
-      {/* ── ACTION BUTTONS ── */}
-      {!ds.result && (
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:7, padding:'8px 10px 10px', background:'rgba(0,0,0,.2)', flexShrink:0 }}>
-          {/* Attack */}
-          <button onClick={onAttack} disabled={!isPlayerTurn} style={{
-            borderRadius:10, padding:'9px 4px', border:'none', cursor: isPlayerTurn?'pointer':'not-allowed',
-            opacity: isPlayerTurn ? 1 : 0.4,
-            background:'linear-gradient(135deg,rgba(255,214,0,.2),rgba(255,157,0,.1))',
-            borderTop:'1px solid rgba(255,214,0,.5)', color:'#ffd60a',
-            display:'flex', flexDirection:'column', alignItems:'center', gap:2, fontFamily:'Rajdhani,sans-serif',
-            boxShadow: isPlayerTurn ? '0 2px 12px rgba(255,214,0,.15)' : 'none', transition:'all .15s'
-          }}>
-            <span style={{ fontSize:18 }}>⚔️</span>
-            <span style={{ fontSize:10, fontWeight:800 }}>Attack</span>
-          </button>
-          {/* Skill */}
-          <button onClick={onSkill} disabled={!isPlayerTurn} style={{
-            borderRadius:10, padding:'9px 4px', border:'none', cursor: isPlayerTurn?'pointer':'not-allowed',
-            opacity: isPlayerTurn ? 1 : 0.4,
-            background:'linear-gradient(135deg,rgba(200,245,0,.15),rgba(100,200,0,.08))',
-            borderTop:'1px solid rgba(200,245,0,.4)', color:'#c8f500',
-            display:'flex', flexDirection:'column', alignItems:'center', gap:2, fontFamily:'Rajdhani,sans-serif', transition:'all .15s'
-          }}>
-            <span style={{ fontSize:18 }}>✨</span>
-            <span style={{ fontSize:10, fontWeight:800 }}>{char_?.skill?.split(' ')[0] || 'Skill'}</span>
-          </button>
-          {/* Burst */}
-          <button onClick={onBurst} disabled={!isPlayerTurn || ds.energy < 100} style={{
-            borderRadius:10, padding:'9px 4px', border:'none', cursor: isPlayerTurn&&ds.energy>=100?'pointer':'not-allowed',
-            opacity: !isPlayerTurn ? 0.4 : ds.energy>=100 ? 1 : 0.35,
-            background: ds.energy>=100 ? 'linear-gradient(135deg,rgba(160,100,255,.25),rgba(255,215,0,.1))' : 'rgba(255,255,255,.04)',
-            borderTop: ds.energy>=100 ? '1px solid rgba(160,100,255,.7)' : '1px solid rgba(160,100,255,.2)',
-            color: ds.energy>=100 ? '#ffd700' : 'rgba(255,255,255,.35)',
-            display:'flex', flexDirection:'column', alignItems:'center', gap:2, fontFamily:'Rajdhani,sans-serif',
-            animation: ds.energy>=100&&isPlayerTurn ? 'dbBurstPulse 1.2s infinite' : 'none', transition:'all .15s'
-          }}>
-            <span style={{ fontSize:18 }}>{ds.energy>=100?'💥':'⚡'}</span>
-            <span style={{ fontSize:10, fontWeight:800 }}>Burst{ds.energy<100?` (${ds.energy}%)`:''}</span>
-          </button>
+      {/* ── STATUS ── */}
+      {!done && (
+        <div className="db2-status-row">
+          <div className="db2-status-dot"/>
+          <span>Pertarungan berlangsung otomatis...</span>
         </div>
       )}
 
-      {/* Enemy turn indicator */}
-      {ds.phase === 'enemy' && !ds.result && (
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8, padding:8, background:'rgba(0,0,0,.2)', flexShrink:0, fontSize:11, color:'rgba(255,255,255,.4)', fontFamily:'Rajdhani,sans-serif' }}>
-          <div style={{ width:8, height:8, borderRadius:'50%', background:'#ff4444', animation:'dbDotBlink .6s infinite' }} />
-          {boss.name} sedang bergerak...
-        </div>
-      )}
-
-      {/* ── RESULT SCREEN ── */}
-      {ds.result && (
-        <div style={{
-          position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:10,
-          animation:'dbResultIn .5s cubic-bezier(.34,1.56,.64,1) forwards', zIndex:80,
-          background: ds.result==='win' ? 'radial-gradient(ellipse at center,rgba(0,40,0,.97),rgba(7,7,15,.97))' : 'radial-gradient(ellipse at center,rgba(40,0,0,.97),rgba(7,7,15,.97))'
-        }}>
-          <div style={{ fontSize:52, animation:'dbResultIconPop .6s cubic-bezier(.34,1.56,.64,1) .2s both' }}>{ds.result==='win'?'🏆':'💀'}</div>
-          <div style={{ fontFamily:'Orbitron,monospace', fontSize:20, fontWeight:900, letterSpacing:2,
-            color: ds.result==='win'?'#c8f500':'#ff5252',
-            textShadow: ds.result==='win'?'0 0 20px rgba(200,245,0,.6)':'0 0 20px rgba(255,82,82,.6)'
-          }}>{ds.result==='win'?'DUNGEON CLEAR!':'DUNGEON GAGAL!'}</div>
-          {ds.result==='win' && (
-            <div style={{ display:'flex', gap:10, flexWrap:'wrap', justifyContent:'center', fontFamily:'Rajdhani,sans-serif', fontSize:12, color:'rgba(255,255,255,.6)' }}>
-              {[`+${boss.exp} EXP`, `+${boss.gold} Gold`, `+${boss.primogems}💎`, `🎁 ${boss.dropItem}`].map(r => (
-                <span key={r} style={{ background:'rgba(255,255,255,.06)', padding:'3px 9px', borderRadius:6 }}>{r}</span>
-              ))}
+      {/* ── RESULT ── */}
+      {result && (
+        <div className={`db2-result db2-result-${result}`}>
+          <div className="db2-result-icon">{result==='win'?'🏆':'💀'}</div>
+          <div className="db2-result-title">{result==='win'?'DUNGEON CLEAR!':'DUNGEON GAGAL!'}</div>
+          {result==='win' && (
+            <div className="db2-result-rewards">
+              <span>+{BOSS.exp} EXP</span>
+              <span>+{BOSS.gold} Gold</span>
+              <span>+{BOSS.primogems} 💎</span>
+              <span>🎁 {BOSS.dropItem}</span>
             </div>
           )}
-          <button onClick={onEnd} style={{
-            marginTop:6, padding:'10px 28px',
-            background:'linear-gradient(135deg,rgba(200,245,0,.2),rgba(100,200,0,.1))',
-            border:'1px solid rgba(200,245,0,.5)', color:'#c8f500',
-            borderRadius:10, fontFamily:'Orbitron,monospace', fontSize:13, fontWeight:700,
-            cursor:'pointer', letterSpacing:1
-          }}>← Kembali</button>
+          <button className="db2-btn-back" onClick={onEnd}>← Kembali</button>
         </div>
       )}
     </div>
