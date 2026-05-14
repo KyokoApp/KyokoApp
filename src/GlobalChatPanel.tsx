@@ -77,7 +77,7 @@ interface RpgChar {
   atk: number; def: number; spd: number; luck: number
   gold: number; inventory: string[]; skills: string[]
   activeQuest: string | null; questProgress: number; kills: number
-  titles: string[]; element: Element; wins: number; losses: number
+  titles: string[]; element: RpgElement; wins: number; losses: number
   party?: string[]       // gacha char ids in party (max 4)
   dungeonKills?: number  // total dungeon boss kills
   dailyMissions?: { date: string; completed: string[]; claimed: string[] }
@@ -99,7 +99,7 @@ interface ActiveBattleInfo {
   updatedAt: number
 }
 type RpgClass = 'Warrior' | 'Mage' | 'Rogue' | 'Paladin' | 'Archer' | 'Necromancer' | 'Berserker' | 'Summoner'
-type Element = 'Fire' | 'Water' | 'Earth' | 'Wind' | 'Dark' | 'Light' | 'Thunder' | 'Ice'
+type RpgElement = 'Fire' | 'Water' | 'Earth' | 'Wind' | 'Dark' | 'Light' | 'Thunder' | 'Ice'
 
 // ═══════════════════════════════════════════════════════════════
 // RPG DATA
@@ -114,8 +114,8 @@ const RPG_CLASSES: Record<RpgClass, { emoji: string; desc: string; baseHp: numbe
   Berserker:  { emoji: '🪓',  desc: 'Barbar liar, ATK paling tinggi', baseHp: 450, baseMp: 100,  atk: 35, def: 6,  spd: 14, luck: 7,  skills: ['Frenzy', 'Blood Rage', 'Devastate', 'Rampage'] },
   Summoner:   { emoji: '🐉',  desc: 'Pemanggil makhluk, serba bisa', baseHp: 360,  baseMp: 260, atk: 20, def: 10, spd: 13, luck: 14, skills: ['Summon Wolf', 'Dragon Breath', 'Spirit Army', 'Ancient Beast'] },
 }
-const ELEMENTS: Element[] = ['Fire','Water','Earth','Wind','Dark','Light','Thunder','Ice']
-const ELEMENT_EMOJI: Record<Element, string> = {
+const ELEMENTS: RpgElement[] = ['Fire','Water','Earth','Wind','Dark','Light','Thunder','Ice']
+const ELEMENT_EMOJI: Record<RpgElement, string> = {
   Fire:'🔥', Water:'💧', Earth:'🌿', Wind:'🌪️', Dark:'🌑', Light:'✨', Thunder:'⚡', Ice:'❄️'
 }
 const MONSTERS = [
@@ -1118,10 +1118,10 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
 
   // ── Spring / Jiggle physics — semua button kenyal ──────────────
   useEffect(() => {
-    const activeButtons = new Set<Element>()
+    const activeButtons = new Set<HTMLElement>()
 
     const onDown = (e: PointerEvent) => {
-      const btn = (e.target as Element).closest('button')
+      const btn = (e.target as HTMLElement).closest<HTMLElement>('button')
       if (!btn) return
 
       // Hapus state lama
@@ -1990,7 +1990,7 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
     requestAnimationFrame(tick)
   }
 
-  const createCharacter = async (cls: RpgClass, elem: Element) => {
+  const createCharacter = async (cls: RpgClass, elem: RpgElement) => {
     if (!user) return
     setRpgLoading(true)
     const base = RPG_CLASSES[cls]
@@ -6242,9 +6242,9 @@ function RpgTransfer({ char, msg, target, amount, onTarget, onAmount, onTransfer
 }
 
 
-function RpgCreate({ onCreate, loading }: { onCreate: (cls: RpgClass, elem: Element) => void; loading: boolean }) {
+function RpgCreate({ onCreate, loading }: { onCreate: (cls: RpgClass, elem: RpgElement) => void; loading: boolean }) {
   const [selClass, setSelClass] = useState<RpgClass | null>(null)
-  const [selElem, setSelElem] = useState<Element | null>(null)
+  const [selElem, setSelElem] = useState<RpgElement | null>(null)
   const classes = Object.entries(RPG_CLASSES) as [RpgClass, typeof RPG_CLASSES[RpgClass]][]
 
   return (
