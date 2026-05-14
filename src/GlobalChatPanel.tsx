@@ -5428,6 +5428,236 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
         /* ── Override: container size for discord layout ── */
         .gc2-container.zzz-discord-layout { width:100vw !important; height:100dvh !important; border-radius:0 !important; max-width:100% !important; }
 
+        /* ════════════════════════════════════════════════════
+           KYOKO 3D SMOOTH — no glitch, pure depth & motion
+           ════════════════════════════════════════════════════ */
+
+        /* ── Keyframes ── */
+        @keyframes k3d-slideUp {
+          from { opacity:0; transform:translateY(22px) translateZ(-30px) rotateX(5deg); }
+          to   { opacity:1; transform:translateY(0) translateZ(0) rotateX(0deg); }
+        }
+        @keyframes k3d-statPop {
+          0%   { transform:scale(0.72) translateY(6px); opacity:0; }
+          70%  { transform:scale(1.07) translateY(-2px); opacity:1; }
+          100% { transform:scale(1) translateY(0); opacity:1; }
+        }
+        @keyframes k3d-barFill {
+          from { transform:scaleX(0); }
+          to   { transform:scaleX(1); }
+        }
+        @keyframes k3d-float {
+          0%,100% { transform:translateY(0px); }
+          50%      { transform:translateY(-3px); }
+        }
+        @keyframes k3d-shimmer {
+          0%   { background-position:-200% center; }
+          100% { background-position:200% center; }
+        }
+        @keyframes k3d-glow {
+          0%,100% { box-shadow:0 4px 24px rgba(200,245,0,0.04),0 0 0 1px rgba(255,255,255,0.05) inset; }
+          50%      { box-shadow:0 8px 40px rgba(200,245,0,0.10),0 0 0 1px rgba(255,255,255,0.08) inset; }
+        }
+        @keyframes k3d-battleGlow {
+          0%,100% { box-shadow:0 4px 20px rgba(255,55,95,0.12),0 0 0 1px rgba(255,55,95,0.25) inset; }
+          50%      { box-shadow:0 8px 36px rgba(255,55,95,0.28),0 0 0 1px rgba(255,55,95,0.5) inset; }
+        }
+
+        /* ── Scroll container ── */
+        .rpg-dashboard-scroll {
+          overflow-y:auto; height:100%; box-sizing:border-box;
+          padding:12px 14px; scrollbar-width:none; scroll-behavior:smooth;
+        }
+        .rpg-dashboard-scroll::-webkit-scrollbar { display:none; }
+
+        /* ── Character card ── */
+        .rpg-char-card {
+          position:relative;
+          background:linear-gradient(135deg,#0f0f1a 0%,#120c1e 100%);
+          border:1px solid rgba(255,255,255,0.10);
+          border-radius:18px; padding:14px; margin-bottom:10px;
+          overflow:hidden;
+          will-change:transform;
+          --rx:0deg; --ry:0deg;
+          animation:k3d-slideUp 0.55s cubic-bezier(0.16,1,0.3,1) both,
+                    k3d-float 5s ease-in-out 0.6s infinite;
+          box-shadow:0 4px 24px rgba(0,0,0,0.5),0 0 0 1px rgba(255,255,255,0.05) inset;
+          transition:transform 0.14s ease, box-shadow 0.28s ease;
+        }
+        /* Holographic shimmer sweep */
+        .rpg-char-card::before {
+          content:''; position:absolute; inset:0; border-radius:inherit;
+          background:linear-gradient(105deg,transparent 30%,rgba(200,245,0,0.05) 50%,transparent 70%);
+          background-size:200% 100%;
+          animation:k3d-shimmer 4s ease-in-out infinite;
+          pointer-events:none; z-index:1;
+        }
+        /* Scanlines */
+        .rpg-char-card::after {
+          content:''; position:absolute; inset:0; border-radius:inherit;
+          background:repeating-linear-gradient(transparent,transparent 3px,rgba(200,245,0,0.012) 3px,rgba(200,245,0,0.012) 4px);
+          pointer-events:none; z-index:0; opacity:0.6;
+        }
+        /* 3D tilt state */
+        .rpg-char-card.rpg-tilting {
+          animation:none;
+          transform:perspective(600px) rotateX(var(--rx)) rotateY(var(--ry)) translateZ(4px);
+          box-shadow:0 14px 44px rgba(0,0,0,0.65),0 0 30px rgba(200,245,0,0.08);
+        }
+
+        /* ── Class icon ── */
+        .rpg-class-icon {
+          width:52px; height:52px; border-radius:12px;
+          background:linear-gradient(135deg,rgba(255,255,255,0.09),rgba(255,255,255,0.03));
+          border:1px solid rgba(255,255,255,0.12);
+          display:flex; align-items:center; justify-content:center;
+          font-size:28px; flex-shrink:0;
+          box-shadow:0 4px 16px rgba(0,0,0,0.5),0 1px 0 rgba(255,255,255,0.08) inset;
+          position:relative; z-index:2;
+          animation:k3d-slideUp 0.5s cubic-bezier(0.16,1,0.3,1) 0.08s both;
+        }
+
+        /* ── Stat boxes ── */
+        .rpg-stat-box {
+          background:rgba(255,255,255,0.04);
+          border:1px solid rgba(255,255,255,0.07);
+          border-radius:9px; padding:6px 4px; text-align:center;
+          transition:all 0.2s cubic-bezier(0.34,1.56,0.64,1);
+          cursor:default; position:relative; overflow:hidden;
+        }
+        .rpg-stat-box:nth-child(1) { animation:k3d-statPop 0.48s cubic-bezier(0.34,1.56,0.64,1) 0.50s both; }
+        .rpg-stat-box:nth-child(2) { animation:k3d-statPop 0.48s cubic-bezier(0.34,1.56,0.64,1) 0.58s both; }
+        .rpg-stat-box:nth-child(3) { animation:k3d-statPop 0.48s cubic-bezier(0.34,1.56,0.64,1) 0.66s both; }
+        .rpg-stat-box:nth-child(4) { animation:k3d-statPop 0.48s cubic-bezier(0.34,1.56,0.64,1) 0.74s both; }
+        .rpg-stat-box:hover {
+          transform:translateY(-2px) scale(1.07);
+          border-color:rgba(255,255,255,0.15);
+          background:rgba(255,255,255,0.07);
+          box-shadow:0 4px 16px rgba(0,0,0,0.3);
+        }
+
+        /* ── HP/MP/EXP bar fills ── */
+        .rpg-bar-fill {
+          height:100%; border-radius:4px;
+          transform-origin:left center;
+          animation:k3d-barFill 0.8s cubic-bezier(0.16,1,0.3,1) 0.35s both;
+          position:relative; overflow:hidden;
+        }
+        .rpg-bar-fill::after {
+          content:''; position:absolute; inset:0;
+          background:linear-gradient(90deg,transparent,rgba(255,255,255,0.22),transparent);
+          background-size:200% 100%;
+          animation:k3d-shimmer 2.5s ease-in-out 1.2s infinite;
+        }
+        .rpg-bar-hp  { background:linear-gradient(90deg,#30d158,#30d15890); box-shadow:0 0 8px rgba(48,209,88,0.4); }
+        .rpg-bar-mp  { background:linear-gradient(90deg,#007aff,#5ac8fa);   box-shadow:0 0 6px rgba(90,200,250,0.35); }
+        .rpg-bar-exp { background:linear-gradient(90deg,#c8f500,#00e5ff); }
+
+        /* ── Battle button (Berburu Monster) ── */
+        .rpg-battle-btn {
+          position:relative; display:flex; align-items:center; gap:10px;
+          width:100%; grid-column:span 2;
+          background:linear-gradient(135deg,rgba(255,55,95,0.15),rgba(255,55,95,0.05));
+          border:1px solid rgba(255,55,95,0.4);
+          border-radius:14px; padding:13px 15px;
+          cursor:pointer; color:#fff; text-align:left; overflow:hidden;
+          transition:transform 0.2s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.25s ease, border-color 0.2s;
+          animation:k3d-slideUp 0.5s cubic-bezier(0.16,1,0.3,1) 0.55s both,
+                    k3d-battleGlow 2.5s ease-in-out 1.2s infinite;
+        }
+        .rpg-battle-btn::before {
+          content:''; position:absolute; inset:0;
+          background:linear-gradient(105deg,transparent 30%,rgba(255,55,95,0.1) 50%,transparent 70%);
+          background-size:200% 100%; animation:k3d-shimmer 2.8s ease-in-out infinite;
+          border-radius:inherit; pointer-events:none;
+        }
+        .rpg-battle-btn:hover {
+          transform:translateY(-2px) scale(1.01);
+          box-shadow:0 10px 36px rgba(255,55,95,0.22);
+          border-color:rgba(255,55,95,0.7);
+        }
+        .rpg-battle-btn:active { transform:scale(0.97) translateY(1px); transition-duration:0.08s; }
+
+        /* ── Menu grid buttons ── */
+        .rpg-menu-grid { display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-bottom:7px; }
+        .rpg-menu-btn {
+          position:relative; border-radius:12px; padding:11px 12px;
+          cursor:pointer; text-align:left; color:#fff;
+          border:1px solid rgba(255,255,255,0.08);
+          overflow:hidden;
+          transition:transform 0.18s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.2s, border-color 0.18s;
+          opacity:0;
+          animation:k3d-slideUp 0.42s cubic-bezier(0.16,1,0.3,1) calc(0.65s + var(--si,0) * 0.042s) forwards;
+        }
+        .rpg-menu-btn::before {
+          content:''; position:absolute; inset:0;
+          background:linear-gradient(105deg,transparent 0%,rgba(255,255,255,0.06) 50%,transparent 100%);
+          background-size:200% 100%; opacity:0; transition:opacity 0.2s;
+          border-radius:inherit; pointer-events:none;
+        }
+        .rpg-menu-btn:hover::before { opacity:1; }
+        .rpg-menu-btn:hover {
+          transform:translateY(-2px) scale(1.025);
+          border-color:rgba(255,255,255,0.18);
+          box-shadow:0 6px 22px rgba(0,0,0,0.35);
+        }
+        .rpg-menu-btn:active { transform:scale(0.965) translateY(1px); transition-duration:0.07s; }
+        .rpg-menu-btn.rpg-menu-reward {
+          border-color:rgba(200,245,0,0.25);
+          animation:k3d-slideUp 0.42s cubic-bezier(0.16,1,0.3,1) calc(0.65s + var(--si,0) * 0.042s) forwards,
+                    k3d-glow 2s ease-in-out calc(1.5s + var(--si,0) * 0.042s) infinite;
+        }
+        .rpg-menu-btn-label { font-size:12px; font-weight:800; line-height:1.2; position:relative; z-index:1; }
+        .rpg-menu-btn-sub   { font-size:10px; color:rgba(255,255,255,0.38); margin-top:2px; position:relative; z-index:1; }
+
+        /* ── Class change button ── */
+        .rpg-class-change-btn {
+          width:100%; background:rgba(255,255,255,0.03);
+          border:1px solid rgba(245,255,0,0.18); border-radius:11px;
+          padding:10px 14px; cursor:pointer; color:#f5ff00;
+          font-size:12px; font-weight:700; letter-spacing:0.3px;
+          transition:transform 0.2s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.2s, border-color 0.2s, background 0.2s;
+          animation:k3d-slideUp 0.5s cubic-bezier(0.16,1,0.3,1) 1.5s both;
+        }
+        .rpg-class-change-btn:hover {
+          transform:translateY(-1px);
+          border-color:rgba(245,255,0,0.4);
+          background:rgba(245,255,0,0.04);
+          box-shadow:0 4px 20px rgba(245,255,0,0.07);
+        }
+        .rpg-class-change-btn:active { transform:scale(0.97); transition-duration:0.07s; }
+
+        /* ── Chat messages smooth entrance ── */
+        .gc-msg-row { animation:k3d-slideUp 0.32s cubic-bezier(0.16,1,0.3,1) both; }
+        .gc-bubble { transition:transform 0.15s cubic-bezier(0.34,1.56,0.64,1); }
+        .gc-bubble:hover { transform:translateY(-1px) scale(1.01); }
+
+        /* ── Toast 3D ── */
+        @keyframes k3d-toastIn {
+          from { opacity:0; transform:translateY(-14px) scale(0.92) rotateX(5deg); }
+          to   { opacity:1; transform:translateY(0) scale(1) rotateX(0deg); }
+        }
+        .kyoko-toast { animation:k3d-toastIn 0.38s cubic-bezier(0.34,1.56,0.64,1) both !important; }
+
+        /* ── Fish buttons ── */
+        .fish-menu-btn { transition:transform 0.18s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.18s; }
+        .fish-menu-btn:hover { transform:translateY(-2px) scale(1.02); box-shadow:0 6px 20px rgba(0,0,0,0.3); }
+        .fish-menu-btn:active { transform:scale(0.96); }
+        .fish-main-btn { transition:transform 0.2s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.2s; }
+        .fish-main-btn:hover { transform:translateY(-2px) scale(1.01); box-shadow:0 8px 28px rgba(79,195,247,0.15); }
+
+        /* ── Modal 3D ── */
+        @keyframes k3d-modalUp {
+          from { opacity:0; transform:translateY(36px) scale(0.96); }
+          to   { opacity:1; transform:translateY(0) scale(1); }
+        }
+        .gc2-modal { animation:k3d-modalUp 0.42s cubic-bezier(0.16,1,0.3,1) both !important; }
+
+        /* ── Scrollbar neon ── */
+        .rpg-dashboard-scroll::-webkit-scrollbar { width:3px; }
+        .rpg-dashboard-scroll::-webkit-scrollbar-thumb { background:rgba(200,245,0,0.15); border-radius:2px; }
+        .rpg-dashboard-scroll::-webkit-scrollbar-thumb:hover { background:rgba(200,245,0,0.3); }
+
       `}</style>
     </div>
   )
@@ -6013,18 +6243,50 @@ function RpgDashboard({ char, gachaData, onSellItem, onBattle, onQuest, onShop, 
   const mpPct = (char.mp / char.maxMp) * 100
   const hpColor = hpPct > 60 ? '#30d158' : hpPct > 30 ? '#ffd60a' : '#ff375f'
 
+  // ── 3D Card Tilt (touch + mouse) ──────────────────────────────
+  useEffect(() => {
+    const card = document.querySelector<HTMLElement>('.rpg-char-card')
+    if (!card) return
+    const onMove = (e: MouseEvent | TouchEvent) => {
+      const touch = (e as TouchEvent).touches?.[0]
+      const clientX = touch?.clientX ?? (e as MouseEvent).clientX
+      const clientY = touch?.clientY ?? (e as MouseEvent).clientY
+      const r = card.getBoundingClientRect()
+      const rx = (((clientY - r.top)  - r.height / 2) / (r.height / 2) * -6).toFixed(2) + 'deg'
+      const ry = (((clientX - r.left) - r.width  / 2) / (r.width  / 2) *  6).toFixed(2) + 'deg'
+      card.style.setProperty('--rx', rx)
+      card.style.setProperty('--ry', ry)
+      card.classList.add('rpg-tilting')
+    }
+    const onLeave = () => {
+      card.style.setProperty('--rx', '0deg')
+      card.style.setProperty('--ry', '0deg')
+      card.classList.remove('rpg-tilting')
+    }
+    card.addEventListener('mousemove', onMove)
+    card.addEventListener('touchmove', onMove, { passive: true })
+    card.addEventListener('mouseleave', onLeave)
+    card.addEventListener('touchend', onLeave)
+    return () => {
+      card.removeEventListener('mousemove', onMove)
+      card.removeEventListener('touchmove', onMove)
+      card.removeEventListener('mouseleave', onLeave)
+      card.removeEventListener('touchend', onLeave)
+    }
+  }, [])
+
   return (
-    <div style={{ padding:'12px 14px', overflowY:'auto', height:'100%', boxSizing:'border-box', scrollbarWidth:'none' }} className="gc2-fadein">
+    <div className="rpg-dashboard-scroll gc2-fadein">
 
       {/* ZZZ Character Card */}
-      <div style={{ position:'relative', background:'linear-gradient(135deg,#0f0f1a,#1a0f1a)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:16, padding:14, marginBottom:10, overflow:'hidden' }}>
+      <div className="rpg-char-card">
         {/* BG accent */}
         <div style={{ position:'absolute', top:-30, right:-30, width:120, height:120, borderRadius:'50%', background:`radial-gradient(circle,${ELEMENT_EMOJI[char.element]==='🔥'?'rgba(255,100,0,0.15)':char.element==='Water'?'rgba(0,100,255,0.15)':'rgba(200,245,0,0.1)'} 0%,transparent 70%)`, pointerEvents:'none' }}/>
         <div style={{ position:'absolute', bottom:0, left:0, right:0, height:2, background:'linear-gradient(90deg,transparent,rgba(255,55,95,0.5),transparent)' }}/>
 
         {/* Header row */}
         <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:12 }}>
-          <div style={{ width:52, height:52, borderRadius:12, background:'linear-gradient(135deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))', border:'1px solid rgba(255,255,255,0.12)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:30, flexShrink:0, boxShadow:'0 4px 16px rgba(0,0,0,0.4)' }}>
+          <div className="rpg-class-icon">
             {cls.emoji}
           </div>
           <div style={{ flex:1, minWidth:0 }}>
@@ -6048,7 +6310,7 @@ function RpgDashboard({ char, gachaData, onSellItem, onBattle, onQuest, onShop, 
             <span>{char.hp} / {char.maxHp}</span>
           </div>
           <div style={{ position:'relative', background:'rgba(255,255,255,0.06)', borderRadius:4, overflow:'hidden', height:10 }}>
-            <div style={{ height:'100%', width:`${hpPct}%`, background:`linear-gradient(90deg,${hpColor},${hpColor}aa)`, transition:'width .5s', borderRadius:4, boxShadow:`0 0 8px ${hpColor}66` }}/>
+            <div className="rpg-bar-fill rpg-bar-hp" style={{ width:`${hpPct}%` }}/>
             {[25,50,75].map(t=><div key={t} style={{position:'absolute',top:0,bottom:0,left:`${t}%`,width:1,background:'rgba(0,0,0,0.4)'}}/>)}
           </div>
         </div>
@@ -6060,7 +6322,7 @@ function RpgDashboard({ char, gachaData, onSellItem, onBattle, onQuest, onShop, 
             <span>{char.mp} / {char.maxMp}</span>
           </div>
           <div style={{ position:'relative', background:'rgba(255,255,255,0.06)', borderRadius:4, overflow:'hidden', height:7 }}>
-            <div style={{ height:'100%', width:`${mpPct}%`, background:'linear-gradient(90deg,#007aff,#5ac8fa)', transition:'width .5s', borderRadius:4, boxShadow:'0 0 6px rgba(90,200,250,0.4)' }}/>
+            <div className="rpg-bar-fill rpg-bar-mp" style={{ width:`${mpPct}%` }}/>
           </div>
         </div>
 
@@ -6070,14 +6332,14 @@ function RpgDashboard({ char, gachaData, onSellItem, onBattle, onQuest, onShop, 
             <span>EXP</span><span>{current}/{needed}</span>
           </div>
           <div style={{ background:'rgba(255,255,255,0.05)', borderRadius:3, overflow:'hidden', height:4 }}>
-            <div style={{ height:'100%', width:`${(current/needed)*100}%`, background:'linear-gradient(90deg,#f5ff00,#00e5ff)', borderRadius:3 }}/>
+            <div className="rpg-bar-fill rpg-bar-exp" style={{ width:`${(current/needed)*100}%` }}/>
           </div>
         </div>
 
         {/* Stats row */}
         <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:6 }}>
           {[['ATK',char.atk,'#ff375f'],['DEF',char.def,'#5ac8fa'],['SPD',char.spd,'#ffd60a'],['LCK',char.luck,'#30d158']].map(([l,v,c])=>(
-            <div key={String(l)} style={{ background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:8, padding:'5px 4px', textAlign:'center' }}>
+            <div key={String(l)} className="rpg-stat-box">
               <div style={{ fontSize:9, color:'rgba(255,255,255,0.35)', fontFamily:'monospace', letterSpacing:.5 }}>{l}</div>
               <div style={{ fontSize:14, fontWeight:900, color:String(c), fontFamily:'monospace' }}>{v}</div>
             </div>
@@ -6101,10 +6363,8 @@ function RpgDashboard({ char, gachaData, onSellItem, onBattle, onQuest, onShop, 
       })()}
 
       {/* Action Grid */}
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:7, marginBottom:7 }}>
-        <button onClick={onBattle} style={{ gridColumn:'span 2', background:'linear-gradient(135deg,#ff375f22,#ff375f0a)', border:'1px solid rgba(255,55,95,0.4)', borderRadius:12, padding:'12px 14px', cursor:'pointer', display:'flex', alignItems:'center', gap:10, transition:'all .18s', color:'#fff', animation:'btnPulse 2s infinite' }}
-          onMouseOver={e=>{e.currentTarget.style.background='linear-gradient(135deg,rgba(255,55,95,0.2),rgba(255,55,95,0.05)'}}
-          onMouseOut={e=>{e.currentTarget.style.background='linear-gradient(135deg,#ff375f22,#ff375f0a)'}}>
+      <div className="rpg-menu-grid">
+        <button onClick={onBattle} className="rpg-battle-btn">
           <span style={{ fontSize:24 }}>⚔️</span>
           <div style={{ textAlign:'left' }}>
             <div style={{ fontSize:13, fontWeight:900, letterSpacing:.3 }}>Berburu Monster</div>
@@ -6132,15 +6392,18 @@ function RpgDashboard({ char, gachaData, onSellItem, onBattle, onQuest, onShop, 
           { label:`🗡️ Upgrade ${char.weaponLevel||0}/10`, sub:'Perkuat senjata', onClick:onWeaponUp, color:'rgba(255,100,0,0.2)' },
           { label:'💸 Transfer', sub:'Kirim gold', onClick:onTransfer, color:'rgba(0,200,150,0.2)' },
         ].map((b,i)=>(
-          <button key={i} onClick={b.onClick} style={{ background:b.color, border:'1px solid rgba(255,255,255,0.08)', borderRadius:10, padding:'10px 12px', cursor:'pointer', textAlign:'left', color:'#fff', transition:'all .15s', animation: b.label.includes('🎁') ? 'btnPulse 1.5s infinite' : 'none' }}
-            onMouseOver={e=>{e.currentTarget.style.opacity='0.8'}} onMouseOut={e=>{e.currentTarget.style.opacity='1'}}>
-            <div style={{ fontSize:12, fontWeight:800 }}>{b.label}</div>
-            <div style={{ fontSize:10, color:'rgba(255,255,255,0.35)', marginTop:1 }}>{b.sub}</div>
+          <button
+            key={i} onClick={b.onClick}
+            className={`rpg-menu-btn${b.label.includes('🎁') ? ' rpg-menu-reward' : ''}`}
+            style={{ background:b.color, '--si':i } as React.CSSProperties}
+          >
+            <div className="rpg-menu-btn-label">{b.label}</div>
+            <div className="rpg-menu-btn-sub">{b.sub}</div>
           </button>
         ))}
       </div>
 
-      <button onClick={onClassChange} style={{ width:'100%', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(245,255,0,0.2)', borderRadius:10, padding:'9px 14px', cursor:'pointer', color:'#f5ff00', fontSize:12, fontWeight:700, letterSpacing:.3 }}>
+      <button onClick={onClassChange} className="rpg-class-change-btn">
         🔄 Ganti Class <span style={{ opacity:.4, fontWeight:400 }}>({CLASS_CHANGE_COST.toLocaleString()} Gold)</span>
       </button>
 
