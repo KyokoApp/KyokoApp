@@ -1116,6 +1116,58 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
   const panelMountedRef = useRef(true)
   useEffect(() => { panelMountedRef.current = true; return () => { panelMountedRef.current = false } }, [])
 
+  // ── Spring / Jiggle physics — semua button kenyal ──────────────
+  useEffect(() => {
+    const activeButtons = new Set<Element>()
+
+    const onDown = (e: PointerEvent) => {
+      const btn = (e.target as Element).closest('button')
+      if (!btn) return
+
+      // Hapus state lama
+      btn.classList.remove('btn-spring-up', 'btn-spring-up-stretch')
+
+      // Pilih squash biasa atau squash+stretch berdasarkan ukuran button
+      const rect = btn.getBoundingClientRect()
+      const isWide = rect.width > 120
+
+      if (isWide) {
+        btn.classList.add('btn-spring-down-stretch')
+      } else {
+        btn.classList.add('btn-spring-down')
+      }
+      activeButtons.add(btn)
+    }
+
+    const onUp = () => {
+      activeButtons.forEach(btn => {
+        const isStretch = btn.classList.contains('btn-spring-down-stretch')
+        btn.classList.remove('btn-spring-down', 'btn-spring-down-stretch')
+
+        if (isStretch) {
+          btn.classList.add('btn-spring-up-stretch')
+          const clean = () => { btn.classList.remove('btn-spring-up-stretch'); btn.removeEventListener('transitionend', clean) }
+          btn.addEventListener('transitionend', clean)
+        } else {
+          btn.classList.add('btn-spring-up')
+          const clean = () => { btn.classList.remove('btn-spring-up'); btn.removeEventListener('transitionend', clean) }
+          btn.addEventListener('transitionend', clean)
+        }
+      })
+      activeButtons.clear()
+    }
+
+    document.addEventListener('pointerdown', onDown)
+    document.addEventListener('pointerup', onUp)
+    document.addEventListener('pointercancel', onUp)
+
+    return () => {
+      document.removeEventListener('pointerdown', onDown)
+      document.removeEventListener('pointerup', onUp)
+      document.removeEventListener('pointercancel', onUp)
+    }
+  }, [])
+
   // ── Auto-sync & pending transfer execution saat kembali online ──
   useEffect(() => {
     if (!user) return
@@ -5010,6 +5062,36 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
         .battle-anim-enemy { animation:enemyAtk .35s ease; }
         @keyframes fadeInUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
         .gc2-fadein { animation:fadeInUp .25s ease; }
+
+        /* ════════════════════════════════════════════════════
+           SPRING / JIGGLE — semua button terasa kenyal
+           ════════════════════════════════════════════════════ */
+
+        /* State 1: saat ditekan — squash seketika */
+        .btn-spring-down {
+          transform: scale(0.86) !important;
+          transition: transform 0.07s cubic-bezier(0.4, 0, 1, 1) !important;
+        }
+
+        /* State 2: saat dilepas — spring balik dengan overshoot */
+        .btn-spring-up {
+          transform: scale(1) !important;
+          transition: transform 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+        }
+
+        /* Squash & stretch versi lebih playful */
+        .btn-spring-down-stretch {
+          transform: scaleX(1.1) scaleY(0.82) !important;
+          transition: transform 0.07s cubic-bezier(0.4, 0, 1, 1) !important;
+        }
+        .btn-spring-up-stretch {
+          transform: scaleX(1) scaleY(1) !important;
+          transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+        }
+
+        /* Jangan biarkan spring conflict sama focus outline */
+        button:focus-visible { outline: 2px solid rgba(200,245,0,0.5); outline-offset: 2px; }
+        button { -webkit-tap-highlight-color: transparent; user-select: none; }
         .gc2-sticker { max-width:120px; border-radius:12px; }
         @media(max-width:520px) { .gc2-container { width:100vw; height:100dvh; border-radius:0; } }
 
