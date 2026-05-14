@@ -4286,6 +4286,8 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
                 />
               </div>
             )}
+            </div>
+            )}
 
         {/* ── GROUP INFO PANEL (tap icon grup) ── */}
         {showGroupInfo && (
