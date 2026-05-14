@@ -119,8 +119,6 @@ function App() {
     return () => unsub()
   }, [showLoginTutorial])
 
-  const isNativeApp = !!(window as any).Capacitor?.isNativePlatform?.()
-
   const handleLoginClick = async () => {
     try {
       const isCapacitor = !!(window as any).Capacitor?.isNativePlatform?.()
@@ -146,7 +144,7 @@ function App() {
   }
   const [aiUnread, setAiUnread] = useState(false)
   const [fabOpen, setFabOpen] = useState(false)
-  const [showInstallPopup, setShowInstallPopup] = useState(false)
+
   // Max 2 RPG toast notifications
   const [rpgToasts, setRpgToasts] = useState<{id:number;msg:string}[]>([])
   const rpgToastIdRef = React.useRef(0)
@@ -1271,7 +1269,6 @@ function App() {
                 <button
                   onClick={() => { 
               setFabOpen(false)
-              if (!isNativeApp) { setShowInstallPopup(true); return }
               setGcUnread(false); setGcOpen(true) 
             }}
                   style={{
@@ -2124,48 +2121,6 @@ function App() {
         </React.Suspense>
       )}
 
-      {/* ── Install App Popup ─────────────────────────────────── */}
-      {showInstallPopup && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
-          zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          padding: '20px'
-        }} onClick={() => setShowInstallPopup(false)}>
-          <div style={{
-            background: '#1a1a2e', border: '1px solid rgba(163,230,53,0.3)',
-            borderRadius: '16px', padding: '28px 24px', maxWidth: '320px',
-            width: '100%', textAlign: 'center'
-          }} onClick={e => e.stopPropagation()}>
-            <div style={{ fontSize: '48px', marginBottom: '12px' }}>📱</div>
-            <div style={{ fontSize: '18px', fontWeight: 700, color: '#a3e635', marginBottom: '8px' }}>
-              Install Aplikasi Dulu!
-            </div>
-            <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', marginBottom: '20px', lineHeight: 1.5 }}>
-              Fitur Global Chat, RPG, dan semua fitur komunitas hanya tersedia di aplikasi KyokoApp.
-            </div>
-            <a
-              href="#"
-              style={{
-                display: 'block', background: '#a3e635', color: '#000',
-                padding: '12px', borderRadius: '10px', fontWeight: 700,
-                fontSize: '14px', textDecoration: 'none', marginBottom: '10px'
-              }}
-            >
-              ⬇️ Download APK
-            </a>
-            <button
-              onClick={() => setShowInstallPopup(false)}
-              style={{
-                background: 'transparent', border: '1px solid rgba(255,255,255,0.2)',
-                color: 'rgba(255,255,255,0.5)', padding: '10px', borderRadius: '10px',
-                width: '100%', cursor: 'pointer', fontSize: '13px'
-              }}
-            >
-              Tutup
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* ── GC Mini Music Player floating ────────────────────────── */}
       {gcMiniPlayer && !gcOpen && (
@@ -2225,7 +2180,6 @@ function App() {
             className="fab-sub-btn fab-sub-chat"
             onClick={() => { 
               setFabOpen(false)
-              if (!isNativeApp) { setShowInstallPopup(true); return }
               setGcUnread(false); setGcOpen(true) 
             }}
             aria-label="Global Chat"
