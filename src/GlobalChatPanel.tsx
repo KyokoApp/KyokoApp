@@ -9985,11 +9985,10 @@ const CHESS_PIECE_VAL: Record<string,number> = { P:10,N:32,B:33,R:50,Q:90,K:900 
 
 function initChessBoard(): ChessBoard {
   const b: ChessBoard = Array(8).fill(null).map(()=>Array(8).fill(null))
-  const back: ChessPiece[] = ['R','N','B','Q','K','B','N','R'] as ChessPiece[]
-  b[0] = back.map(p => ('b'+p) as ChessPiece)
-  b[1] = Array(8).fill('bP')
-  b[7] = back.map(p => ('w'+p) as ChessPiece)
-  b[6] = Array(8).fill('wP')
+  b[0] = ['bR','bN','bB','bQ','bK','bB','bN','bR'] as ChessPiece[]
+  b[1] = Array(8).fill('bP' as ChessPiece)
+  b[7] = ['wR','wN','wB','wQ','wK','wB','wN','wR'] as ChessPiece[]
+  b[6] = Array(8).fill('wP' as ChessPiece)
   return b
 }
 
