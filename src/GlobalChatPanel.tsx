@@ -1568,7 +1568,8 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
           roster: ['amber','kaeya','lisa'], pulls: 0,
           charLevels: { amber:1, kaeya:1, lisa:1 },
           constellations: { amber:0, kaeya:0, lisa:0 },
-          charMats: { fish:0, ore:0, herb:0 }
+          charMats: { fish:0, ore:0, herb:0 },
+          charExp: {}
         }
         await setDoc(doc(getRpgDb(user!.uid), 'playerGacha', user.uid), init)
         setGachaData(init)
