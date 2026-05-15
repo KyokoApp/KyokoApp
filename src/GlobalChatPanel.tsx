@@ -270,56 +270,144 @@ const ITEM_SELL_PRICES: Record<string, number> = {
 // ═══════════════════════════════════════════════════════════════
 // GACHA RPG DATA (Genshin/WuWa style)
 // ═══════════════════════════════════════════════════════════════
-type GachaRarity = '5★' | '4★' | '3★'
-type GachaElement = 'Pyro'|'Hydro'|'Anemo'|'Geo'|'Electro'|'Dendro'|'Cryo'|'Spectro'|'Havoc'
+type GachaRarity = '6★' | '5★' | '4★' | '3★'
+type GachaElement = 'Pyro'|'Hydro'|'Anemo'|'Geo'|'Electro'|'Dendro'|'Cryo'|'Spectro'|'Havoc'|'Quantum'|'Imaginary'|'Physical'|'Ice'|'Wind'|'Fire'|'Lightning'
+type GachaSource = 'genshin'|'wuwa'|'hsr'
 interface GachaChar {
   id: string; name: string; rarity: GachaRarity; element: GachaElement
   weapon: string; emoji: string; desc: string
   atk: number; def: number; hp: number; spd: number
   skill: string; burst: string
+  source: GachaSource   // game asal karakter
   img?: string
 }
+// Material upgrade per level range (dari sistem RPG lain)
+const CHAR_LEVEL_MATS: Record<string, { fish?: number; ore?: number; herb?: number; gold: number }> = {
+  '1-20':   { fish: 5,  ore: 5,   herb: 5,  gold: 500   },
+  '21-40':  { fish: 15, ore: 15,  herb: 15, gold: 2000  },
+  '41-60':  { fish: 30, ore: 30,  herb: 30, gold: 6000  },
+  '61-80':  { fish: 60, ore: 60,  herb: 60, gold: 15000 },
+  '81-100': { fish: 100,ore: 100, herb: 100,gold: 40000 },
+}
+function getCharLevelRange(level: number): string {
+  if (level <= 20) return '1-20'
+  if (level <= 40) return '21-40'
+  if (level <= 60) return '41-60'
+  if (level <= 80) return '61-80'
+  return '81-100'
+}
+function getCharLevelCost(level: number): { fish: number; ore: number; herb: number; gold: number } {
+  const range = getCharLevelRange(level)
+  const mat = CHAR_LEVEL_MATS[range]
+  return { fish: mat.fish||0, ore: mat.ore||0, herb: mat.herb||0, gold: mat.gold }
+}
+// Max level by rarity
+const CHAR_MAX_LEVEL: Record<GachaRarity, number> = {
+  '3★': 40, '4★': 60, '5★': 80, '6★': 100
+}
+// Stat multiplier by level
+function getCharStatMult(level: number, rarity: GachaRarity): number {
+  const maxLv = CHAR_MAX_LEVEL[rarity]
+  const base = 1 + (level - 1) / maxLv * 2.5  // 1x at lv1, up to 3.5x at max
+  const rarityBonus = rarity === '6★' ? 0.5 : rarity === '5★' ? 0.25 : 0
+  return base + rarityBonus
+}
 const GACHA_CHARS: GachaChar[] = [
-  { id:'aether',    name:'Aether',      rarity:'5★', element:'Anemo',   weapon:'Sword',    emoji:'⚡', desc:'Pengelana dari dunia lain, ahli semua elemen.',    atk:42,def:36,hp:280,spd:20, skill:'Wind Blade',    burst:'Elemental Surge' },
-  { id:'lumine',    name:'Lumine',      rarity:'5★', element:'Anemo',   weapon:'Sword',    emoji:'🌙', desc:'Saudari Aether, kekuatan misterius tersembunyi.',   atk:40,def:38,hp:290,spd:19, skill:'Star Shower',   burst:'Celestial Rift' },
-  { id:'hu_tao',    name:'Hu Tao',      rarity:'5★', element:'Pyro',    weapon:'Polearm',  emoji:'🔥', desc:'Direktur Rumah Duka, api kematian di tangannya.',   atk:55,def:22,hp:250,spd:17, skill:'Searing Grasp', burst:'Spirit Soother' },
-  { id:'raiden',    name:'Raiden Ei',   rarity:'5★', element:'Electro', weapon:'Polearm',  emoji:'⚡', desc:'Shogun Abadi Inazuma, penguasa petir.',             atk:52,def:26,hp:265,spd:18, skill:'Transcendence', burst:'Musou Isshin' },
-  { id:'furina',    name:'Furina',      rarity:'5★', element:'Hydro',   weapon:'Sword',    emoji:'💧', desc:'Archon Hydro Fontaine, diva panggung keadilan.',    atk:48,def:28,hp:275,spd:21, skill:'Style Change',  burst:'Let the Show Begin' },
-  { id:'nahida',    name:'Nahida',      rarity:'5★', element:'Dendro',  weapon:'Catalyst', emoji:'🌿', desc:'Archon Kecil Sumeru, kebijaksanaan tak terbatas.',  atk:46,def:30,hp:260,spd:22, skill:'TDM Link',      burst:'Illusory Heart' },
-  { id:'kazuha',    name:'Kazuha',      rarity:'5★', element:'Anemo',   weapon:'Sword',    emoji:'🍂', desc:'Samurai Ronin, puisi angin di setiap langkahnya.',  atk:50,def:24,hp:270,spd:24, skill:'Chihayaburu',   burst:'Kazuha Slash' },
-  { id:'zhongli',   name:'Zhongli',     rarity:'5★', element:'Geo',     weapon:'Polearm',  emoji:'🪨', desc:'Morax, Archon Batu, kontrak adalah segalanya.',     atk:44,def:45,hp:310,spd:15, skill:'Dominus Lapidis','burst':'Planet Befall' },
-  { id:'yelan',     name:'Yelan',       rarity:'5★', element:'Hydro',   weapon:'Bow',      emoji:'🎯', desc:'Agen misterius Liyue, informasi adalah kekuatan.',  atk:51,def:20,hp:285,spd:23, skill:'Lingering Lifeline','burst':'Depth-Clarion Dice' },
-  { id:'arlecchino',name:'Arlecchino',  rarity:'5★', element:'Pyro',    weapon:'Polearm',  emoji:'🎪', desc:'Fatui Harbormaster, nyala abadi Knave.',            atk:58,def:18,hp:245,spd:20, skill:'All Is Ash',    burst:'Balemoon Shadesire' },
-  // 4★
-  { id:'xiangling', name:'Xiangling',   rarity:'4★', element:'Pyro',    weapon:'Polearm',  emoji:'🍜', desc:'Chef berbakat Liyue dengan beruang api Guoba.',     atk:38,def:20,hp:200,spd:18, skill:'Guoba Attack',  burst:'Pyronado' },
-  { id:'fischl',    name:'Fischl',      rarity:'4★', element:'Electro', weapon:'Bow',      emoji:'🦅', desc:'Prinzessin der Verurteilung, menyayangi Oz.',       atk:40,def:18,hp:190,spd:19, skill:'Nightrider',    burst:'Midnight Phantasmagoria' },
-  { id:'bennett',   name:'Bennett',     rarity:'4★', element:'Pyro',    weapon:'Sword',    emoji:'🍀', desc:'Petualang sial tapi paling berhati emas.',           atk:35,def:22,hp:215,spd:17, skill:'Passion Overload','burst':'Fantastic Voyage' },
-  { id:'sucrose',   name:'Sucrose',     rarity:'4★', element:'Anemo',   weapon:'Catalyst', emoji:'🧪', desc:'Alkemis Mondstadt, peneliti reaksi elemen.',        atk:33,def:24,hp:195,spd:20, skill:'Isotoma',       burst:'Forbidden Creation' },
-  { id:'beidou',    name:'Beidou',      rarity:'4★', element:'Electro', weapon:'Claymore', emoji:'⚓', desc:'Kapten Laut Crux Fleet, petir di samudera.',        atk:42,def:26,hp:210,spd:16, skill:'Tidecaller',    burst:'Stormbreaker' },
-  { id:'noelle',    name:'Noelle',      rarity:'4★', element:'Geo',     weapon:'Claymore', emoji:'🌹', desc:'Penjaga Kastil Knight Favonius paling gigih.',      atk:30,def:42,hp:230,spd:14, skill:'Breastplate',   burst:'Sweeping Time' },
-  // WuWa chars
-  { id:'rover',     name:'Rover',       rarity:'5★', element:'Spectro', weapon:'Sword',    emoji:'🌟', desc:'Resonator misterius, kekuatan Spectro terpendam.',  atk:50,def:30,hp:275,spd:21, skill:'Resonance Skill','burst':'Resonance Liberation' },
-  { id:'jiyan',     name:'Jiyan',       rarity:'5★', element:'Anemo',   weapon:'Broadblade',emoji:'🌀',desc:'Komandan Resonator Jinzhou, angin pedang tajam.',  atk:54,def:25,hp:260,spd:22, skill:'Emerald Storm', burst:'Emerald Tempest' },
-  { id:'calcharo',  name:'Calcharo',    rarity:'5★', element:'Electro', weapon:'Rectifier',emoji:'⚡', desc:'Resonator Electro dengan kekuatan destruktif.',     atk:57,def:20,hp:250,spd:19, skill:'Execute',       burst:'Death Messenger' },
-  { id:'jinhsi',    name:'Jinhsi',      rarity:'5★', element:'Spectro', weapon:'Rectifier',emoji:'✨', desc:'Wali Jinzhou, cahaya Spectro yang menyilaukan.',    atk:49,def:32,hp:270,spd:20, skill:'Temporal Bender','burst':'Purification Light' },
-  // 3★
-  { id:'amber',     name:'Amber',       rarity:'3★', element:'Pyro',    weapon:'Bow',      emoji:'🐰', desc:'Outrider Knight Mondstadt satu-satunya.',           atk:28,def:18,hp:175,spd:16, skill:'Explosive Puppet','burst':'Fiery Rain' },
-  { id:'kaeya',     name:'Kaeya',       rarity:'3★', element:'Cryo',    weapon:'Sword',    emoji:'❄️', desc:'Cavalry Captain Mondstadt berbakat.',               atk:30,def:20,hp:180,spd:17, skill:'Frostgnaw',     burst:'Glacial Waltz' },
-  { id:'lisa',      name:'Lisa',        rarity:'3★', element:'Electro', weapon:'Catalyst', emoji:'📚', desc:'Perpustakaan Knight Favonius yang malas tapi jenius.',atk:32,def:16,hp:170,spd:18, skill:'Violet Arc',   burst:'Lightning Rose' },
+  // ══════════ GENSHIN IMPACT ══════════
+  // 6★ Archon/Exclusive (super rare)
+  { id:'celestia_aether', name:'Celestia Aether',  rarity:'6★', element:'Anemo',   weapon:'Sword',    emoji:'⚡', source:'genshin', desc:'Pengelana yang telah menyerap kekuatan semua Archon.',  atk:75,def:55,hp:420,spd:28, skill:'Omni Blade',    burst:'Celestial Convergence' },
+  { id:'archon_lumine',   name:'Archon Lumine',    rarity:'6★', element:'Hydro',   weapon:'Sword',    emoji:'🌙', source:'genshin', desc:'Lumine yang telah menguasai kekuatan Abyssal Archon.',  atk:70,def:60,hp:440,spd:26, skill:'Void Star',     burst:'Abyssal Tide' },
+  // 5★ Genshin
+  { id:'hu_tao',    name:'Hu Tao',      rarity:'5★', element:'Pyro',    weapon:'Polearm',  emoji:'🔥', source:'genshin', desc:'Direktur Rumah Duka, api kematian di tangannya.',   atk:55,def:22,hp:250,spd:17, skill:'Searing Grasp', burst:'Spirit Soother' },
+  { id:'raiden',    name:'Raiden Ei',   rarity:'5★', element:'Electro', weapon:'Polearm',  emoji:'⚡', source:'genshin', desc:'Shogun Abadi Inazuma, penguasa petir.',             atk:52,def:26,hp:265,spd:18, skill:'Transcendence', burst:'Musou Isshin' },
+  { id:'furina',    name:'Furina',      rarity:'5★', element:'Hydro',   weapon:'Sword',    emoji:'💧', source:'genshin', desc:'Archon Hydro Fontaine, diva panggung keadilan.',    atk:48,def:28,hp:275,spd:21, skill:'Style Change',  burst:'Let the Show Begin' },
+  { id:'nahida',    name:'Nahida',      rarity:'5★', element:'Dendro',  weapon:'Catalyst', emoji:'🌿', source:'genshin', desc:'Archon Kecil Sumeru, kebijaksanaan tak terbatas.',  atk:46,def:30,hp:260,spd:22, skill:'TDM Link',      burst:'Illusory Heart' },
+  { id:'kazuha',    name:'Kazuha',      rarity:'5★', element:'Anemo',   weapon:'Sword',    emoji:'🍂', source:'genshin', desc:'Samurai Ronin, puisi angin di setiap langkahnya.',  atk:50,def:24,hp:270,spd:24, skill:'Chihayaburu',   burst:'Kazuha Slash' },
+  { id:'zhongli',   name:'Zhongli',     rarity:'5★', element:'Geo',     weapon:'Polearm',  emoji:'🪨', source:'genshin', desc:'Morax, Archon Batu, kontrak adalah segalanya.',     atk:44,def:45,hp:310,spd:15, skill:'Dominus Lapidis',burst:'Planet Befall' },
+  { id:'yelan',     name:'Yelan',       rarity:'5★', element:'Hydro',   weapon:'Bow',      emoji:'🎯', source:'genshin', desc:'Agen misterius Liyue, informasi adalah kekuatan.',  atk:51,def:20,hp:285,spd:23, skill:'Lingering Lifeline',burst:'Depth-Clarion Dice' },
+  { id:'arlecchino',name:'Arlecchino',  rarity:'5★', element:'Pyro',    weapon:'Polearm',  emoji:'🎪', source:'genshin', desc:'Fatui Harbormaster, nyala abadi Knave.',            atk:58,def:18,hp:245,spd:20, skill:'All Is Ash',    burst:'Balemoon Shadesire' },
+  { id:'neuvillette',name:'Neuvillette',rarity:'5★', element:'Hydro',   weapon:'Catalyst', emoji:'🐉', source:'genshin', desc:'Iudex Fontaine, Watcher Hydro sejati.',             atk:53,def:24,hp:290,spd:20, skill:'Recitation',    burst:'Judgment Decree' },
+  { id:'wriothesley',name:'Wriothesley',rarity:'5★', element:'Cryo',    weapon:'Catalyst', emoji:'🥊', source:'genshin', desc:'Warden Meropide, pukulan es yang menghancurkan.',   atk:56,def:22,hp:255,spd:21, skill:'Icefang Rush',  burst:'Darkgold Wolfbite' },
+  // 4★ Genshin
+  { id:'xiangling', name:'Xiangling',   rarity:'4★', element:'Pyro',    weapon:'Polearm',  emoji:'🍜', source:'genshin', desc:'Chef berbakat Liyue dengan beruang api Guoba.',     atk:38,def:20,hp:200,spd:18, skill:'Guoba Attack',  burst:'Pyronado' },
+  { id:'fischl',    name:'Fischl',      rarity:'4★', element:'Electro', weapon:'Bow',      emoji:'🦅', source:'genshin', desc:'Prinzessin der Verurteilung, menyayangi Oz.',       atk:40,def:18,hp:190,spd:19, skill:'Nightrider',    burst:'Midnight Phantasmagoria' },
+  { id:'bennett',   name:'Bennett',     rarity:'4★', element:'Pyro',    weapon:'Sword',    emoji:'🍀', source:'genshin', desc:'Petualang sial tapi paling berhati emas.',           atk:35,def:22,hp:215,spd:17, skill:'Passion Overload',burst:'Fantastic Voyage' },
+  { id:'sucrose',   name:'Sucrose',     rarity:'4★', element:'Anemo',   weapon:'Catalyst', emoji:'🧪', source:'genshin', desc:'Alkemis Mondstadt, peneliti reaksi elemen.',        atk:33,def:24,hp:195,spd:20, skill:'Isotoma',       burst:'Forbidden Creation' },
+  { id:'beidou',    name:'Beidou',      rarity:'4★', element:'Electro', weapon:'Claymore', emoji:'⚓', source:'genshin', desc:'Kapten Laut Crux Fleet, petir di samudera.',        atk:42,def:26,hp:210,spd:16, skill:'Tidecaller',    burst:'Stormbreaker' },
+  { id:'noelle',    name:'Noelle',      rarity:'4★', element:'Geo',     weapon:'Claymore', emoji:'🌹', source:'genshin', desc:'Penjaga Kastil Knight Favonius paling gigih.',      atk:30,def:42,hp:230,spd:14, skill:'Breastplate',   burst:'Sweeping Time' },
+  { id:'kuki',      name:'Kuki Shinobu',rarity:'4★', element:'Electro', weapon:'Sword',    emoji:'🩺', source:'genshin', desc:'Wakil Arataki Gang, penyembuh petir andalan.',      atk:34,def:28,hp:225,spd:19, skill:'Gyoei Narukami',burst:'Kamisato Art' },
+  { id:'collei',    name:'Collei',      rarity:'4★', element:'Dendro',  weapon:'Bow',      emoji:'🌱', source:'genshin', desc:'Asisten Ranger Sumeru, pemakai Dendro aktif.',      atk:36,def:22,hp:195,spd:21, skill:'Floral Brush',  burst:'Trump-Card Kitty' },
+  // 3★ Genshin
+  { id:'amber',     name:'Amber',       rarity:'3★', element:'Pyro',    weapon:'Bow',      emoji:'🐰', source:'genshin', desc:'Outrider Knight Mondstadt satu-satunya.',           atk:28,def:18,hp:175,spd:16, skill:'Explosive Puppet',burst:'Fiery Rain' },
+  { id:'kaeya',     name:'Kaeya',       rarity:'3★', element:'Cryo',    weapon:'Sword',    emoji:'❄️', source:'genshin', desc:'Cavalry Captain Mondstadt berbakat.',               atk:30,def:20,hp:180,spd:17, skill:'Frostgnaw',     burst:'Glacial Waltz' },
+  { id:'lisa',      name:'Lisa',        rarity:'3★', element:'Electro', weapon:'Catalyst', emoji:'📚', source:'genshin', desc:'Perpustakaan Knight Favonius yang malas tapi jenius.',atk:32,def:16,hp:170,spd:18, skill:'Violet Arc',   burst:'Lightning Rose' },
+
+  // ══════════ WUTHERING WAVES ══════════
+  // 6★ WuWa
+  { id:'rover_void',   name:'Rover (Havoc)',   rarity:'6★', element:'Havoc',   weapon:'Sword',     emoji:'🌑', source:'wuwa', desc:'Rover yang telah menguasai kekuatan Havoc penuh.',  atk:72,def:52,hp:410,spd:27, skill:'Void Claw',     burst:'Nihility Surge' },
+  // 5★ WuWa
+  { id:'rover',     name:'Rover',       rarity:'5★', element:'Spectro', weapon:'Sword',    emoji:'🌟', source:'wuwa', desc:'Resonator misterius, kekuatan Spectro terpendam.',  atk:50,def:30,hp:275,spd:21, skill:'Resonance Skill',burst:'Resonance Liberation' },
+  { id:'jiyan',     name:'Jiyan',       rarity:'5★', element:'Anemo',   weapon:'Broadblade',emoji:'🌀',source:'wuwa', desc:'Komandan Resonator Jinzhou, angin pedang tajam.',  atk:54,def:25,hp:260,spd:22, skill:'Emerald Storm', burst:'Emerald Tempest' },
+  { id:'calcharo',  name:'Calcharo',    rarity:'5★', element:'Electro', weapon:'Rectifier',emoji:'⚡', source:'wuwa', desc:'Resonator Electro dengan kekuatan destruktif.',     atk:57,def:20,hp:250,spd:19, skill:'Execute',       burst:'Death Messenger' },
+  { id:'jinhsi',    name:'Jinhsi',      rarity:'5★', element:'Spectro', weapon:'Rectifier',emoji:'✨', source:'wuwa', desc:'Wali Jinzhou, cahaya Spectro yang menyilaukan.',    atk:49,def:32,hp:270,spd:20, skill:'Temporal Bender',burst:'Purification Light' },
+  { id:'changli',   name:'Changli',     rarity:'5★', element:'Fire',    weapon:'Sword',    emoji:'🔮', source:'wuwa', desc:'Maha-Resonator Rinascita, api yang menerangi kegelapan.',atk:56,def:23,hp:262,spd:22, skill:'Flame Surge',  burst:'Inferno's Edge' },
+  { id:'xiangli',   name:'Xiangli Yao', rarity:'5★', element:'Electro', weapon:'Gauntlet', emoji:'⚙️', source:'wuwa', desc:'Insinyur Resonator dari Rinascita, petir mekanis.',  atk:58,def:21,hp:255,spd:20, skill:'Circuit Breaker',burst:'Omega Protocol' },
+  { id:'camellya',  name:'Camellya',    rarity:'5★', element:'Havoc',   weapon:'Sword',    emoji:'🌸', source:'wuwa', desc:'Bunga gelap yang mekar di kegelapan, havoc murni.',  atk:60,def:19,hp:248,spd:21, skill:'Petal Slash',   burst:'Bloom of Ruin' },
+  { id:'zhezhi',    name:'Zhezhi',      rarity:'5★', element:'Spectro', weapon:'Rectifier',emoji:'🎭', source:'wuwa', desc:'Seniman misterius Resonator, ilusi spectro hidup.',  atk:47,def:33,hp:278,spd:22, skill:'Painted Soul',  burst:'Living Canvas' },
+  { id:'shorekeeper',name:'Shorekeeper',rarity:'5★', element:'Spectro', weapon:'Rectifier',emoji:'🪬', source:'wuwa', desc:'Penjaga Pantai, Resonator penyembuh yang kuat.',     atk:43,def:36,hp:295,spd:20, skill:'Tidal Guard',   burst:'Spectral Tide' },
+  // 4★ WuWa
+  { id:'yangyang',  name:'Yangyang',    rarity:'4★', element:'Anemo',   weapon:'Sword',    emoji:'🍃', source:'wuwa', desc:'Resonator Anemo Jinzhou, lincah dan lembut.',        atk:36,def:24,hp:200,spd:22, skill:'Wind Chaser',   burst:'Wings of Gale' },
+  { id:'chixia',    name:'Chixia',      rarity:'4★', element:'Fire',    weapon:'Pistol',   emoji:'🔫', source:'wuwa', desc:'Resonator Pyro energik dengan senjata kembar api.',  atk:40,def:18,hp:190,spd:21, skill:'Dual Blaze',    burst:'Blazing Barrage' },
+  { id:'danjin',    name:'Danjin',      rarity:'4★', element:'Havoc',   weapon:'Sword',    emoji:'⚔️', source:'wuwa', desc:'Resonator Havoc agresif, mengorbankan HP untuk power.',atk:42,def:16,hp:185,spd:22, skill:'Crimson Fragment',burst:'Crimson Erosion' },
+  { id:'yuanwu',    name:'Yuanwu',      rarity:'4★', element:'Electro', weapon:'Gauntlet', emoji:'🥋', source:'wuwa', desc:'Resonator Electro, master bela diri Jinzhou.',       atk:38,def:26,hp:210,spd:17, skill:'Thundering Fist',burst:'Thunder God Descent' },
+
+  // ══════════ HONKAI: STAR RAIL ══════════
+  // 6★ HSR
+  { id:'hsr_aeon',    name:'The Trailblazer (Aeon)', rarity:'6★', element:'Fire', weapon:'Hands',   emoji:'🌠', source:'hsr', desc:'Trailblazer yang telah menyentuh kekuatan Aeon sejati.',  atk:68,def:58,hp:430,spd:25, skill:'Aeon's Might',  burst:'Path Convergence' },
+  // 5★ HSR
+  { id:'hsr_kafka',   name:'Kafka',       rarity:'5★', element:'Lightning', weapon:'Guns',     emoji:'🎵', source:'hsr', desc:'Anggota Stellaron Hunter, operator petir mematikan.',  atk:54,def:22,hp:258,spd:25, skill:'Thunderclap Myriad Doom',burst:'Twilight Trill' },
+  { id:'hsr_blade',   name:'Blade',       rarity:'5★', element:'Wind',      weapon:'Sword',    emoji:'🌬️', source:'hsr', desc:'Mantan Stellaron Hunter, tak bisa mati tapi ingin mati.',atk:60,def:18,hp:300,spd:21, skill:'Shard Sword',   burst:'Death Wish' },
+  { id:'hsr_jingliu', name:'Jingliu',     rarity:'5★', element:'Ice',       weapon:'Sword',    emoji:'🌸', source:'hsr', desc:'Sword Champion Luofu, es yang membekukan waktu.',       atk:58,def:20,hp:268,spd:22, skill:'Transcendent Flash',burst:'Crescent Transmutation' },
+  { id:'hsr_himeko',  name:'Himeko',      rarity:'5★', element:'Fire',      weapon:'Sword',    emoji:'🔥', source:'hsr', desc:'Direktur Astral Express, peneliti berbahaya sekaligus.',atk:52,def:24,hp:262,spd:22, skill:'Molten Fist',   burst:'Stygian Resurge' },
+  { id:'hsr_seele',   name:'Seele',       rarity:'5★', element:'Quantum',   weapon:'Scythe',   emoji:'🦋', source:'hsr', desc:'Butterfly Girl Wildfire, Quantum yang berputar cepat.',  atk:57,def:20,hp:252,spd:25, skill:'Sheathed Blade',burst:'Butterfly Flurry' },
+  { id:'hsr_bronya',  name:'Bronya',      rarity:'5★', element:'Wind',      weapon:'Mecha',    emoji:'🐰', source:'hsr', desc:'Supreme Guardian Belobog, buffer dan support terkuat.', atk:44,def:35,hp:285,spd:20, skill:'War Commander',burst:'The Belobog March' },
+  { id:'hsr_welt',    name:'Welt Yang',   rarity:'5★', element:'Imaginary', weapon:'Sword',    emoji:'🌌', source:'hsr', desc:'Lord Herrscher, kontrol dan debuff paling handal.',     atk:48,def:30,hp:275,spd:20, skill:'Art of Finesse',burst:'Synthetic Black Hole' },
+  { id:'hsr_fu_xuan', name:'Fu Xuan',     rarity:'5★', element:'Quantum',   weapon:'Matrix',   emoji:'🔮', source:'hsr', desc:'Master Strategist IPC, tank Quantum sejati.',          atk:40,def:48,hp:335,spd:18, skill:'Known by Stars',burst:'Woven Fate' },
+  { id:'hsr_ruan_mei',name:'Ruan Mei',    rarity:'5★', element:'Ice',       weapon:'Needle',   emoji:'🌸', source:'hsr', desc:'Genius Society #81, es abadi yang mendistorsi realita.',atk:45,def:32,hp:280,spd:20, skill:'Somatotypical Helix',burst:'Petals to Stream, Rime to River' },
+  { id:'hsr_acheron', name:'Acheron',     rarity:'5★', element:'Lightning', weapon:'Sword',    emoji:'☔', source:'hsr', desc:'Galaxy Ranger, petir yang membunuh kenangan.',          atk:56,def:23,hp:260,spd:22, skill:'Slashed Dream',burst:'Slashed Dream Cries in Red' },
+  { id:'hsr_robin',   name:'Robin',       rarity:'5★', element:'Physical',  weapon:'Feather',  emoji:'🕊️', source:'hsr', desc:'Diva Penacony, suaranya bisa membalikkan nasib.',       atk:46,def:30,hp:278,spd:20, skill:'Pinion's Art',  burst:'Vox Harmonique' },
+  { id:'hsr_firefly', name:'Firefly (SAM)',rarity:'5★',element:'Fire',      weapon:'Mecha',    emoji:'🔥', source:'hsr', desc:'Stellaron Hunter SAM, gadis yang mencari kematian.',    atk:59,def:21,hp:256,spd:21, skill:'Pyrogenic Break',burst:'Tonight, I Shall Seal the Star' },
+  { id:'hsr_boothill',name:'Boothill',    rarity:'5★', element:'Fire',      weapon:'Guns',     emoji:'🤠', source:'hsr', desc:'Galaxy Ranger, koboi langit yang mematikan.',           atk:57,def:22,hp:258,spd:23, skill:'Skullcrush Spurs',burst:'Last Known Position' },
+  // 4★ HSR
+  { id:'hsr_march7',  name:'March 7th',   rarity:'4★', element:'Ice',       weapon:'Bow',      emoji:'🏹', source:'hsr', desc:'Pemotret Astral Express, pelindung tim dengan es.',     atk:33,def:38,hp:215,spd:22, skill:'Freezing Arrow',burst:'Figure-Skating Dream' },
+  { id:'hsr_asta',    name:'Asta',        rarity:'4★', element:'Fire',      weapon:'Sword',    emoji:'🌙', source:'hsr', desc:'Supervisor IPC, penjelajah yang selalu ceria.',          atk:36,def:24,hp:200,spd:20, skill:'Meteor Shower', burst:'Astral Blessing' },
+  { id:'hsr_natasha', name:'Natasha',     rarity:'4★', element:'Physical',  weapon:'Gun',      emoji:'💉', source:'hsr', desc:'Dokter Wildfire Belobog, penyembuh dengan senyum misterius.',atk:32,def:28,hp:228,spd:18, skill:'Love, Heal, Choose',burst:'Gift of Rebirth' },
+  { id:'hsr_pela',    name:'Pela',        rarity:'4★', element:'Ice',       weapon:'Sword',    emoji:'📕', source:'hsr', desc:'Intelligence Officer IPC, spesialis debuff musuh.',     atk:34,def:26,hp:210,spd:20, skill:'Frostbite',     burst:'Zone Suppression' },
+  { id:'hsr_tingyun', name:'Tingyun',     rarity:'4★', element:'Lightning', weapon:'Staff',    emoji:'🦊', source:'hsr', desc:'Foxian Trade Consultant, buffer lightning terbaik.',    atk:38,def:22,hp:195,spd:22, skill:'Soothing Music', burst:'Amidst the Rejoicing Clouds' },
+  { id:'hsr_sampo',   name:'Sampo',       rarity:'4★', element:'Wind',      weapon:'Knife',    emoji:'🎭', source:'hsr', desc:'Teman perjalanan misterius, DoT Wind spesialis.',       atk:40,def:18,hp:188,spd:21, skill:'Windtorn Dagger',burst:'Surprise Present' },
+  // 3★ HSR
+  { id:'hsr_qingque', name:'Qingque',     rarity:'3★', element:'Quantum',   weapon:'Jade',     emoji:'🀄', source:'hsr', desc:'Pemain mahjong Xianzhou, Quantum random tapi kuat.',    atk:29,def:19,hp:178,spd:18, skill:'Celestial Jade',burst:'A Scoop of Moon' },
+  { id:'hsr_serval',  name:'Serval',      rarity:'3★', element:'Lightning', weapon:'Guitar',   emoji:'🎸', source:'hsr', desc:'Teknisi underground Belobog, rocker petir.',            atk:31,def:17,hp:172,spd:19, skill:'Bzzt! Thermobaric',burst:'Here Comes the Mechanical Fever' },
 ]
 
 const GACHA_BANNER: { name: string; featured: string[]; rateUp: boolean } = {
-  name: '✨ Wishing Star Banner', featured: ['hu_tao','furina','jiyan'], rateUp: true
+  name: '✨ Crossover Star Banner', featured: ['hu_tao','hsr_kafka','camellya','hsr_acheron'], rateUp: true
 }
 
-const PITY_SOFT = 74   // soft pity mulai
-const PITY_HARD = 90   // hard pity
+const PITY_SOFT = 74   // soft pity mulai (5★)
+const PITY_HARD = 90   // hard pity (5★)
+const PITY_6STAR = 200 // hard pity 6★ — 1× per 200 pull
+const RATE_6STAR = 0.1 // 0.1% base rate 6★
 
 interface PlayerGacha {
   uid: string; primogems: number; tickets: number
-  pity: number; guaranteed: boolean
+  pity: number; guaranteed: boolean; pity6: number   // pity6 tracks 6★ counter
   roster: string[]   // char ids
   pulls: number      // total pulls
+  charLevels: Record<string, number>        // char id → current level (default 1)
+  constellations: Record<string, number>    // char id → C0–C6 (>C6 converts to primo)
+  // Resources for char upgrade (gathered from fishing, mining, RPG)
+  charMats: { fish: number; ore: number; herb: number }
 }
 
 const GACHA_EVENTS = [
@@ -405,7 +493,18 @@ const DAILY_MISSIONS = [
 // Genshin element to RPG element mapping (for gacha chars in dungeon)
 const GACHA_ELEM_COLOR: Record<GachaElement, string> = {
   Pyro:'#ff6b3d', Hydro:'#4fc3f7', Anemo:'#74c2a0', Geo:'#daa520',
-  Electro:'#c86eff', Dendro:'#7cbb4a', Cryo:'#98d8ea', Spectro:'#ffd700', Havoc:'#9b59b6'
+  Electro:'#c86eff', Dendro:'#7cbb4a', Cryo:'#98d8ea', Spectro:'#ffd700', Havoc:'#9b59b6',
+  Quantum:'#7b5cff', Imaginary:'#f5c842', Physical:'#aaaaaa',
+  Ice:'#a8d8f0', Wind:'#80d9b0', Fire:'#ff7755', Lightning:'#bb88ff'
+}
+const GACHA_SOURCE_LABEL: Record<GachaSource, string> = {
+  genshin: '⚙️ Genshin', wuwa: '🌊 WuWa', hsr: '🚂 HSR'
+}
+const GACHA_SOURCE_COLOR: Record<GachaSource, string> = {
+  genshin: '#5ab4ff', wuwa: '#7fffd4', hsr: '#ff9ebc'
+}
+const RARITY_COLOR: Record<GachaRarity, string> = {
+  '6★': '#ff3cff', '5★': '#ffd700', '4★': '#c080ff', '3★': '#66aaff'
 }
 
 function checkElemReaction(charElem: GachaElement, bossElem: GachaElement): typeof ELEMENTAL_REACTIONS[string] | null {
@@ -965,6 +1064,7 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
     currentChar: number; energy: number
     log: {text:string;type:'dmg'|'heal'|'skill'|'info'|'reaction'}[]
     result?: 'win'|'lose'; phase: 'player'|'enemy'|'result'
+    charLevels?: Record<string, number>  // for scaled stats in battle
   } | null>(null)
 
   // ── Back button (History API) — nutup panel, bukan keluar web ──
@@ -1449,7 +1549,11 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
       } else {
         const init: PlayerGacha = {
           uid: user.uid, primogems: 1600, tickets: 10,
-          pity: 0, guaranteed: false, roster: ['amber','kaeya','lisa'], pulls: 0
+          pity: 0, pity6: 0, guaranteed: false,
+          roster: ['amber','kaeya','lisa'], pulls: 0,
+          charLevels: { amber:1, kaeya:1, lisa:1 },
+          constellations: { amber:0, kaeya:0, lisa:0 },
+          charMats: { fish:0, ore:0, herb:0 }
         }
         await setDoc(doc(getRpgDb(user!.uid), 'playerGacha', user.uid), init)
         setGachaData(init)
@@ -2204,6 +2308,13 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
           showToast('info', '🎉 LEVEL UP!', `Naik ke Level ${newLevel}!`)
         }
         updateRpgChar(updates)
+        // ── Tambah 1 ore material ke charMats saat menang battle ──
+        if (gachaData) {
+          const curMats = gachaData.charMats ?? { fish:0, ore:0, herb:0 }
+          const newMats = { ...curMats, ore: curMats.ore + 1 }
+          updateDoc(doc(getRpgDb(user!.uid), 'playerGacha', user!.uid), { charMats: newMats }).catch(console.error)
+          setGachaData(prev => prev ? { ...prev, charMats: newMats } : prev)
+        }
         return
       }
 
@@ -2378,41 +2489,66 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
     const useTickets = gachaData.tickets >= ticketCost
     const results: GachaChar[] = []
     let pity = gachaData.pity
+    let pity6 = gachaData.pity6 ?? 0
     let guaranteed = gachaData.guaranteed
+    // Track constellation updates from this pull
+    const newConstellations: Record<string, number> = { ...(gachaData.constellations ?? {}) }
+    const newRoster = [...(gachaData.roster ?? [])]
+    let bonusPrimos = 0  // from duplicate 6★ (C6 exceeded)
 
     for (let i = 0; i < count; i++) {
-      pity++
+      pity++; pity6++
       let rarity: GachaRarity = '3★'
       const roll = Math.random() * 100
-      if (pity >= PITY_HARD) { rarity = '5★'; pity = 0 }
+
+      // 6★ check first
+      if (pity6 >= PITY_6STAR) { rarity = '6★'; pity6 = 0; pity = 0 }
+      else if (roll < RATE_6STAR) { rarity = '6★'; pity6 = 0; pity = 0 }
+      // 5★ check
+      else if (pity >= PITY_HARD) { rarity = '5★'; pity = 0 }
       else if (pity >= PITY_SOFT) { if (roll < (5 + (pity - PITY_SOFT) * 5)) { rarity = '5★'; pity = 0 } else if (roll < 15) rarity = '4★' }
       else if (roll < 0.6) { rarity = '5★'; pity = 0 }
       else if (roll < 6.6) rarity = '4★'
 
       let pool: GachaChar[]
-      if (rarity === '5★') {
-        const featured = GACHA_CHARS.filter(c => GACHA_BANNER.featured.includes(c.id))
-        if (guaranteed || Math.random() < 0.5) { pool = featured; guaranteed = false }
+      if (rarity === '6★') {
+        pool = GACHA_CHARS.filter(c => c.rarity === '6★')
+      } else if (rarity === '5★') {
+        const featured = GACHA_CHARS.filter(c => GACHA_BANNER.featured.includes(c.id) && c.rarity === '5★')
+        if (guaranteed || Math.random() < 0.5) { pool = featured.length ? featured : GACHA_CHARS.filter(c=>c.rarity==='5★'); guaranteed = false }
         else { pool = GACHA_CHARS.filter(c => c.rarity === '5★'); guaranteed = true }
       } else if (rarity === '4★') pool = GACHA_CHARS.filter(c => c.rarity === '4★')
       else pool = GACHA_CHARS.filter(c => c.rarity === '3★')
 
-      // Avoid duplicates in same pull
       const picked = pool[Math.floor(Math.random() * pool.length)]
       results.push(picked)
+
+      // ── Constellation & roster logic ──
+      const curConste = newConstellations[picked.id] ?? -1  // -1 = not owned yet
+      if (!newRoster.includes(picked.id)) {
+        // First time: add to roster, C0
+        newRoster.push(picked.id)
+        newConstellations[picked.id] = 0
+      } else if (curConste < 6) {
+        // Already owned: upgrade constellation
+        newConstellations[picked.id] = curConste + 1
+      } else {
+        // C6 already maxed: convert to primogems
+        const primoPer6star = picked.rarity === '6★' ? 800 : picked.rarity === '5★' ? 200 : picked.rarity === '4★' ? 20 : 5
+        bonusPrimos += primoPer6star
+      }
     }
 
     const updates: Partial<PlayerGacha> = {
-      pity,
-      guaranteed,
+      pity, pity6, guaranteed,
       pulls: gachaData.pulls + count,
-      roster: [...new Set([...gachaData.roster, ...results.map(r => r.id)])],
+      roster: newRoster,
+      constellations: newConstellations,
+      primogems: (gachaData.primogems + bonusPrimos) - (useTickets ? 0 : cost),
     }
     if (useTickets) updates.tickets = gachaData.tickets - ticketCost
-    else updates.primogems = gachaData.primogems - cost
 
     await updateDoc(doc(getRpgDb(user!.uid), 'playerGacha', user.uid), updates)
-    // Update local state supaya tiket/primogems langsung berkurang
     setGachaData(prev => prev ? { ...prev, ...updates } as PlayerGacha : prev)
     // Mark daily pull mission
     if (rpgChar) {
@@ -2422,8 +2558,40 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
         await updateDoc(doc(getRpgDb(user!.uid), 'rpgChars', user.uid), { dailyMissions: { ...dm, completed: [...dm.completed, 'dm_pull'] } })
       }
     }
+    if (bonusPrimos > 0) showToast('success', '💎 Konversi', `+${bonusPrimos} primogems dari duplikat C6!`)
     setGachaAnim(true)
     setTimeout(() => { setGachaAnim(false); setGachaResult(results) }, 800)
+  }
+
+  // ── GACHA: Level Up Character ────────────────────────────────
+  const doCharLevelUp = async (charId: string) => {
+    if (!gachaData || !user) return
+    const curLevel = (gachaData.charLevels ?? {})[charId] ?? 1
+    const char = GACHA_CHARS.find(c => c.id === charId)
+    if (!char) return
+    const maxLv = CHAR_MAX_LEVEL[char.rarity]
+    if (curLevel >= maxLv) { showToast('info','⛔','Level sudah maksimum!'); return }
+    const cost = getCharLevelCost(curLevel)
+    const mats = gachaData.charMats ?? { fish:0, ore:0, herb:0 }
+    if ((mats.fish ?? 0) < cost.fish || (mats.ore ?? 0) < cost.ore || (mats.herb ?? 0) < cost.herb) {
+      showToast('info','🪴 Kurang!',`Butuh ${cost.fish} ikan, ${cost.ore} ore, ${cost.herb} herb`); return
+    }
+    if ((gachaData.primogems ?? 0) < cost.gold / 100) {/* gold check from rpgChar */}
+    // Check gold from rpgChar
+    if (rpgChar && rpgChar.gold < cost.gold) {
+      showToast('info','💰 Kurang Gold!',`Butuh ${cost.gold} gold. Kamu punya ${rpgChar.gold}`); return
+    }
+    // Deduct
+    const newMats = { fish: (mats.fish)-cost.fish, ore: (mats.ore)-cost.ore, herb: (mats.herb)-cost.herb }
+    const newLevels = { ...(gachaData.charLevels??{}), [charId]: curLevel+1 }
+    await updateDoc(doc(getRpgDb(user!.uid), 'playerGacha', user.uid), { charLevels: newLevels, charMats: newMats })
+    setGachaData(prev => prev ? { ...prev, charLevels: newLevels, charMats: newMats } : prev)
+    // Deduct gold from rpgChar
+    if (rpgChar) {
+      const newGold = rpgChar.gold - cost.gold
+      updateRpgChar({ gold: newGold })
+    }
+    showToast('success','⬆️ Level Up!',`${char.name} sekarang level ${curLevel+1}!`)
   }
 
   // ── RPG: Shop cooldown ref (anti-spam 2 detik) ───────────────
@@ -2554,11 +2722,16 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
   const startDungeon = (bossIdx: number, party: GachaChar[]) => {
     if (!rpgChar || party.length === 0) return
     const boss = { ...DUNGEON_BOSSES[bossIdx] }
-    const charHp = party.map(c => c.hp)
+    // Scale char HP based on their level
+    const charHp = party.map(c => {
+      const lv = (gachaData?.charLevels ?? {})[c.id] ?? 1
+      return Math.floor(c.hp * getCharStatMult(lv, c.rarity))
+    })
     setDungeonState({
       boss, bossHp: boss.hp, bossPhase: 1, frozenTurns: 0,
       superconduct: false, activeChars: party, charHp,
       currentChar: 0, energy: 0,
+      charLevels: gachaData?.charLevels ?? {},
       log: [{ text: `🏰 DUNGEON: ${party.map(c=>c.name).join(', ')} vs ${boss.emoji} ${boss.name}!`, type: 'info' }],
       phase: 'player'
     })
@@ -2655,8 +2828,12 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
         showToast('info', '🎉 LEVEL UP!', `Naik ke Level ${newLevel}!`)
       }
       await updateRpgChar(updates)
-      await updateDoc(doc(getRpgDb(user!.uid), 'playerGacha', user!.uid), { primogems: (gachaData?.primogems || 0) + boss.primogems })
-      setGachaData(prev => prev ? { ...prev, primogems: (prev.primogems || 0) + boss.primogems } : prev)
+      const herbGain = boss.rank === 'Archon' ? 10 : boss.rank === 'Weekly' ? 5 : boss.rank === 'Elite' ? 3 : 2
+      const curMats2 = gachaData?.charMats ?? { fish:0, ore:0, herb:0 }
+      const newMats2 = { ...curMats2, herb: curMats2.herb + herbGain }
+      await updateDoc(doc(getRpgDb(user!.uid), 'playerGacha', user!.uid), { primogems: (gachaData?.primogems || 0) + boss.primogems, charMats: newMats2 })
+      setGachaData(prev => prev ? { ...prev, primogems: (prev.primogems || 0) + boss.primogems, charMats: newMats2 } : prev)
+      if (herbGain > 0) showToast('info','🌿 Material!',`+${herbGain} herb dari dungeon!`)
       return
     }
 
@@ -4577,14 +4754,14 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
                   </div>
                 )}
                 {gachaResult && (
-                  <GachaResultScreen results={gachaResult} onClose={() => setGachaResult(null)} roster={gachaData?.roster||[]}/>
+                  <GachaResultScreen results={gachaResult} onClose={() => setGachaResult(null)} roster={gachaData?.roster||[]} constellations={gachaData?.constellations??{}}/>
                 )}
                 {!gachaResult && !gachaAnim && (
                   <>
                     {!gachaData && <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:200,color:'rgba(255,255,255,0.3)',fontSize:13}}>Memuat data gacha...</div>}
                     {gachaData && gachaView === 'home' && <GachaHome data={gachaData} onBanner={()=>setGachaView('banner')} onRoster={()=>setGachaView('roster')} onEvents={()=>setGachaView('events')} onPass={()=>setGachaView('pass')}/>}
                     {gachaData && gachaView === 'banner' && <GachaBanner data={gachaData} onPull={doGachaPull} onBack={()=>setGachaView('home')}/>}
-                    {gachaData && gachaView === 'roster' && <GachaRoster data={gachaData} onBack={()=>setGachaView('home')}/>}
+                    {gachaData && gachaView === 'roster' && <GachaRoster data={gachaData} onBack={()=>setGachaView('home')} onLevelUp={doCharLevelUp}/>}
                     {gachaView === 'events' && <GachaEvents onBack={()=>setGachaView('home')}/>}
                     {gachaData && gachaView === 'pass' && <GachaPass data={gachaData} rpgChar={rpgChar} onBack={()=>setGachaView('home')} onBuyRequest={() => setShowBpBuyConfirm(true)} onClaimTier={claimBattlePassTier} bpClaimMsg={bpClaimMsg}/>}
                   </>
@@ -5196,9 +5373,11 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
         @keyframes gachaCardIn { 0%{opacity:0;transform:translateY(30px) scale(0.8) rotateY(90deg)} 100%{opacity:1;transform:translateY(0) scale(1) rotateY(0deg)} }
         @keyframes star5Glow { 0%,100%{box-shadow:0 0 16px rgba(255,215,0,0.4),0 0 32px rgba(255,180,0,0.2)} 50%{box-shadow:0 0 32px rgba(255,215,0,0.8),0 0 64px rgba(255,180,0,0.4)} }
         @keyframes star4Glow { 0%,100%{box-shadow:0 0 10px rgba(160,100,255,0.4)} 50%{box-shadow:0 0 22px rgba(160,100,255,0.8)} }
+        @keyframes star6Glow { 0%,100%{box-shadow:0 0 24px rgba(255,60,255,0.6),0 0 48px rgba(180,0,255,0.3)} 50%{box-shadow:0 0 48px rgba(255,60,255,1),0 0 96px rgba(180,0,255,0.6)} }
         @keyframes slideInLeft { from{opacity:0;transform:translateX(-20px)} to{opacity:1;transform:translateX(0)} }
         @keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
         @keyframes zzzScan { 0%{transform:translateY(-100%)} 100%{transform:translateY(100vh)} }
+        .gacha-6star { animation: gachaCardIn .7s cubic-bezier(.34,1.56,.64,1) forwards, star6Glow 1.5s ease-in-out infinite !important; }
         .gacha-5star { animation: gachaCardIn .6s cubic-bezier(.34,1.56,.64,1) forwards, star5Glow 2s ease-in-out infinite !important; }
         .gacha-4star { animation: gachaCardIn .5s cubic-bezier(.34,1.56,.64,1) forwards, star4Glow 2s ease-in-out infinite !important; }
         .gacha-3star { animation: gachaCardIn .4s ease forwards !important; }
@@ -7792,13 +7971,18 @@ function DungeonBattle({ char, ds, onEnd, onWin }: {
 
       // ── PLAYER ACTION ──
       const char = PARTY[cIdx] as GachaChar
+      // Scale stats based on character level stored in dungeon state
+      const charLvDungeon = (ds.charLevels ?? {})[char.id] ?? 1
+      const charStatMultDungeon = getCharStatMult(charLvDungeon, char.rarity)
+      const scaledAtk = Math.floor(char.atk * charStatMultDungeon)
+      const scaledDef = Math.floor(char.def * charStatMultDungeon)
       const isWeak = (BOSS.weakness || []).includes(char.element as any)
       let action = 'attack'
       if (cEn[cIdx] >= 100) action = 'burst'
       else if (cCd[cIdx] === 0 && Math.random() < 0.42) action = 'skill'
 
       if (action === 'burst') {
-        const dmg = Math.max(30, Math.floor((char.atk * (isWeak?4:3.5) - BOSS.def*0.2) * (0.9+Math.random()*0.2)))
+        const dmg = Math.max(30, Math.floor((scaledAtk * (isWeak?4:3.5) - BOSS.def*0.2) * (0.9+Math.random()*0.2)))
         bHp = Math.max(0, bHp - dmg)
         setBossHp(bHp); setBossFlash(true); setTimeout(()=>setBossFlash(false), 450)
         addFloat(dmg,'burst','boss')
@@ -7807,7 +7991,7 @@ function DungeonBattle({ char, ds, onEnd, onWin }: {
         bEn=Math.min(100,bEn+22); setBossEnergy(bEn); shake(true)
 
       } else if (action === 'skill') {
-        const dmg = Math.max(10, Math.floor((char.atk*(isWeak?1.9:1.5)-BOSS.def*0.3)*(0.95+Math.random()*0.1)))
+        const dmg = Math.max(10, Math.floor((scaledAtk*(isWeak?1.9:1.5)-BOSS.def*0.3)*(0.95+Math.random()*0.1)))
         bHp = Math.max(0, bHp - dmg)
         setBossHp(bHp); setBossFlash(true); setTimeout(()=>setBossFlash(false), 350)
         addFloat(dmg,'skill','boss')
@@ -7818,7 +8002,7 @@ function DungeonBattle({ char, ds, onEnd, onWin }: {
 
       } else {
         const isCrit = Math.random()<0.18
-        const dmg = Math.max(5, Math.floor((char.atk*(isWeak?1.3:1)-BOSS.def*0.4)*(isCrit?2:1)*(0.88+Math.random()*0.24)))
+        const dmg = Math.max(5, Math.floor((scaledAtk*(isWeak?1.3:1)-BOSS.def*0.4)*(isCrit?2:1)*(0.88+Math.random()*0.24)))
         bHp = Math.max(0, bHp - dmg)
         setBossHp(bHp); setBossFlash(true); setTimeout(()=>setBossFlash(false), 280)
         addFloat(dmg, isCrit?'crit':'dmg', 'boss')
@@ -7826,6 +8010,7 @@ function DungeonBattle({ char, ds, onEnd, onWin }: {
         setCombo((c: number) => c+1); cEn[cIdx]=Math.min(100,cEn[cIdx]+(isCrit?22:14)); setCharEnergy([...cEn])
         bEn=Math.min(100,bEn+(isCrit?18:10)); setBossEnergy(bEn); shake(isCrit)
       }
+      void scaledDef // used in future DEF reduction logic
 
       // ── Check WIN ──
       if (bHp <= 0) {
@@ -8187,8 +8372,11 @@ function PartyManager({ char, gachaData, onSave, onBack }: {
 }) {
   const [selected, setSelected] = useState<string[]>(char.party || [])
   const owned = gachaData ? GACHA_CHARS.filter(c => gachaData.roster.includes(c.id)) : []
-  const [filter, setFilter] = useState<GachaRarity|'Semua'>('Semua')
-  const filtered = filter === 'Semua' ? owned : owned.filter(c => c.rarity === filter)
+  const [filter, setFilter] = useState<GachaRarity|'Semua'|GachaSource>('Semua')
+  const filtered = filter === 'Semua' ? owned
+    : (['6★','5★','4★','3★'] as GachaRarity[]).includes(filter as GachaRarity)
+      ? owned.filter(c => c.rarity === filter)
+      : owned.filter(c => c.source === filter)
 
   const toggle = (id: string) => {
     setSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : prev.length < 4 ? [...prev, id] : prev)
@@ -8218,12 +8406,14 @@ function PartyManager({ char, gachaData, onSave, onBack }: {
       </div>
 
       <div style={{ display:'flex', gap:4, marginBottom:10, flexWrap:'wrap' }}>
-        {(['Semua','5★','4★','3★'] as const).map(r => (
+        {(['Semua','6★','5★','4★','3★','genshin','wuwa','hsr'] as const).map(r => (
           <button key={r} onClick={() => setFilter(r)} style={{
-            background: filter===r ? '#c8f500' : 'rgba(255,255,255,0.06)', border:'none',
+            background: filter===r ? (r==='6★'?'#ff3cff':r==='5★'?'#ffd700':r==='4★'?'#c878ff':r==='genshin'?'#5ab4ff':r==='wuwa'?'#7fffd4':r==='hsr'?'#ff9ebc':'#c8f500'):'rgba(255,255,255,0.06)', border:'none',
             color: filter===r ? '#000' : 'rgba(255,255,255,0.6)', borderRadius:6,
-            padding:'4px 10px', fontSize:11, fontWeight:700, cursor:'pointer'
-          }}>{r}</button>
+            padding:'3px 8px', fontSize:10, fontWeight:700, cursor:'pointer'
+          }}>
+            {r === 'genshin' ? '⚙️GI' : r === 'wuwa' ? '🌊WW' : r === 'hsr' ? '🚂HSR' : r}
+          </button>
         ))}
       </div>
 
@@ -8236,20 +8426,28 @@ function PartyManager({ char, gachaData, onSave, onBack }: {
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:12 }}>
         {filtered.map(c => {
           const isSel = selected.includes(c.id)
-          const rarityColor = c.rarity==='5★' ? '#ffd700' : c.rarity==='4★' ? '#c86eff' : '#aaa'
+          const rarityColor = RARITY_COLOR[c.rarity] ?? '#aaa'
+          const lv = (gachaData?.charLevels??{})[c.id] ?? 1
+          const conste = (gachaData?.constellations??{})[c.id] ?? 0
+          const statMult = getCharStatMult(lv, c.rarity)
           return (
             <button key={c.id} onClick={() => toggle(c.id)} style={{
               background: isSel ? 'rgba(200,245,0,0.1)' : 'rgba(255,255,255,0.04)',
-              border:`1px solid ${isSel ? '#c8f500' : 'rgba(255,255,255,0.08)'}`,
-              borderRadius:12, padding:'10px 10px', cursor:'pointer', textAlign:'left', transition:'all .2s'
+              border:`1.5px solid ${isSel ? '#c8f500' : rarityColor+'30'}`,
+              borderRadius:12, padding:'10px 10px', cursor:'pointer', textAlign:'left', transition:'all .2s',
+              boxShadow: c.rarity==='6★' ? `0 0 10px ${rarityColor}30` : 'none'
             }}>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:4 }}>
                 <span style={{ fontSize:22 }}>{c.emoji}</span>
-                <span style={{ fontSize:9, fontWeight:800, color:rarityColor }}>{c.rarity}</span>
+                <div style={{ textAlign:'right' }}>
+                  <span style={{ fontSize:9, fontWeight:800, color:rarityColor, display:'block' }}>{c.rarity}</span>
+                  <span style={{ fontSize:8, color: GACHA_SOURCE_COLOR[c.source] }}>{c.source==='hsr'?'HSR':c.source==='wuwa'?'WW':'GI'}</span>
+                </div>
               </div>
               <div style={{ fontSize:12, fontWeight:800, color: isSel ? '#c8f500' : '#fff', marginBottom:2 }}>{c.name}</div>
               <div style={{ fontSize:10, color: GACHA_ELEM_COLOR[c.element] }}>{c.element} · {c.weapon}</div>
-              <div style={{ fontSize:9, color:'rgba(255,255,255,0.3)', marginTop:3 }}>⚔️{c.atk} 🛡️{c.def} ❤️{c.hp}</div>
+              <div style={{ fontSize:9, color:'rgba(255,255,255,0.4)', marginTop:2 }}>Lv{lv} · C{conste}</div>
+              <div style={{ fontSize:9, color:'rgba(255,255,255,0.3)', marginTop:2 }}>⚔️{Math.floor(c.atk*statMult)} 🛡️{Math.floor(c.def*statMult)} ❤️{Math.floor(c.hp*statMult)}</div>
               {isSel && <div style={{ marginTop:4, fontSize:9, color:'#c8f500', fontWeight:700 }}>✅ DALAM PARTY</div>}
             </button>
           )
@@ -8367,62 +8565,82 @@ const ELEMENT_COLOR: Record<GachaElement, string> = {
 function GachaHome({ data, onBanner, onRoster, onEvents, onPass }: {
   data: PlayerGacha; onBanner:()=>void; onRoster:()=>void; onEvents:()=>void; onPass:()=>void
 }) {
+  const mats = data.charMats ?? { fish:0, ore:0, herb:0 }
+  const pity6 = data.pity6 ?? 0
   return (
     <div style={{ padding:16 }} className="gc2-fadein">
       {/* Header */}
-      <div style={{ textAlign:'center', marginBottom:20 }}>
-        <div style={{ fontSize:10, color:'rgba(255,255,255,0.3)', letterSpacing:3, textTransform:'uppercase', marginBottom:4 }}>Genshin × WuWa</div>
-        <div style={{ fontSize:22, fontWeight:900, color:'#ffd700', letterSpacing:1, textShadow:'0 0 20px rgba(255,215,0,0.5)' }}>✨ WISH WORLD</div>
-        <div style={{ fontSize:11, color:'rgba(255,255,255,0.4)', marginTop:4 }}>Kumpulkan karakter legendary</div>
+      <div style={{ textAlign:'center', marginBottom:16 }}>
+        <div style={{ fontSize:10, color:'rgba(255,255,255,0.3)', letterSpacing:2, textTransform:'uppercase', marginBottom:4 }}>Genshin × WuWa × HSR</div>
+        <div style={{ fontSize:22, fontWeight:900, background:'linear-gradient(90deg,#ffd700,#ff3cff,#00e5ff)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', letterSpacing:1 }}>✨ WISH WORLD</div>
+        <div style={{ fontSize:11, color:'rgba(255,255,255,0.4)', marginTop:4 }}>Crossover gacha — karakter dari 3 universe!</div>
       </div>
 
       {/* Currency bar */}
-      <div style={{ background:'rgba(255,215,0,0.06)', border:'1px solid rgba(255,215,0,0.15)', borderRadius:12, padding:'10px 14px', marginBottom:16, display:'flex', justifyContent:'space-around' }}>
+      <div style={{ background:'rgba(255,215,0,0.06)', border:'1px solid rgba(255,215,0,0.15)', borderRadius:12, padding:'10px 14px', marginBottom:12, display:'flex', justifyContent:'space-around' }}>
         <div style={{ textAlign:'center' }}>
-          <div style={{ fontSize:11, color:'rgba(255,255,255,0.4)' }}>💎 Primogems</div>
-          <div style={{ fontSize:16, fontWeight:800, color:'#00e5ff' }}>{data.primogems.toLocaleString()}</div>
+          <div style={{ fontSize:10, color:'rgba(255,255,255,0.4)' }}>💎 Primo</div>
+          <div style={{ fontSize:15, fontWeight:800, color:'#00e5ff' }}>{data.primogems.toLocaleString()}</div>
         </div>
         <div style={{ width:1, background:'rgba(255,255,255,0.08)' }}/>
         <div style={{ textAlign:'center' }}>
-          <div style={{ fontSize:11, color:'rgba(255,255,255,0.4)' }}>🎫 Tiket</div>
-          <div style={{ fontSize:16, fontWeight:800, color:'#ffd700' }}>{data.tickets}</div>
+          <div style={{ fontSize:10, color:'rgba(255,255,255,0.4)' }}>🎫 Tiket</div>
+          <div style={{ fontSize:15, fontWeight:800, color:'#ffd700' }}>{data.tickets}</div>
         </div>
         <div style={{ width:1, background:'rgba(255,255,255,0.08)' }}/>
         <div style={{ textAlign:'center' }}>
-          <div style={{ fontSize:11, color:'rgba(255,255,255,0.4)' }}>🎰 Total Pull</div>
-          <div style={{ fontSize:16, fontWeight:800, color:'#c8f500' }}>{data.pulls}</div>
+          <div style={{ fontSize:10, color:'rgba(255,255,255,0.4)' }}>🎰 Pulls</div>
+          <div style={{ fontSize:15, fontWeight:800, color:'#c8f500' }}>{data.pulls}</div>
         </div>
       </div>
 
-      {/* Pity tracker */}
-      <div style={{ background:'rgba(160,100,255,0.07)', border:'1px solid rgba(160,100,255,0.2)', borderRadius:10, padding:'8px 12px', marginBottom:16 }}>
-        <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4, fontSize:11 }}>
-          <span style={{ color:'rgba(255,255,255,0.5)' }}>⭐ Pity Counter</span>
-          <span style={{ color:'#a064ff', fontWeight:700 }}>{data.pity}/{PITY_HARD}</span>
+      {/* Pity trackers */}
+      <div style={{ display:'flex', gap:8, marginBottom:12 }}>
+        <div style={{ flex:1, background:'rgba(160,100,255,0.07)', border:'1px solid rgba(160,100,255,0.2)', borderRadius:10, padding:'8px 10px' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, marginBottom:3 }}>
+            <span style={{ color:'#a064ff' }}>Pity 5★</span>
+            <span style={{ color:'#ffd700', fontWeight:700 }}>{data.pity}/{PITY_HARD}</span>
+          </div>
+          <div style={{ background:'rgba(255,255,255,0.08)', borderRadius:3, overflow:'hidden', height:5 }}>
+            <div style={{ height:'100%', borderRadius:3, background:'linear-gradient(90deg,#a064ff,#ffd700)', width:`${(data.pity/PITY_HARD)*100}%` }}/>
+          </div>
+          {data.pity >= PITY_SOFT && <div style={{ fontSize:9, color:'#ffd700', marginTop:3 }}>⚡ Soft pity aktif!</div>}
+          {data.guaranteed && <div style={{ fontSize:9, color:'#c8f500', marginTop:2 }}>🔒 Guaranteed!</div>}
         </div>
-        <div style={{ background:'rgba(255,255,255,0.08)', borderRadius:4, overflow:'hidden', height:6 }}>
-          <div style={{ height:'100%', borderRadius:4, background:'linear-gradient(90deg,#a064ff,#ffd700)', width:`${(data.pity/PITY_HARD)*100}%`, transition:'width .4s' }}/>
+        <div style={{ flex:1, background:'rgba(255,60,255,0.07)', border:'1px solid rgba(255,60,255,0.2)', borderRadius:10, padding:'8px 10px' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, marginBottom:3 }}>
+            <span style={{ color:'#ff3cff' }}>Pity 6★ 💫</span>
+            <span style={{ color:'#ff3cff', fontWeight:700 }}>{pity6}/{PITY_6STAR}</span>
+          </div>
+          <div style={{ background:'rgba(255,255,255,0.08)', borderRadius:3, overflow:'hidden', height:5 }}>
+            <div style={{ height:'100%', borderRadius:3, background:'linear-gradient(90deg,#ff3cff,#7700ff)', width:`${(pity6/PITY_6STAR)*100}%` }}/>
+          </div>
+          <div style={{ fontSize:9, color:'rgba(255,60,255,0.6)', marginTop:3 }}>0.1% chance · max lv 100</div>
         </div>
-        <div style={{ fontSize:10, color:'rgba(255,255,255,0.3)', marginTop:4 }}>
-          {data.pity >= PITY_SOFT ? '⚡ Soft pity aktif! 5★ lebih mungkin!' : `${PITY_SOFT - data.pity} pull lagi untuk soft pity`}
-          {data.guaranteed && ' · 🔒 Guaranteed 5★ featured!'}
-        </div>
+      </div>
+
+      {/* Char materials */}
+      <div style={{ background:'rgba(255,255,255,0.04)', borderRadius:10, padding:'8px 12px', marginBottom:12, display:'flex', gap:12, alignItems:'center' }}>
+        <span style={{ fontSize:11, color:'rgba(255,255,255,0.5)', fontWeight:700 }}>🧪 Materials:</span>
+        <span style={{ fontSize:11, color:'#4fc3f7' }}>🐟 {mats.fish}</span>
+        <span style={{ fontSize:11, color:'#aaa' }}>⛏️ {mats.ore}</span>
+        <span style={{ fontSize:11, color:'#7cbb4a' }}>🌿 {mats.herb}</span>
+        <span style={{ fontSize:9, color:'rgba(255,255,255,0.3)', marginLeft:'auto' }}>Dari mancing/battle/dungeon</span>
       </div>
 
       {/* Menu grid */}
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
         {[
-          { label:'🌟 Gacha Banner', sub:'Pull karakter baru', color:'#ffd700', bg:'rgba(255,215,0,0.08)', onClick: onBanner },
-          { label:'👥 Koleksi', sub:`${data.roster.length} karakter dimiliki`, color:'#00e5ff', bg:'rgba(0,229,255,0.07)', onClick: onRoster },
+          { label:'🌟 Gacha Banner', sub:'Pull dari 3 universe!', color:'#ffd700', bg:'rgba(255,215,0,0.08)', onClick: onBanner },
+          { label:'👥 Koleksi', sub:`${data.roster.length} char dimiliki`, color:'#00e5ff', bg:'rgba(0,229,255,0.07)', onClick: onRoster },
           { label:'📅 Event', sub:'Reward spesial aktif', color:'#c8f500', bg:'rgba(200,245,0,0.07)', onClick: onEvents },
           { label:'🎖️ Battle Pass', sub:'Hadiah harian & mingguan', color:'#ff9d00', bg:'rgba(255,157,0,0.07)', onClick: onPass },
         ].map(m => (
           <button key={m.label} onClick={m.onClick} style={{
             background: m.bg, border:`1px solid ${m.color}25`,
-            borderRadius:14, padding:'14px 12px', cursor:'pointer', textAlign:'left',
-            transition:'all .2s'
+            borderRadius:14, padding:'14px 12px', cursor:'pointer', textAlign:'left', transition:'all .2s'
           }}>
-            <div style={{ fontSize:15, fontWeight:800, color:m.color, marginBottom:4 }}>{m.label}</div>
+            <div style={{ fontSize:14, fontWeight:800, color:m.color, marginBottom:4 }}>{m.label}</div>
             <div style={{ fontSize:11, color:'rgba(255,255,255,0.4)' }}>{m.sub}</div>
           </button>
         ))}
@@ -8430,16 +8648,18 @@ function GachaHome({ data, onBanner, onRoster, onEvents, onPass }: {
 
       {/* Roster preview */}
       {data.roster.length > 0 && (
-        <div style={{ marginTop:16 }}>
+        <div style={{ marginTop:14 }}>
           <div style={{ fontSize:11, color:'rgba(255,255,255,0.4)', marginBottom:8, fontWeight:700 }}>👥 KARAKTER TERBARU</div>
           <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
             {data.roster.slice(-8).map(id => {
               const c = GACHA_CHARS.find(g => g.id === id)
               if (!c) return null
-              const col = ELEMENT_COLOR[c.element]
+              const col = GACHA_ELEM_COLOR[c.element] ?? '#c8f500'
+              const lv = (data.charLevels??{})[c.id] ?? 1
               return (
-                <div key={id} style={{ background:`${col}15`, border:`1px solid ${col}40`, borderRadius:8, padding:'4px 8px', fontSize:12, color:col, fontWeight:700 }}>
-                  {c.emoji} {c.name}
+                <div key={id} style={{ background:`${col}15`, border:`1px solid ${RARITY_COLOR[c.rarity]}40`, borderRadius:8, padding:'4px 8px', fontSize:11 }}>
+                  <span style={{ color: RARITY_COLOR[c.rarity] }}>{c.emoji} {c.name}</span>
+                  <span style={{ fontSize:9, color:'rgba(255,255,255,0.4)', marginLeft:4 }}>Lv{lv}</span>
                 </div>
               )
             })}
@@ -8456,6 +8676,7 @@ function GachaBanner({ data, onPull, onBack }: { data: PlayerGacha; onPull:(n:1|
   const hasTicket = data.tickets >= 1
   const canPull1 = hasTicket || data.primogems >= cost1
   const canPull10 = data.tickets >= 10 || data.primogems >= cost10
+  const pity6 = data.pity6 ?? 0
 
   return (
     <div style={{ padding:16 }} className="gc2-fadein">
@@ -8465,28 +8686,34 @@ function GachaBanner({ data, onPull, onBack }: { data: PlayerGacha; onPull:(n:1|
       </div>
 
       {/* Banner card */}
-      <div style={{ background:'linear-gradient(135deg,rgba(255,215,0,0.1),rgba(255,100,0,0.08))', border:'1px solid rgba(255,215,0,0.25)', borderRadius:16, padding:16, marginBottom:14 }}>
+      <div style={{ background:'linear-gradient(135deg,rgba(255,215,0,0.1),rgba(255,100,0,0.08))', border:'1px solid rgba(255,215,0,0.25)', borderRadius:16, padding:16, marginBottom:12 }}>
         <div style={{ fontSize:11, color:'rgba(255,215,0,0.7)', fontWeight:700, letterSpacing:1, textTransform:'uppercase', marginBottom:8 }}>⬆️ Rate Up Characters</div>
         <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-          {featured.map(c => (
-            <div key={c.id} style={{ background:`${ELEMENT_COLOR[c.element]}15`, border:`1px solid ${ELEMENT_COLOR[c.element]}40`, borderRadius:10, padding:'8px 10px', flex:1, minWidth:80 }}>
-              <div style={{ fontSize:20 }}>{c.emoji}</div>
-              <div style={{ fontSize:12, fontWeight:700, color:'#fff', marginTop:2 }}>{c.name}</div>
-              <div style={{ fontSize:10, color:'#ffd700' }}>{c.rarity} · {c.element}</div>
-              <div style={{ fontSize:10, color:'rgba(255,255,255,0.4)', marginTop:2 }}>{c.weapon}</div>
-            </div>
-          ))}
+          {featured.map(c => {
+            const col = GACHA_ELEM_COLOR[c.element] ?? '#c8f500'
+            const rarityCol = RARITY_COLOR[c.rarity]
+            return (
+              <div key={c.id} style={{ background:`${col}15`, border:`1px solid ${rarityCol}50`, borderRadius:10, padding:'8px 10px', flex:1, minWidth:80 }}>
+                <div style={{ fontSize:20 }}>{c.emoji}</div>
+                <div style={{ fontSize:12, fontWeight:700, color:'#fff', marginTop:2 }}>{c.name}</div>
+                <div style={{ fontSize:10, color: rarityCol, fontWeight:700 }}>{c.rarity}</div>
+                <div style={{ fontSize:9, color: GACHA_SOURCE_COLOR[c.source] }}>{GACHA_SOURCE_LABEL[c.source]}</div>
+                <div style={{ fontSize:10, color:`${col}cc` }}>{c.element}</div>
+              </div>
+            )
+          })}
         </div>
-
-        <div style={{ marginTop:10, fontSize:11, color:'rgba(255,255,255,0.4)', lineHeight:1.6 }}>
+        <div style={{ marginTop:10, fontSize:11, color:'rgba(255,255,255,0.4)', lineHeight:1.7 }}>
           🎯 Rate 5★: 0.6% (Soft pity: pull ke-{PITY_SOFT})<br/>
           🔒 Hard pity: pull ke-{PITY_HARD} pasti 5★<br/>
-          💡 50/50: Rate-up vs standard 5★{data.guaranteed && ' · 🔒 Guaranteed aktif!'}
+          💫 Rate 6★: 0.1% — Hard pity ke-{PITY_6STAR}<br/>
+          🌟 Karakter dari Genshin · WuWa · HSR dalam 1 banner!<br/>
+          💡 50/50: Rate-up vs standard{data.guaranteed && ' · 🔒 Guaranteed aktif!'}
         </div>
       </div>
 
       {/* Pull buttons */}
-      <div style={{ display:'flex', gap:8, marginBottom:12 }}>
+      <div style={{ display:'flex', gap:8, marginBottom:10 }}>
         <button className="gc2-rpg-btn primary" onClick={() => onPull(1)} disabled={!canPull1} style={{ flex:1, flexDirection:'column', gap:2, padding:'10px 8px', animation: canPull1 ? 'btnPulse 2s infinite' : 'none' }}>
           <div>🎫 × 1 Pull</div>
           <div style={{ fontSize:10, opacity:0.7 }}>{hasTicket ? '1 Tiket' : `${cost1} 💎`}</div>
@@ -8497,39 +8724,54 @@ function GachaBanner({ data, onPull, onBack }: { data: PlayerGacha; onPull:(n:1|
         </button>
       </div>
 
-      {/* Currency */}
-      <div style={{ background:'rgba(255,255,255,0.04)', borderRadius:10, padding:'8px 12px', display:'flex', gap:16, fontSize:12 }}>
+      {/* Currency + pity */}
+      <div style={{ background:'rgba(255,255,255,0.04)', borderRadius:10, padding:'8px 12px', display:'flex', gap:10, fontSize:11, flexWrap:'wrap' }}>
         <span>💎 {data.primogems.toLocaleString()}</span>
         <span>🎫 {data.tickets} Tiket</span>
-        <span style={{ color:'#a064ff' }}>Pity: {data.pity}/{PITY_HARD}</span>
+        <span style={{ color:'#a064ff' }}>Pity 5★: {data.pity}/{PITY_HARD}</span>
+        <span style={{ color:'#ff3cff' }}>Pity 6★: {pity6}/{PITY_6STAR}</span>
       </div>
 
-      {/* All chars preview */}
-      <div style={{ marginTop:14 }}>
-        <div style={{ fontSize:11, color:'rgba(255,255,255,0.4)', fontWeight:700, marginBottom:8 }}>📋 Semua Karakter di Pool</div>
-        <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
-          {(['5★','4★','3★'] as GachaRarity[]).map(r => {
-            const pool = GACHA_CHARS.filter(c => c.rarity === r)
-            return (
-              <div key={r} style={{ display:'flex', flexWrap:'wrap', gap:4, alignItems:'center' }}>
-                <span style={{ fontSize:11, fontWeight:700, color: r==='5★'?'#ffd700':r==='4★'?'#c878ff':'rgba(255,255,255,0.4)', minWidth:28 }}>{r}</span>
-                {pool.map(c => (
-                  <span key={c.id} style={{ fontSize:10, background:data.roster.includes(c.id)?`${ELEMENT_COLOR[c.element]}20`:'rgba(255,255,255,0.05)', border:data.roster.includes(c.id)?`1px solid ${ELEMENT_COLOR[c.element]}50`:'none', borderRadius:4, padding:'2px 6px', color: data.roster.includes(c.id)?ELEMENT_COLOR[c.element]:'rgba(255,255,255,0.5)' }}>
-                    {c.emoji}{c.name}
-                  </span>
-                ))}
+      {/* All chars preview by source */}
+      <div style={{ marginTop:12 }}>
+        <div style={{ fontSize:11, color:'rgba(255,255,255,0.4)', fontWeight:700, marginBottom:8 }}>📋 Pool Karakter (Genshin · WuWa · HSR)</div>
+        {(['6★','5★','4★','3★'] as GachaRarity[]).map(r => {
+          const pool = GACHA_CHARS.filter(c => c.rarity === r)
+          if (!pool.length) return null
+          return (
+            <div key={r} style={{ marginBottom:6 }}>
+              <span style={{ fontSize:10, fontWeight:800, color: RARITY_COLOR[r] }}>{r} ({pool.length})</span>
+              <div style={{ display:'flex', flexWrap:'wrap', gap:3, marginTop:3 }}>
+                {pool.map(c => {
+                  const col = GACHA_ELEM_COLOR[c.element] ?? '#aaa'
+                  const owned = data.roster.includes(c.id)
+                  return (
+                    <span key={c.id} style={{
+                      fontSize:9, borderRadius:4, padding:'2px 5px',
+                      background: owned ? `${col}25` : 'rgba(255,255,255,0.04)',
+                      border: owned ? `1px solid ${col}50` : '1px solid rgba(255,255,255,0.08)',
+                      color: owned ? col : 'rgba(255,255,255,0.4)'
+                    }}>
+                      {c.emoji}{c.name}
+                      <span style={{ color: GACHA_SOURCE_COLOR[c.source], marginLeft:2, fontSize:8 }}>
+                        {c.source==='hsr'?'HSR':c.source==='wuwa'?'WW':'GI'}
+                      </span>
+                    </span>
+                  )
+                })}
               </div>
-            )
-          })}
-        </div>
+            </div>
+          )
+        })}
       </div>
     </div>
   )
 }
 
-function GachaResultScreen({ results, onClose, roster }: { results: GachaChar[]; onClose:()=>void; roster:string[] }) {
+function GachaResultScreen({ results, onClose, roster, constellations }: { results: GachaChar[]; onClose:()=>void; roster:string[]; constellations: Record<string,number> }) {
   const [revealed, setRevealed] = useState(0)
-  const hasFiveStar = results.some(c => c.rarity === '5★')
+  const hasSixStar = results.some(c => c.rarity === '6★')
+  const hasFiveStar = results.some(c => c.rarity === '5★' || c.rarity === '6★')
 
   useEffect(() => {
     if (results.length === 1) { setRevealed(1); return }
@@ -8540,37 +8782,52 @@ function GachaResultScreen({ results, onClose, roster }: { results: GachaChar[];
   }, [results])
 
   return (
-    <div style={{ position:'absolute', inset:0, background: hasFiveStar ? 'linear-gradient(180deg,#1a0a00,#0a0015)' : '#0a0a0a', zIndex:30, display:'flex', flexDirection:'column', padding:16 }} className="gc2-fadein">
-      {hasFiveStar && (
+    <div style={{ position:'absolute', inset:0, background: hasSixStar ? 'linear-gradient(180deg,#1a0020,#000010)' : hasFiveStar ? 'linear-gradient(180deg,#1a0a00,#0a0015)' : '#0a0a0a', zIndex:30, display:'flex', flexDirection:'column', padding:16 }} className="gc2-fadein">
+      {hasSixStar && (
+        <div style={{ position:'absolute', inset:0, background:'radial-gradient(ellipse at center, rgba(255,60,255,0.18) 0%, transparent 70%)', pointerEvents:'none' }}/>
+      )}
+      {hasFiveStar && !hasSixStar && (
         <div style={{ position:'absolute', inset:0, background:'radial-gradient(ellipse at center, rgba(255,215,0,0.12) 0%, transparent 70%)', pointerEvents:'none' }}/>
       )}
       <div style={{ textAlign:'center', marginBottom:14 }}>
-        <div style={{ fontSize:18, fontWeight:900, color: hasFiveStar?'#ffd700':'#fff' }}>
-          {hasFiveStar ? '🌟 LUAR BIASA!' : results.some(c=>c.rarity==='4★') ? '✨ Bagus!' : '🎫 Hasil Gacha'}
+        <div style={{ fontSize:18, fontWeight:900, color: hasSixStar?'#ff3cff':hasFiveStar?'#ffd700':'#fff' }}>
+          {hasSixStar ? '💫 LUAR BIASA!! 6★!!!' : hasFiveStar ? '🌟 LUAR BIASA!' : results.some(c=>c.rarity==='4★') ? '✨ Bagus!' : '🎫 Hasil Gacha'}
         </div>
         <div style={{ fontSize:11, color:'rgba(255,255,255,0.4)' }}>{results.length}x Pull</div>
       </div>
 
       <div style={{ flex:1, display:'grid', gridTemplateColumns: results.length === 1 ? '1fr' : 'repeat(2,1fr)', gap:8, overflowY:'auto' }}>
         {results.map((c, i) => {
-          const isNew = !roster.includes(c.id)
-          const col = ELEMENT_COLOR[c.element]
-          const starClass = c.rarity === '5★' ? 'gacha-5star' : c.rarity === '4★' ? 'gacha-4star' : 'gacha-3star'
+          const prevConste = constellations[c.id] ?? -1
+          const isNew = prevConste < 0
+          const isDupe = !isNew
+          const newConste = isDupe ? Math.min(prevConste + 1, 6) : 0
+          const col = GACHA_ELEM_COLOR[c.element] ?? '#c8f500'
+          const rarityCol = RARITY_COLOR[c.rarity]
+          const starClass = c.rarity === '6★' ? 'gacha-6star' : c.rarity === '5★' ? 'gacha-5star' : c.rarity === '4★' ? 'gacha-4star' : 'gacha-3star'
           return (
             <div key={i} className={starClass} style={{
               animationDelay: `${i * 0.1}s`,
               background: `linear-gradient(135deg,${col}20,${col}08)`,
-              border: `1.5px solid ${c.rarity==='5★'?'#ffd700':c.rarity==='4★'?'#c878ff':col}40`,
+              border: `1.5px solid ${rarityCol}60`,
               borderRadius:14, padding: results.length===1 ? '24px 16px' : '10px 10px',
               textAlign:'center', position:'relative', overflow:'hidden',
-              opacity: i < revealed ? 1 : 0, transition:'opacity .2s'
+              opacity: i < revealed ? 1 : 0, transition:'opacity .2s',
+              boxShadow: c.rarity==='6★' ? `0 0 20px ${rarityCol}50` : 'none'
             }}>
               {isNew && (
                 <div style={{ position:'absolute', top:6, right:6, background:'#c8f500', color:'#000', fontSize:8, fontWeight:800, borderRadius:4, padding:'1px 4px' }}>NEW!</div>
               )}
+              {isDupe && prevConste < 6 && (
+                <div style={{ position:'absolute', top:6, right:6, background: rarityCol, color:'#000', fontSize:8, fontWeight:800, borderRadius:4, padding:'1px 4px' }}>C{newConste}!</div>
+              )}
+              {isDupe && prevConste >= 6 && (
+                <div style={{ position:'absolute', top:6, right:6, background:'#ffd700', color:'#000', fontSize:8, fontWeight:800, borderRadius:4, padding:'1px 4px' }}>+💎</div>
+              )}
               <div style={{ fontSize: results.length===1 ? 48 : 28 }}>{c.emoji}</div>
               <div style={{ fontSize: results.length===1 ? 16:12, fontWeight:800, color:'#fff', margin:'4px 0 2px' }}>{c.name}</div>
-              <div style={{ fontSize:10, color: c.rarity==='5★'?'#ffd700':c.rarity==='4★'?'#c878ff':'rgba(255,255,255,0.5)', fontWeight:700 }}>{c.rarity}</div>
+              <div style={{ fontSize:10, color: rarityCol, fontWeight:700 }}>{c.rarity}</div>
+              <div style={{ fontSize:9, color: GACHA_SOURCE_COLOR[c.source], marginTop:1 }}>{GACHA_SOURCE_LABEL[c.source]}</div>
               <div style={{ fontSize:10, color: col, marginTop:2 }}>{c.element} · {c.weapon}</div>
               {results.length === 1 && (
                 <div style={{ marginTop:10, fontSize:11, color:'rgba(255,255,255,0.5)', lineHeight:1.5 }}>
@@ -8579,7 +8836,8 @@ function GachaResultScreen({ results, onClose, roster }: { results: GachaChar[];
                   <span style={{color:'#ffd700'}}>Burst: {c.burst}</span>
                 </div>
               )}
-              {!isNew && <div style={{ fontSize:9, color:'rgba(255,255,255,0.3)', marginTop:2 }}>Sudah dimiliki</div>}
+              {isDupe && prevConste < 6 && <div style={{ fontSize:9, color: rarityCol, marginTop:2, fontWeight:700 }}>✨ Constellation C{newConste}!</div>}
+              {isDupe && prevConste >= 6 && <div style={{ fontSize:9, color:'#ffd700', marginTop:2, fontWeight:700 }}>💎 Dikonversi ke Primogems!</div>}
             </div>
           )
         })}
@@ -8590,59 +8848,110 @@ function GachaResultScreen({ results, onClose, roster }: { results: GachaChar[];
   )
 }
 
-function GachaRoster({ data, onBack }: { data: PlayerGacha; onBack:()=>void }) {
-  const [filter, setFilter] = useState<GachaRarity|'Semua'>('Semua')
+function GachaRoster({ data, onBack, onLevelUp }: { data: PlayerGacha; onBack:()=>void; onLevelUp:(id:string)=>void }) {
+  const [filter, setFilter] = useState<GachaRarity|'Semua'|GachaSource>('Semua')
   const owned = GACHA_CHARS.filter(c => data.roster.includes(c.id))
-  const filtered = filter === 'Semua' ? owned : owned.filter(c => c.rarity === filter)
+  const filtered = filter === 'Semua' ? owned
+    : (['6★','5★','4★','3★'] as GachaRarity[]).includes(filter as GachaRarity)
+      ? owned.filter(c => c.rarity === filter)
+      : owned.filter(c => c.source === filter)
+  const mats = data.charMats ?? { fish:0, ore:0, herb:0 }
 
   return (
     <div style={{ padding:16 }} className="gc2-fadein">
-      <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:12 }}>
+      <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:10 }}>
         <button className="gc2-rpg-btn secondary" onClick={onBack} style={{ padding:'6px 12px', fontSize:12 }}>← Kembali</button>
-        <span style={{ color:'#fff', fontWeight:800, fontSize:15 }}>👥 Koleksi Karakter</span>
+        <span style={{ color:'#fff', fontWeight:800, fontSize:15 }}>👥 Koleksi ({owned.length}/{GACHA_CHARS.length})</span>
       </div>
-
-      <div style={{ display:'flex', gap:6, marginBottom:12 }}>
-        {(['Semua','5★','4★','3★'] as const).map(r => (
+      {/* Material display */}
+      <div style={{ display:'flex', gap:8, marginBottom:10, background:'rgba(255,255,255,0.04)', borderRadius:10, padding:'8px 12px' }}>
+        <span style={{ fontSize:11, color:'#4fc3f7' }}>🐟 Ikan: {mats.fish}</span>
+        <span style={{ fontSize:11, color:'#aaa' }}>⛏️ Ore: {mats.ore}</span>
+        <span style={{ fontSize:11, color:'#7cbb4a' }}>🌿 Herb: {mats.herb}</span>
+        <span style={{ fontSize:10, color:'rgba(255,255,255,0.3)', marginLeft:'auto', alignSelf:'center' }}>Dari mancing/battle/dungeon</span>
+      </div>
+      {/* Filter row */}
+      <div style={{ display:'flex', gap:5, marginBottom:12, flexWrap:'wrap' }}>
+        {(['Semua','6★','5★','4★','3★','genshin','wuwa','hsr'] as const).map(r => (
           <button key={r} onClick={() => setFilter(r)} style={{
-            background: filter===r ? '#c8f500':'rgba(255,255,255,0.06)', border:'none',
-            color: filter===r ? '#000':'rgba(255,255,255,0.6)', borderRadius:6, padding:'4px 10px', fontSize:11, fontWeight:700, cursor:'pointer'
-          }}>{r}</button>
+            background: filter===r ? (r==='6★'?'#ff3cff':r==='5★'?'#ffd700':r==='4★'?'#c878ff':r==='genshin'?'#5ab4ff':r==='wuwa'?'#7fffd4':r==='hsr'?'#ff9ebc':'#c8f500'):'rgba(255,255,255,0.06)',
+            border:'none', color: filter===r ? '#000':'rgba(255,255,255,0.6)',
+            borderRadius:6, padding:'3px 8px', fontSize:10, fontWeight:700, cursor:'pointer'
+          }}>
+            {r === 'genshin' ? '⚙️ Genshin' : r === 'wuwa' ? '🌊 WuWa' : r === 'hsr' ? '🚂 HSR' : r}
+          </button>
         ))}
-        <span style={{ marginLeft:'auto', fontSize:11, color:'rgba(255,255,255,0.4)', alignSelf:'center' }}>{owned.length}/{GACHA_CHARS.length}</span>
       </div>
-
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
         {filtered.map(c => {
-          const col = ELEMENT_COLOR[c.element]
+          const col = GACHA_ELEM_COLOR[c.element] ?? '#c8f500'
+          const charLv = (data.charLevels ?? {})[c.id] ?? 1
+          const maxLv = CHAR_MAX_LEVEL[c.rarity]
+          const conste = (data.constellations ?? {})[c.id] ?? 0
+          const statMult = getCharStatMult(charLv, c.rarity)
+          const rarityCol = RARITY_COLOR[c.rarity]
+          const cost = getCharLevelCost(charLv)
+          const canLvUp = charLv < maxLv && mats.fish >= cost.fish && mats.ore >= cost.ore && mats.herb >= cost.herb
           return (
             <div key={c.id} style={{
-              background:`${col}10`, border:`1px solid ${col}30`,
+              background:`${col}10`, border:`1.5px solid ${rarityCol}50`,
               borderRadius:12, padding:'10px 12px',
-              animation: c.rarity==='5★' ? 'star5Glow 3s ease-in-out infinite' : c.rarity==='4★' ? 'star4Glow 3s ease-in-out infinite' : 'none'
+              boxShadow: c.rarity==='6★' ? `0 0 12px ${rarityCol}40` : 'none'
             }}>
-              <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
-                <div style={{ fontSize:28 }}>{c.emoji}</div>
-                <div>
-                  <div style={{ fontSize:13, fontWeight:700, color:'#fff' }}>{c.name}</div>
-                  <div style={{ fontSize:10, color: c.rarity==='5★'?'#ffd700':c.rarity==='4★'?'#c878ff':'rgba(255,255,255,0.4)' }}>{c.rarity}</div>
+              <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:5 }}>
+                <div style={{ fontSize:26 }}>{c.emoji}</div>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:12, fontWeight:700, color:'#fff', lineHeight:1.2 }}>{c.name}</div>
+                  <div style={{ display:'flex', gap:4, alignItems:'center', marginTop:2 }}>
+                    <span style={{ fontSize:10, color:rarityCol, fontWeight:800 }}>{c.rarity}</span>
+                    <span style={{ fontSize:9, color: GACHA_SOURCE_COLOR[c.source], background:`${GACHA_SOURCE_COLOR[c.source]}18`, borderRadius:4, padding:'1px 5px' }}>{GACHA_SOURCE_LABEL[c.source]}</span>
+                  </div>
                 </div>
               </div>
-              <div style={{ fontSize:10, color:col, marginBottom:4 }}>{c.element} · {c.weapon}</div>
-              <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-                {[['⚔️',c.atk],['🛡️',c.def],['❤️',c.hp],['💨',c.spd]].map(([e,v]) => (
-                  <span key={String(e)} style={{fontSize:9, color:'rgba(255,255,255,0.5)'}}>{e}{v}</span>
+              {/* Level bar */}
+              <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:5 }}>
+                <span style={{ fontSize:10, color:'#ffd700', fontWeight:700 }}>Lv.{charLv}</span>
+                <div style={{ flex:1, height:4, background:'rgba(255,255,255,0.1)', borderRadius:2 }}>
+                  <div style={{ width:`${(charLv/maxLv)*100}%`, height:'100%', background: rarityCol, borderRadius:2 }} />
+                </div>
+                <span style={{ fontSize:9, color:'rgba(255,255,255,0.4)' }}>{maxLv}</span>
+              </div>
+              {/* Constellation */}
+              <div style={{ display:'flex', gap:3, marginBottom:5 }}>
+                {[0,1,2,3,4,5,6].map(i => (
+                  <div key={i} style={{
+                    width:8, height:8, borderRadius:'50%',
+                    background: i <= conste ? rarityCol : 'rgba(255,255,255,0.1)',
+                    boxShadow: i <= conste ? `0 0 4px ${rarityCol}` : 'none'
+                  }} />
+                ))}
+                <span style={{ fontSize:9, color:'rgba(255,255,255,0.4)', marginLeft:2 }}>C{conste}</span>
+              </div>
+              {/* Stats (scaled by level) */}
+              <div style={{ display:'flex', gap:5, flexWrap:'wrap', marginBottom:6 }}>
+                {[['⚔️',Math.floor(c.atk*statMult)],['🛡️',Math.floor(c.def*statMult)],['❤️',Math.floor(c.hp*statMult)],['💨',c.spd]].map(([e,v]) => (
+                  <span key={String(e)} style={{fontSize:9, color:'rgba(255,255,255,0.6)'}}>{e}{v}</span>
                 ))}
               </div>
-              <div style={{ fontSize:10, color:'rgba(255,255,255,0.4)', marginTop:4, lineHeight:1.4 }}>
-                ✨ {c.skill} · 🌀 {c.burst}
-              </div>
+              {/* Level up button */}
+              {charLv < maxLv && (
+                <button onClick={() => onLevelUp(c.id)} style={{
+                  width:'100%', padding:'5px 0', borderRadius:7, border:'none', cursor:'pointer', fontSize:10, fontWeight:700,
+                  background: canLvUp ? `linear-gradient(90deg,${rarityCol},${col})` : 'rgba(255,255,255,0.07)',
+                  color: canLvUp ? '#000' : 'rgba(255,255,255,0.3)'
+                }}>
+                  {canLvUp ? `⬆️ Level Up → ${charLv+1}` : `🐟${cost.fish} ⛏️${cost.ore} 🌿${cost.herb} 💰${cost.gold}G`}
+                </button>
+              )}
+              {charLv >= maxLv && (
+                <div style={{ textAlign:'center', fontSize:10, color: rarityCol, fontWeight:800 }}>✅ MAX LEVEL</div>
+              )}
             </div>
           )
         })}
         {filtered.length === 0 && (
           <div style={{ gridColumn:'span 2', textAlign:'center', color:'rgba(255,255,255,0.3)', fontSize:13, padding:24 }}>
-            Belum ada karakter {filter !== 'Semua' ? filter : ''} — yuk gacha!
+            Belum ada karakter ini — yuk gacha!
           </div>
         )}
       </div>
@@ -8962,6 +9271,13 @@ function FishingPanel({
       })
       const newData = {...fishingData, pond: newPond, quests: newQuests, totalCaught: fishingData.totalCaught + 1}
       await saveData(newData)
+      // ── Tambah 1 fish material ke charMats ──
+      if (gachaData) {
+        const curMats = gachaData.charMats ?? { fish:0, ore:0, herb:0 }
+        const newMats = { ...curMats, fish: curMats.fish + 1 }
+        updateDoc(doc(getRpgDb(uid), 'playerGacha', uid), { charMats: newMats }).catch(console.error)
+        setGachaData(prev => prev ? { ...prev, charMats: newMats } : prev)
+      }
       // Auto-clear result after 2.5s, let user press button again
       fishingWaitRef.current = setTimeout(() => {
         setFishingPhase('idle')
