@@ -2558,7 +2558,7 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
         await updateDoc(doc(getRpgDb(user!.uid), 'rpgChars', user.uid), { dailyMissions: { ...dm, completed: [...dm.completed, 'dm_pull'] } })
       }
     }
-    if (bonusPrimos > 0) showToast('success', '💎 Konversi', `+${bonusPrimos} primogems dari duplikat C6!`)
+    if (bonusPrimos > 0) showToast('win', '💎 Konversi', `+${bonusPrimos} primogems dari duplikat C6!`)
     setGachaAnim(true)
     setTimeout(() => { setGachaAnim(false); setGachaResult(results) }, 800)
   }
@@ -2591,7 +2591,7 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
       const newGold = rpgChar.gold - cost.gold
       updateRpgChar({ gold: newGold })
     }
-    showToast('success','⬆️ Level Up!',`${char.name} sekarang level ${curLevel+1}!`)
+    showToast('win','⬆️ Level Up!',`${char.name} sekarang level ${curLevel+1}!`)
   }
 
   // ── RPG: Shop cooldown ref (anti-spam 2 detik) ───────────────
@@ -4806,6 +4806,13 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
                     const updated = {...rpgChar, gold:newGold}
                     setRpgChar(updated)
                     await updateDoc(doc(getRpgDb(user.uid),'rpgChars',user.uid),{gold:newGold})
+                  }}
+                  onFishCaught={() => {
+                    if (!gachaData || !user) return
+                    const curMats = gachaData.charMats ?? { fish:0, ore:0, herb:0 }
+                    const newMats = { ...curMats, fish: curMats.fish + 1 }
+                    updateDoc(doc(getRpgDb(user.uid), 'playerGacha', user.uid), { charMats: newMats }).catch(console.error)
+                    setGachaData(prev => prev ? { ...prev, charMats: newMats } : prev)
                   }}
                   onBack={() => { setActiveTab('rpg'); setFishingView('home') }}
                 />
@@ -8559,7 +8566,9 @@ function DailyMissions({ char, gachaData, onClaim, onBack }: {
 
 const ELEMENT_COLOR: Record<GachaElement, string> = {
   Pyro:'#ff6b3d', Hydro:'#00bfff', Anemo:'#74c2a0', Geo:'#daa520',
-  Electro:'#c86eff', Dendro:'#7cbb4a', Cryo:'#98d8ea', Spectro:'#ffd700', Havoc:'#9b59b6'
+  Electro:'#c86eff', Dendro:'#7cbb4a', Cryo:'#98d8ea', Spectro:'#ffd700', Havoc:'#9b59b6',
+  Quantum:'#7b5cff', Imaginary:'#f5c842', Physical:'#aaaaaa',
+  Ice:'#a8d8f0', Wind:'#80d9b0', Fire:'#ff7755', Lightning:'#bb88ff'
 }
 
 function GachaHome({ data, onBanner, onRoster, onEvents, onPass }: {
@@ -9137,6 +9146,7 @@ interface FishingPanelProps {
   fishingIntervalRef: React.MutableRefObject<ReturnType<typeof setInterval> | null>
   fishingWaitRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>
   onGoldChange: (newGold: number) => Promise<void>
+  onFishCaught?: () => void   // callback saat ikan berhasil ditangkap (untuk update charMats)
   onBack?: () => void
 }
 
@@ -9153,7 +9163,7 @@ function FishingPanel({
   fishingMsg, setFishingMsg,
   fishingHearts, setFishingHearts,
   fishingIntervalRef, fishingWaitRef,
-  onGoldChange, onBack,
+  onGoldChange, onFishCaught, onBack,
 }: FishingPanelProps) {
   // Load fishing data: getDoc sekali, update lokal via saveData setelah setiap aksi
   React.useEffect(() => {
@@ -9271,13 +9281,8 @@ function FishingPanel({
       })
       const newData = {...fishingData, pond: newPond, quests: newQuests, totalCaught: fishingData.totalCaught + 1}
       await saveData(newData)
-      // ── Tambah 1 fish material ke charMats ──
-      if (gachaData) {
-        const curMats = gachaData.charMats ?? { fish:0, ore:0, herb:0 }
-        const newMats = { ...curMats, fish: curMats.fish + 1 }
-        updateDoc(doc(getRpgDb(uid), 'playerGacha', uid), { charMats: newMats }).catch(console.error)
-        setGachaData(prev => prev ? { ...prev, charMats: newMats } : prev)
-      }
+      // ── Tambah 1 fish material ke charMats via callback ──
+      if (onFishCaught) onFishCaught()
       // Auto-clear result after 2.5s, let user press button again
       fishingWaitRef.current = setTimeout(() => {
         setFishingPhase('idle')
