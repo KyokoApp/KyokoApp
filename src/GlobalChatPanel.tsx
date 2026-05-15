@@ -91,6 +91,7 @@ interface RpgChar {
   weaponLevel?: number     // weapon upgrade level (0-10)
   wildQuestCooldown?: number   // timestamp: when next wild quest is available (2 jam cooldown)
   duelCooldown?: number        // timestamp: kapan duel bisa dilakukan lagi (5 menit cooldown)
+  mineSessionStart?: number    // timestamp: when active 10-min mining session started (0 = not active)
 }
 interface ActiveBattleInfo {
   uid: string; username: string; class: RpgClass
@@ -305,6 +306,17 @@ function getCharLevelCost(level: number): { fish: number; ore: number; herb: num
 const CHAR_MAX_LEVEL: Record<GachaRarity, number> = {
   '3★': 40, '4★': 60, '5★': 80, '6★': 100
 }
+// Exp needed per level from dungeon battles (scales with level)
+function getCharExpNeeded(level: number): number {
+  return Math.floor(100 + level * 40 + level * level * 2)
+}
+// Exp gained per dungeon win based on boss rank
+function getDungeonCharExp(bossRank: string): number {
+  const table: Record<string, number> = {
+    'Normal': 80, 'Elite': 180, 'Weekly': 320, 'Archon': 600
+  }
+  return table[bossRank] ?? 80
+}
 // Stat multiplier by level
 function getCharStatMult(level: number, rarity: GachaRarity): number {
   const maxLv = CHAR_MAX_LEVEL[rarity]
@@ -405,6 +417,7 @@ interface PlayerGacha {
   roster: string[]   // char ids
   pulls: number      // total pulls
   charLevels: Record<string, number>        // char id → current level (default 1)
+  charExp: Record<string, number>           // char id → accumulated exp from dungeon battles
   constellations: Record<string, number>    // char id → C0–C6 (>C6 converts to primo)
   // Resources for char upgrade (gathered from fishing, mining, RPG)
   charMats: { fish: number; ore: number; herb: number }
@@ -653,7 +666,9 @@ const ORES = [
   { id:'miril',     name:'Ore Langka',      emoji:'🌟', rarity:'Legendary', chance:4,  baseGold:200 },
   { id:'obsidian',  name:'Obsidian',        emoji:'🖤', rarity:'Epic',      chance:1,  baseGold:150 },
 ]
-const MINE_COOLDOWN_MS = 10 * 60 * 1000  // 10 menit
+const MINE_SESSION_MS = 10 * 60 * 1000   // 10 menit sesi aktif tambang
+const MINE_COOLDOWN_MS = 30 * 60 * 1000  // 30 menit cooldown setelah sesi selesai
+const MINE_DROP_INTERVAL_MS = 2 * 60 * 1000  // drop ore tiap 2 menit selama sesi
 
 // ═══════════════════════════════════════════════════════════════
 // CRAFTING DATA
@@ -2831,9 +2846,42 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
       const herbGain = boss.rank === 'Archon' ? 10 : boss.rank === 'Weekly' ? 5 : boss.rank === 'Elite' ? 3 : 2
       const curMats2 = gachaData?.charMats ?? { fish:0, ore:0, herb:0 }
       const newMats2 = { ...curMats2, herb: curMats2.herb + herbGain }
-      await updateDoc(doc(getRpgDb(user!.uid), 'playerGacha', user!.uid), { primogems: (gachaData?.primogems || 0) + boss.primogems, charMats: newMats2 })
-      setGachaData(prev => prev ? { ...prev, primogems: (prev.primogems || 0) + boss.primogems, charMats: newMats2 } : prev)
+      // ── Char EXP for party members used in dungeon ──
+      const charExpGain = getDungeonCharExp(boss.rank)
+      const usedCharIds = ds.activeChars.map((c: GachaChar) => c.id)
+      const prevCharExp = gachaData?.charExp ?? {}
+      const prevCharLevels = gachaData?.charLevels ?? {}
+      const newCharExp = { ...prevCharExp }
+      const newCharLevels = { ...prevCharLevels }
+      const levelUpMsgs: string[] = []
+      for (const cid of usedCharIds) {
+        const gc = GACHA_CHARS.find((x: GachaChar) => x.id === cid)
+        if (!gc) continue
+        const maxLv = CHAR_MAX_LEVEL[gc.rarity]
+        let curLv = newCharLevels[cid] ?? 1
+        if (curLv >= maxLv) continue
+        newCharExp[cid] = (newCharExp[cid] ?? 0) + charExpGain
+        while (curLv < maxLv) {
+          const needed = getCharExpNeeded(curLv)
+          if ((newCharExp[cid] ?? 0) >= needed) {
+            newCharExp[cid] = (newCharExp[cid] ?? 0) - needed
+            curLv++
+            newCharLevels[cid] = curLv
+            levelUpMsgs.push(`${gc.emoji} ${gc.name} naik ke Lv${curLv}!`)
+          } else break
+        }
+      }
+      const gachaUpdateInline: Record<string, unknown> = {
+        primogems: (gachaData?.primogems || 0) + boss.primogems,
+        charMats: newMats2,
+        charExp: newCharExp,
+        charLevels: newCharLevels
+      }
+      await updateDoc(doc(getRpgDb(user!.uid), 'playerGacha', user!.uid), gachaUpdateInline)
+      setGachaData(prev => prev ? { ...prev, primogems: (prev.primogems || 0) + boss.primogems, charMats: newMats2, charExp: newCharExp, charLevels: newCharLevels } : prev)
       if (herbGain > 0) showToast('info','🌿 Material!',`+${herbGain} herb dari dungeon!`)
+      showToast('info','⚔️ Char EXP!', `+${charExpGain} EXP → ${usedCharIds.map((id: string) => GACHA_CHARS.find((c: GachaChar) => c.id===id)?.name||id).join(', ')}`)
+      for (const msg of levelUpMsgs) showToast('win','🎉 Char Level Up!', msg)
       return
     }
 
@@ -2913,8 +2961,39 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
       showToast('info', '🎉 LEVEL UP!', `Naik ke Level ${newLevel}!`)
     }
     await updateRpgChar(updates)
-    await updateDoc(doc(getRpgDb(user.uid), 'playerGacha', user.uid), { primogems: (gachaData?.primogems || 0) + boss.primogems })
-    setGachaData(prev => prev ? { ...prev, primogems: (prev.primogems || 0) + boss.primogems } : prev)
+    // ── Char EXP for party members used in dungeon (handleDungeonWin path) ──
+    const charExpGainH = getDungeonCharExp(boss.rank)
+    const usedIdsH = (dungeonState?.activeChars ?? []).map((c: GachaChar) => c.id)
+    const prevExpH = gachaData?.charExp ?? {}
+    const prevLvH = gachaData?.charLevels ?? {}
+    const newExpH = { ...prevExpH }
+    const newLvH = { ...prevLvH }
+    const lvUpMsgsH: string[] = []
+    for (const cid of usedIdsH) {
+      const gc = GACHA_CHARS.find((x: GachaChar) => x.id === cid)
+      if (!gc) continue
+      const maxLv = CHAR_MAX_LEVEL[gc.rarity]
+      let curLv = newLvH[cid] ?? 1
+      if (curLv >= maxLv) continue
+      newExpH[cid] = (newExpH[cid] ?? 0) + charExpGainH
+      while (curLv < maxLv) {
+        const needed = getCharExpNeeded(curLv)
+        if ((newExpH[cid] ?? 0) >= needed) {
+          newExpH[cid] = (newExpH[cid] ?? 0) - needed
+          curLv++
+          newLvH[cid] = curLv
+          lvUpMsgsH.push(`${gc.emoji} ${gc.name} naik ke Lv${curLv}!`)
+        } else break
+      }
+    }
+    await updateDoc(doc(getRpgDb(user.uid), 'playerGacha', user.uid), {
+      primogems: (gachaData?.primogems || 0) + boss.primogems,
+      charExp: newExpH,
+      charLevels: newLvH
+    })
+    setGachaData(prev => prev ? { ...prev, primogems: (prev.primogems || 0) + boss.primogems, charExp: newExpH, charLevels: newLvH } : prev)
+    if (usedIdsH.length > 0) showToast('info','⚔️ Char EXP!', `+${charExpGainH} EXP → ${usedIdsH.map((id: string) => GACHA_CHARS.find((c: GachaChar) => c.id===id)?.name||id).join(', ')}`)
+    for (const msg of lvUpMsgsH) showToast('win','🎉 Char Level Up!', msg)
   }
 
   // ── Daily Missions: Claim ─────────────────────────────────────
@@ -2948,18 +3027,46 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
     if (!rpgChar || !user) return
     const now = Date.now()
     const lastMine = (rpgChar.trainCooldowns?.mine || 0)
-    if (now - lastMine < MINE_COOLDOWN_MS) {
+    const sessionStart = rpgChar.mineSessionStart || 0
+    const sessionActive = sessionStart > 0 && (now - sessionStart) < MINE_SESSION_MS
+
+    // Still in cooldown (after session ended)?
+    if (!sessionActive && lastMine > 0 && (now - lastMine) < MINE_COOLDOWN_MS) {
       const rem = Math.ceil((MINE_COOLDOWN_MS - (now - lastMine)) / 60000)
       setMineMsg(`⏳ Tambang cooldown ${rem} menit lagi!`); return
     }
+
+    if (sessionActive) {
+      // Already in session — collect ore drop manually (bonus click)
+      const roll = Math.random() * 100
+      let cum = 0; let ore = ORES[0]
+      for (const o of ORES) { cum += o.chance; if (roll < cum) { ore = o; break } }
+      const count = Math.floor(Math.random() * 2) + 1
+      const newOres = { ...(rpgChar.ores || {}), [ore.id]: ((rpgChar.ores || {})[ore.id] || 0) + count }
+      await updateRpgChar({ ores: newOres })
+      setMineMsg(`⛏️ +${count}x ${ore.emoji}${ore.name}!`)
+      setTimeout(() => setMineMsg(''), 3000)
+      return
+    }
+
+    // Start new mining session
     const roll = Math.random() * 100
     let cum = 0; let ore = ORES[0]
     for (const o of ORES) { cum += o.chance; if (roll < cum) { ore = o; break } }
     const count = Math.floor(Math.random() * 3) + 1
     const newOres = { ...(rpgChar.ores || {}), [ore.id]: ((rpgChar.ores || {})[ore.id] || 0) + count }
+    await updateRpgChar({ ores: newOres, mineSessionStart: now })
+    setMineMsg(`⛏️ Sesi tambang dimulai! Dapat ${count}x ${ore.emoji}${ore.name}!`)
+    setTimeout(() => setMineMsg(''), 4000)
+  }
+
+  // ── RPG: Mining session end (called when session timer expires) ──
+  const endMineSession = async () => {
+    if (!rpgChar || !user) return
+    const now = Date.now()
     const newCooldowns = { ...(rpgChar.trainCooldowns || {}), mine: now }
-    await updateRpgChar({ ores: newOres, trainCooldowns: newCooldowns })
-    setMineMsg(`⛏️ Kamu mendapat ${count}x ${ore.emoji}${ore.name}!`)
+    await updateRpgChar({ mineSessionStart: 0, trainCooldowns: newCooldowns })
+    setMineMsg('⛏️ Sesi selesai! Cooldown 30 menit.')
     setTimeout(() => setMineMsg(''), 4000)
   }
 
@@ -2991,12 +3098,11 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
     if (!rpgChar || !user) return
     const crops = rpgChar.crops || []
     if (crops.length >= FARM_SLOTS) { setFarmMsg('🌿 Lahan penuh! Panen dulu sebelum menanam lagi.'); return }
-    await updateDoc(doc(getRpgDb(user!.uid), 'rpgChars', user.uid), {
-      crops: [...crops, { type: cropId, plantedAt: Date.now(), slots: 1 }]
-    })
+    const newCrops = [...crops, { type: cropId, plantedAt: Date.now(), slots: 1 }]
+    await updateRpgChar({ crops: newCrops })
     const crop = CROPS.find(c => c.id === cropId)!
     setFarmMsg(`🌱 ${crop.emoji}${crop.name} ditanam! Siap dalam ${Math.round(crop.growMs/60000)} menit.`)
-    setTimeout(() => setFarmMsg(''), 3000)
+    setTimeout(() => setFarmMsg(''), 4000)
   }
 
   const doHarvest = async (idx: number) => {
@@ -3009,9 +3115,9 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
     const count = Math.floor(Math.random() * 3) + 2
     const newOres: Record<string, number> = { ...(rpgChar.ores || {}), [item.type]: ((rpgChar.ores || {})[item.type] || 0) + count }
     crops.splice(idx, 1)
-    await updateDoc(doc(getRpgDb(user!.uid), 'rpgChars', user.uid), { crops, ores: newOres })
+    await updateRpgChar({ crops, ores: newOres })
     setFarmMsg(`🌾 Panen ${count}x ${crop.emoji}${crop.name}! Tersimpan di material.`)
-    setTimeout(() => setFarmMsg(''), 3000)
+    setTimeout(() => setFarmMsg(''), 4000)
   }
 
   // ── RPG: Cooking ─────────────────────────────────────────────
@@ -4712,7 +4818,7 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
                 )}
 
                 {rpgChar && rpgView === 'mining' && (
-                  <RpgMining char={rpgChar} msg={mineMsg} onMine={doMine} onBack={() => setRpgView('dashboard')}/>
+                  <RpgMining char={rpgChar} msg={mineMsg} onMine={doMine} onSessionEnd={endMineSession} onBack={() => setRpgView('dashboard')}/>
                 )}
                 {rpgChar && rpgView === 'crafting' && (
                   <RpgCrafting char={rpgChar} msg={craftMsg} onCraft={doCraft} onBack={() => setRpgView('dashboard')}/>
@@ -5948,41 +6054,286 @@ function StatBar({ val, max, type }: { val: number; max: number; type: 'hp'|'mp'
 // ═══════════════════════════════════════════════════════════════
 // RPG MINING COMPONENT
 // ═══════════════════════════════════════════════════════════════
-function RpgMining({ char, msg, onMine, onBack }: { char: RpgChar; msg: string; onMine: () => void; onBack: () => void }) {
+function RpgMining({ char, msg, onMine, onSessionEnd, onBack }: {
+  char: RpgChar; msg: string; onMine: () => void; onSessionEnd: () => void; onBack: () => void
+}) {
   const ores = char.ores || {}
-  const [loading, setLoading] = React.useState(false)
-  const [, forceUpdate] = React.useReducer(x => x + 1, 0)
-  React.useEffect(() => {
-    const iv = setInterval(forceUpdate, 1000)
+  const [tick, setTick] = useState(0)
+  const [loading, setLoading] = useState(false)
+  const [sparkPos, setSparkPos] = useState<{x:number,y:number,id:number}[]>([])
+  const [pickAngle, setPickAngle] = useState(0)
+  const sessionEndCalledRef = React.useRef(false)
+
+  useEffect(() => {
+    const iv = setInterval(() => setTick(t => t + 1), 500)
     return () => clearInterval(iv)
   }, [])
+
+  const now = Date.now()
+  const sessionStart = char.mineSessionStart || 0
+  const sessionActive = sessionStart > 0 && (now - sessionStart) < MINE_SESSION_MS
+  const sessionElapsed = sessionActive ? now - sessionStart : 0
+  const sessionPct = sessionActive ? Math.min(100, (sessionElapsed / MINE_SESSION_MS) * 100) : 0
+  const sessionRemSec = sessionActive ? Math.ceil((MINE_SESSION_MS - sessionElapsed) / 1000) : 0
+  const sessionRemMin = Math.floor(sessionRemSec / 60)
+  const sessionRemS = sessionRemSec % 60
+
   const lastMine = (char.trainCooldowns?.mine || 0)
-  const coolRemain = Math.max(0, MINE_COOLDOWN_MS - (Date.now() - lastMine))
-  const canMine = coolRemain === 0 && !loading
+  const coolRemain = !sessionActive && lastMine > 0 ? Math.max(0, MINE_COOLDOWN_MS - (now - lastMine)) : 0
+  const onCooldown = coolRemain > 0
   const coolMin = Math.floor(coolRemain / 60000)
   const coolSec = Math.floor((coolRemain % 60000) / 1000)
-  const coolLabel = coolRemain > 0 ? `⏳ ${coolMin}:${String(coolSec).padStart(2,'0')}` : '⛏️ Tambang Sekarang!'
+  const coolPct = onCooldown ? Math.min(100, ((MINE_COOLDOWN_MS - coolRemain) / MINE_COOLDOWN_MS) * 100) : 100
+
+  // Auto-end session when timer runs out
+  useEffect(() => {
+    if (sessionActive && sessionRemSec <= 0 && !sessionEndCalledRef.current) {
+      sessionEndCalledRef.current = true
+      onSessionEnd()
+    }
+    if (!sessionActive) sessionEndCalledRef.current = false
+  }, [sessionActive, sessionRemSec])
+
+  // Pickaxe swing animation during session
+  useEffect(() => {
+    if (!sessionActive) return
+    let dir = 1
+    const iv = setInterval(() => {
+      setPickAngle(a => {
+        const next = a + dir * 22
+        if (next > 40 || next < -40) dir *= -1
+        return next
+      })
+      // Sparks
+      if (Math.random() > 0.5) {
+        setSparkPos(prev => [
+          ...prev.slice(-6),
+          { x: 48 + Math.random() * 20 - 10, y: 52 + Math.random() * 10 - 5, id: Date.now() }
+        ])
+      }
+    }, 180)
+    return () => clearInterval(iv)
+  }, [sessionActive])
+
   const handleMine = async () => {
-    if (!canMine) return
+    if (onCooldown || loading) return
     setLoading(true)
     try { await (onMine as any)() } finally { setLoading(false) }
   }
-  const S = { wrap:{padding:'14px',overflowY:'auto' as const,height:'100%',boxSizing:'border-box' as const}, back:{background:'none',border:'none',color:'rgba(255,255,255,0.4)',fontSize:12,cursor:'pointer',marginBottom:10,padding:0}, title:{fontSize:16,fontWeight:900,color:'#c8f500',marginBottom:4}, card:{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:12,padding:12,marginBottom:8} }
+
+  const S = {
+    wrap:{padding:'14px',overflowY:'auto' as const,height:'100%',boxSizing:'border-box' as const},
+    back:{background:'none',border:'none',color:'rgba(255,255,255,0.4)',fontSize:12,cursor:'pointer',marginBottom:10,padding:0},
+    title:{fontSize:16,fontWeight:900,color:'#c8f500',marginBottom:4},
+    card:{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:12,padding:12,marginBottom:8}
+  }
+
   return (
     <div style={S.wrap} className="gc2-fadein">
+      <style>{`
+        @keyframes mine-rock-shake {
+          0%,100% { transform: translateX(0); }
+          25% { transform: translateX(-2px) rotate(-1deg); }
+          75% { transform: translateX(2px) rotate(1deg); }
+        }
+        @keyframes mine-spark {
+          0%   { transform: scale(1) translate(0,0); opacity:1; }
+          100% { transform: scale(0) translate(var(--sx),var(--sy)); opacity:0; }
+        }
+        @keyframes mine-ore-drop {
+          0%   { transform: translateY(-10px); opacity:0; }
+          30%  { opacity:1; }
+          100% { transform: translateY(0); opacity:1; }
+        }
+        @keyframes mine-glow-pulse {
+          0%,100% { box-shadow: 0 0 0 rgba(200,120,30,0); }
+          50%      { box-shadow: 0 0 20px rgba(200,120,30,0.4), 0 0 40px rgba(200,120,30,0.15); }
+        }
+        @keyframes mine-progress-shine {
+          0%   { background-position: -200% center; }
+          100% { background-position: 200% center; }
+        }
+        @keyframes mine-cd-wave {
+          0%   { transform: translateX(-100%); }
+          100% { transform: translateX(400%); }
+        }
+        .mine-btn-active {
+          animation: mine-glow-pulse 1.5s ease-in-out infinite;
+          transition: transform 0.1s;
+        }
+        .mine-btn-active:active { transform: scale(0.97) !important; }
+        .mine-scene {
+          position: relative; width: 100%; height: 110px;
+          background: linear-gradient(180deg, #1a0e06 0%, #2d1a0a 60%, #3d2211 100%);
+          border-radius: 12px; overflow: hidden; margin-bottom: 12px;
+          border: 1px solid rgba(200,120,30,0.25);
+        }
+        .mine-rock {
+          position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
+          font-size: 38px; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.6));
+          animation: mine-rock-shake 0.18s ease-in-out infinite;
+        }
+        .mine-rock.idle { animation: none; }
+        .mine-pick {
+          position: absolute; bottom: 42px; left: 50%;
+          font-size: 28px; transform-origin: bottom right;
+          transition: transform 0.12s ease-in-out;
+          filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+        }
+        .mine-spark {
+          position: absolute; font-size: 10px;
+          animation: mine-spark 0.4s ease-out forwards;
+          pointer-events: none;
+        }
+        .mine-dust {
+          position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+          width: 60px; height: 6px; border-radius: 50%;
+          background: radial-gradient(ellipse, rgba(180,120,60,0.4) 0%, transparent 70%);
+        }
+        .mine-progress-bar {
+          height: 8px; border-radius: 4px; overflow: hidden;
+          background: rgba(255,255,255,0.07); position: relative;
+        }
+        .mine-progress-fill {
+          height: 100%; border-radius: 4px; position: relative; overflow: hidden;
+          background: linear-gradient(90deg, #7c4b1e, #c8721e, #ffa040, #c8721e);
+          background-size: 200% 100%;
+          animation: mine-progress-shine 1.5s linear infinite;
+          transition: width 0.8s linear;
+        }
+        .mine-cd-bar {
+          height: 6px; border-radius: 3px; overflow: hidden;
+          background: rgba(255,255,255,0.07); position: relative;
+        }
+        .mine-cd-fill {
+          height: 100%; border-radius: 3px;
+          background: linear-gradient(90deg, rgba(100,100,100,0.4), rgba(150,150,150,0.6));
+          position: relative; overflow: hidden;
+          transition: width 1s linear;
+        }
+        .mine-cd-wave {
+          position: absolute; top:0; left:0; width:25%; height:100%;
+          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+          animation: mine-cd-wave 2.5s ease-in-out infinite;
+        }
+      `}</style>
+
       <button style={S.back} onClick={onBack}>← Kembali</button>
       <div style={S.title}>⛏️ Tambang</div>
-      <p style={{fontSize:11,color:'rgba(255,255,255,0.4)',marginBottom:12}}>Tambang ore setiap 10 menit. Gunakan untuk crafting & upgrade senjata.</p>
-      {msg && <div style={{background:'rgba(200,245,0,0.1)',border:'1px solid rgba(200,245,0,0.3)',borderRadius:8,padding:'8px 12px',fontSize:12,color:'#c8f500',marginBottom:10}}>{msg}</div>}
-      <button onClick={handleMine} disabled={!canMine} style={{width:'100%',background:canMine?'linear-gradient(135deg,#7c4b1e,#c8721e)':'rgba(255,255,255,0.05)',border:'1px solid rgba(200,120,30,0.4)',borderRadius:12,padding:'14px',cursor:canMine?'pointer':'not-allowed',color:canMine?'#fff':'rgba(255,255,255,0.3)',fontSize:14,fontWeight:800,marginBottom:12}}>
-        {loading ? '⛏️ Menambang...' : coolLabel}
+      <p style={{fontSize:11,color:'rgba(255,255,255,0.4)',marginBottom:10}}>
+        Tambang aktif 10 menit, dapat ore otomatis. Cooldown 30 menit setelah selesai.
+      </p>
+
+      {msg && (
+        <div style={{background:'rgba(200,120,30,0.12)',border:'1px solid rgba(200,120,30,0.35)',borderRadius:8,padding:'8px 12px',fontSize:12,color:'#ffa040',marginBottom:10}}>
+          {msg}
+        </div>
+      )}
+
+      {/* Mining scene animation */}
+      <div className="mine-scene">
+        {/* Stars/dust particles in background */}
+        {[...Array(6)].map((_,i) => (
+          <div key={i} style={{
+            position:'absolute', width:2, height:2, borderRadius:'50%',
+            background:'rgba(255,200,100,0.4)',
+            left:`${10+i*15}%`, top:`${15+i*10}%`,
+            opacity: sessionActive ? 0.6+Math.sin(tick*0.5+i)*0.4 : 0.2
+          }}/>
+        ))}
+        {/* Rock */}
+        <div className={`mine-rock${sessionActive?'':' idle'}`}>🪨</div>
+        {/* Pickaxe */}
+        {sessionActive && (
+          <div className="mine-pick" style={{transform:`translateX(-50%) rotate(${pickAngle}deg)`}}>⛏️</div>
+        )}
+        {!sessionActive && (
+          <div style={{position:'absolute',bottom:44,left:'50%',transform:'translateX(-50%) rotate(-30deg)',fontSize:24,opacity:0.4}}>⛏️</div>
+        )}
+        {/* Sparks */}
+        {sparkPos.map((s,i) => (
+          <div key={s.id} className="mine-spark" style={{
+            left:`${s.x}%`, bottom:`${s.y}%`,
+            '--sx': `${(Math.random()-0.5)*20}px`,
+            '--sy': `${-(Math.random()*15+5)}px`
+          } as React.CSSProperties}>✨</div>
+        ))}
+        <div className="mine-dust" style={{opacity: sessionActive ? 0.8 : 0.2}}/>
+        {/* Status overlay */}
+        <div style={{position:'absolute',top:8,right:10,fontSize:10,fontWeight:700,
+          color: sessionActive ? '#ffa040' : onCooldown ? 'rgba(255,255,255,0.3)' : '#30d158'}}>
+          {sessionActive ? '⛏️ AKTIF' : onCooldown ? '💤 COOLDOWN' : '✅ SIAP'}
+        </div>
+        {sessionActive && (
+          <div style={{position:'absolute',top:8,left:10,fontSize:9,color:'rgba(255,200,100,0.7)'}}>
+            {sessionRemMin}:{String(sessionRemS).padStart(2,'0')} tersisa
+          </div>
+        )}
+      </div>
+
+      {/* Session progress bar */}
+      {sessionActive && (
+        <div style={{marginBottom:12}}>
+          <div style={{display:'flex',justifyContent:'space-between',fontSize:10,color:'rgba(255,255,255,0.4)',marginBottom:4}}>
+            <span>⏱ Sesi Tambang</span>
+            <span style={{color:'#ffa040',fontWeight:700}}>{Math.round(sessionPct)}%</span>
+          </div>
+          <div className="mine-progress-bar">
+            <div className="mine-progress-fill" style={{width:`${sessionPct}%`}}/>
+          </div>
+          <div style={{fontSize:10,color:'rgba(255,160,60,0.7)',marginTop:3,textAlign:'center'}}>
+            Klik batu untuk bonus ore! Selesai dalam {sessionRemMin}:{String(sessionRemS).padStart(2,'0')}
+          </div>
+        </div>
+      )}
+
+      {/* Cooldown bar */}
+      {onCooldown && (
+        <div style={{marginBottom:12}}>
+          <div style={{display:'flex',justifyContent:'space-between',fontSize:10,color:'rgba(255,255,255,0.35)',marginBottom:4}}>
+            <span>💤 Cooldown</span>
+            <span>{coolMin}:{String(coolSec).padStart(2,'0')} lagi</span>
+          </div>
+          <div className="mine-cd-bar">
+            <div className="mine-cd-fill" style={{width:`${coolPct}%`}}>
+              <div className="mine-cd-wave"/>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Action button */}
+      <button
+        onClick={handleMine}
+        disabled={onCooldown || loading}
+        className={!onCooldown && !loading ? 'mine-btn-active' : ''}
+        style={{
+          width:'100%',
+          background: onCooldown ? 'rgba(255,255,255,0.04)' :
+            sessionActive ? 'linear-gradient(135deg,#5a3010,#8c4f18)' :
+            'linear-gradient(135deg,#7c4b1e,#c8721e)',
+          border: `1px solid ${onCooldown?'rgba(255,255,255,0.08)':sessionActive?'rgba(140,80,30,0.6)':'rgba(200,120,30,0.6)'}`,
+          borderRadius:12, padding:'14px',
+          cursor: onCooldown||loading ? 'not-allowed' : 'pointer',
+          color: onCooldown ? 'rgba(255,255,255,0.25)' : '#fff',
+          fontSize:14, fontWeight:800, marginBottom:12, letterSpacing:0.5
+        }}
+      >
+        {loading ? '⛏️ Menambang...' :
+          onCooldown ? `💤 Cooldown ${coolMin}:${String(coolSec).padStart(2,'0')}` :
+          sessionActive ? '⛏️ Klik untuk Tambang Bonus!' :
+          '⛏️ Mulai Tambang!'}
       </button>
+
       <div style={{fontSize:11,color:'rgba(255,255,255,0.4)',marginBottom:8,fontFamily:'monospace'}}>📦 MATERIAL KAMU</div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6,marginBottom:12}}>
         {ORES.map(o => (
           <div key={o.id} style={{...S.card,display:'flex',alignItems:'center',gap:8,padding:'8px 10px'}}>
             <span style={{fontSize:18}}>{o.emoji}</span>
-            <div><div style={{fontSize:11,fontWeight:700}}>{o.name}</div><div style={{fontSize:13,color:'#c8f500',fontWeight:900}}>{ores[o.id] || 0}x</div></div>
+            <div>
+              <div style={{fontSize:11,fontWeight:700}}>{o.name}</div>
+              <div style={{fontSize:13,color:'#c8f500',fontWeight:900}}>{ores[o.id] || 0}x</div>
+            </div>
           </div>
         ))}
       </div>
@@ -6035,47 +6386,322 @@ function RpgCrafting({ char, msg, onCraft, onBack }: { char: RpgChar; msg: strin
 // ═══════════════════════════════════════════════════════════════
 function RpgFarming({ char, msg, onPlant, onHarvest, onBack }: { char: RpgChar; msg: string; onPlant: (id:string) => void; onHarvest: (idx:number) => void; onBack: () => void }) {
   const crops = char.crops || []
+  const [tick, setTick] = useState(0)
+  const [harvesting, setHarvesting] = useState<number|null>(null)
+
+  // live tick every second to update progress bars + countdowns
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 1000)
+    return () => clearInterval(id)
+  }, [])
+
   const now = Date.now()
-  const S = { wrap:{padding:'14px',overflowY:'auto' as const,height:'100%',boxSizing:'border-box' as const}, back:{background:'none',border:'none',color:'rgba(255,255,255,0.4)',fontSize:12,cursor:'pointer',marginBottom:10,padding:0}, title:{fontSize:16,fontWeight:900,color:'#c8f500',marginBottom:4}, card:{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:12,padding:12,marginBottom:8} }
+  const plantedIds = crops.map(c => c.type)
+
+  const handleHarvest = async (idx: number) => {
+    if (harvesting !== null) return
+    setHarvesting(idx)
+    await onHarvest(idx)
+    setHarvesting(null)
+  }
+
+  // animated floating particles for the empty space
+  const particles = ['🌿','🍃','✨','🌱','💧','🌾','⭐','🍀']
+
+  const S = {
+    wrap:{padding:'14px',overflowY:'auto' as const,height:'100%',boxSizing:'border-box' as const},
+    back:{background:'none',border:'none',color:'rgba(255,255,255,0.4)',fontSize:12,cursor:'pointer',marginBottom:10,padding:0},
+    title:{fontSize:16,fontWeight:900,color:'#c8f500',marginBottom:4},
+    card:{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:12,padding:12,marginBottom:8}
+  }
+
   return (
     <div style={S.wrap} className="gc2-fadein">
+      <style>{`
+        @keyframes farm-float {
+          0%   { transform: translateY(0px) rotate(0deg); opacity:0.7; }
+          50%  { transform: translateY(-18px) rotate(15deg); opacity:1; }
+          100% { transform: translateY(0px) rotate(0deg); opacity:0.7; }
+        }
+        @keyframes farm-shimmer {
+          0%   { background-position: -200% center; }
+          100% { background-position: 200% center; }
+        }
+        @keyframes farm-pulse-glow {
+          0%,100% { box-shadow: 0 0 0px #30d158; }
+          50%      { box-shadow: 0 0 12px #30d15866, 0 0 24px #30d15833; }
+        }
+        @keyframes farm-bounce-btn {
+          0%,100% { transform: scale(1); }
+          50%      { transform: scale(1.06); }
+        }
+        @keyframes farm-bar-glow {
+          0%,100% { opacity: 1; }
+          50%      { opacity: 0.6; }
+        }
+        .farm-harvest-btn {
+          background: linear-gradient(135deg, rgba(48,209,88,0.25), rgba(100,220,60,0.15));
+          border: 1px solid rgba(48,209,88,0.5);
+          border-radius: 8px; padding: 6px 12px; cursor: pointer;
+          color: #30d158; font-size: 12px; font-weight: 800;
+          animation: farm-bounce-btn 1.2s ease-in-out infinite, farm-pulse-glow 1.5s ease-in-out infinite;
+          transition: transform 0.1s;
+        }
+        .farm-harvest-btn:active { transform: scale(0.95) !important; }
+        .farm-harvest-btn.loading {
+          opacity: 0.5; cursor: not-allowed;
+          animation: none;
+        }
+        .farm-disabled-btn {
+          opacity: 0.38; cursor: not-allowed !important;
+          filter: grayscale(0.6);
+        }
+        .farm-plant-btn {
+          background: rgba(60,180,60,0.1);
+          border: 1px solid rgba(60,180,60,0.25);
+          border-radius: 10px; padding: 10px 8px; cursor: pointer;
+          text-align: left; color: #fff; transition: background 0.2s, border-color 0.2s, transform 0.1s;
+        }
+        .farm-plant-btn:hover:not(.farm-disabled-btn) {
+          background: rgba(60,180,60,0.2);
+          border-color: rgba(60,180,60,0.5);
+          transform: translateY(-1px);
+        }
+        .farm-plant-btn:active:not(.farm-disabled-btn) { transform: scale(0.97); }
+        .farm-progress-track {
+          height: 6px; background: rgba(255,255,255,0.08);
+          border-radius: 3px; margin: 5px 0; overflow: hidden; position: relative;
+        }
+        .farm-progress-fill-growing {
+          height: 100%; border-radius: 3px;
+          background: linear-gradient(90deg, #c8f500, #78e08f, #c8f500);
+          background-size: 200% 100%;
+          animation: farm-shimmer 1.8s linear infinite;
+          transition: width 1s linear;
+        }
+        .farm-progress-fill-done {
+          height: 100%; border-radius: 3px; width: 100%;
+          background: linear-gradient(90deg, #30d158, #00e676);
+          animation: farm-bar-glow 1s ease-in-out infinite;
+        }
+        .farm-particle {
+          position: absolute; pointer-events: none;
+          font-size: 18px; will-change: transform;
+        }
+        .farm-empty-zone {
+          position: relative; min-height: 120px;
+          border: 1px dashed rgba(60,180,60,0.15);
+          border-radius: 12px; margin-top: 14px;
+          overflow: hidden; display: flex;
+          align-items: center; justify-content: center;
+          background: rgba(30,60,30,0.08);
+        }
+        .farm-anim-bar-wrap {
+          margin-top: 16px;
+          background: rgba(255,255,255,0.03);
+          border: 1px solid rgba(60,180,60,0.12);
+          border-radius: 10px; padding: 10px 12px;
+        }
+        .farm-anim-bar-label {
+          font-size: 10px; color: rgba(255,255,255,0.35);
+          margin-bottom: 5px; font-family: monospace; letter-spacing: 0.5px;
+        }
+        .farm-anim-bar-track {
+          height: 8px; background: rgba(255,255,255,0.06);
+          border-radius: 4px; overflow: hidden; position: relative;
+        }
+        @keyframes farm-wave {
+          0%   { transform: translateX(-100%); }
+          100% { transform: translateX(400%); }
+        }
+        .farm-anim-bar-wave {
+          position: absolute; top:0; left:0; width:25%; height:100%;
+          background: linear-gradient(90deg, transparent, rgba(200,245,0,0.35), transparent);
+          animation: farm-wave 2s ease-in-out infinite;
+          border-radius: 4px;
+        }
+        .farm-anim-bar-fill {
+          height: 100%; border-radius: 4px;
+          background: linear-gradient(90deg, rgba(60,180,60,0.4), rgba(200,245,0,0.5));
+          position: relative; overflow: hidden;
+          transition: width 1s linear;
+        }
+      `}</style>
+
       <button style={S.back} onClick={onBack}>← Kembali</button>
       <div style={S.title}>🌾 Kebun</div>
-      <p style={{fontSize:11,color:'rgba(255,255,255,0.4)',marginBottom:10}}>Tanam & panen tanaman. Hasil kebun dipakai untuk memasak makanan berbuff.</p>
-      {msg && <div style={{background:'rgba(60,180,60,0.1)',border:'1px solid rgba(60,180,60,0.3)',borderRadius:8,padding:'8px 12px',fontSize:12,color:'#30d158',marginBottom:10}}>{msg}</div>}
-      <div style={{fontSize:11,color:'rgba(255,255,255,0.4)',marginBottom:8,fontFamily:'monospace'}}>🌱 LAHAN ({crops.length}/{FARM_SLOTS})</div>
-      {crops.map((c,i)=>{
-        const crop=CROPS.find(x=>x.id===c.type)!
-        const elapsed=now-c.plantedAt; const done=elapsed>=crop.growMs
-        const pct=Math.min(100,Math.round(elapsed/crop.growMs*100))
+      <p style={{fontSize:11,color:'rgba(255,255,255,0.4)',marginBottom:10}}>
+        Tanam & panen tanaman. Hasil kebun dipakai untuk memasak makanan berbuff.
+      </p>
+
+      {msg && (
+        <div style={{background:'rgba(60,180,60,0.1)',border:'1px solid rgba(60,180,60,0.3)',borderRadius:8,padding:'8px 12px',fontSize:12,color:'#30d158',marginBottom:10}}>
+          {msg}
+        </div>
+      )}
+
+      <div style={{fontSize:11,color:'rgba(255,255,255,0.4)',marginBottom:8,fontFamily:'monospace'}}>
+        🌱 LAHAN ({crops.length}/{FARM_SLOTS})
+      </div>
+
+      {/* Active crops with live progress */}
+      {crops.map((c, i) => {
+        const crop = CROPS.find(x => x.id === c.type)!
+        const elapsed = now - c.plantedAt
+        const done = elapsed >= crop.growMs
+        const pct = Math.min(100, (elapsed / crop.growMs) * 100)
+        const mntLeft = Math.ceil((crop.growMs - elapsed) / 60000)
+        const secLeft = Math.ceil((crop.growMs - elapsed) / 1000)
+        const timeStr = secLeft <= 90
+          ? `${secLeft}d lagi`
+          : `${mntLeft} mnt lagi`
+        const isLoading = harvesting === i
         return (
-          <div key={i} style={{...S.card,display:'flex',alignItems:'center',gap:10}}>
-            <span style={{fontSize:28}}>{crop.emoji}</span>
+          <div key={i} style={{...S.card, display:'flex', alignItems:'center', gap:10}}>
+            <span style={{fontSize:28, filter: done ? 'drop-shadow(0 0 6px #30d15899)' : 'none', transition:'filter .5s'}}>
+              {crop.emoji}
+            </span>
             <div style={{flex:1}}>
-              <div style={{fontSize:12,fontWeight:700}}>{crop.name}</div>
-              <div style={{height:4,background:'rgba(255,255,255,0.1)',borderRadius:2,margin:'4px 0'}}><div style={{height:'100%',width:`${pct}%`,background:done?'#30d158':'#c8f500',borderRadius:2,transition:'width .5s'}}/></div>
-              <div style={{fontSize:10,color:'rgba(255,255,255,0.4)'}}>{done?'Siap dipanen!':(`${pct}% - ${Math.ceil((crop.growMs-elapsed)/60000)} mnt lagi`)}</div>
+              <div style={{fontSize:12,fontWeight:700,display:'flex',justifyContent:'space-between'}}>
+                <span>{crop.name}</span>
+                {!done && <span style={{fontSize:10,color:'rgba(255,255,255,0.35)',fontWeight:400}}>{timeStr}</span>}
+                {done && <span style={{fontSize:10,color:'#30d158',fontWeight:700}}>✅ Siap!</span>}
+              </div>
+              <div className="farm-progress-track">
+                {done
+                  ? <div className="farm-progress-fill-done"/>
+                  : <div className="farm-progress-fill-growing" style={{width:`${pct}%`}}/>
+                }
+              </div>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <span style={{fontSize:10,color:'rgba(255,255,255,0.3)'}}>{Math.round(pct)}%</span>
+                {!done && (
+                  <span style={{fontSize:10,color:'rgba(255,255,255,0.25)'}}>
+                    jual {crop.sellGold}G
+                  </span>
+                )}
+              </div>
             </div>
-            {done && <button onClick={()=>onHarvest(i)} style={{background:'rgba(60,180,60,0.2)',border:'1px solid rgba(60,180,60,0.4)',borderRadius:8,padding:'6px 10px',cursor:'pointer',color:'#30d158',fontSize:11,fontWeight:700}}>Panen</button>}
+            {done && (
+              <button
+                className={`farm-harvest-btn${isLoading?' loading':''}`}
+                onClick={() => handleHarvest(i)}
+                disabled={isLoading || harvesting !== null}
+              >
+                {isLoading ? '⏳' : '🌾'}<br/>
+                <span style={{fontSize:10}}>{isLoading?'...':'Panen'}</span>
+              </button>
+            )}
           </div>
         )
       })}
+
+      {/* Plant new crops */}
       {crops.length < FARM_SLOTS && (
         <>
-          <div style={{fontSize:11,color:'rgba(255,255,255,0.4)',marginBottom:8,fontFamily:'monospace',marginTop:8}}>🌱 TANAM BARU</div>
+          <div style={{fontSize:11,color:'rgba(255,255,255,0.4)',marginBottom:8,fontFamily:'monospace',marginTop:8}}>
+            🌱 TANAM BARU
+          </div>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
-            {CROPS.map(c=>(
-              <button key={c.id} onClick={()=>onPlant(c.id)} style={{background:'rgba(60,180,60,0.1)',border:'1px solid rgba(60,180,60,0.25)',borderRadius:10,padding:'10px 8px',cursor:'pointer',textAlign:'left' as const,color:'#fff'}}>
-                <div style={{fontSize:18}}>{c.emoji}</div>
-                <div style={{fontSize:11,fontWeight:700,marginTop:2}}>{c.name}</div>
-                <div style={{fontSize:10,color:'rgba(255,255,255,0.4)'}}>{Math.round(c.growMs/60000)} mnt • jual {c.sellGold}G</div>
-              </button>
-            ))}
+            {CROPS.map(c => {
+              const alreadyPlanted = plantedIds.includes(c.id)
+              return (
+                <button
+                  key={c.id}
+                  className={`farm-plant-btn${alreadyPlanted?' farm-disabled-btn':''}`}
+                  onClick={() => !alreadyPlanted && onPlant(c.id)}
+                  disabled={alreadyPlanted}
+                  title={alreadyPlanted ? 'Sudah ditanam, tunggu panen dulu!' : ''}
+                >
+                  <div style={{fontSize:18, filter: alreadyPlanted?'grayscale(1)':'none'}}>{c.emoji}</div>
+                  <div style={{fontSize:11,fontWeight:700,marginTop:2}}>
+                    {c.name}
+                    {alreadyPlanted && <span style={{fontSize:9,color:'rgba(255,200,0,0.6)',marginLeft:4}}>⏳</span>}
+                  </div>
+                  <div style={{fontSize:10,color:'rgba(255,255,255,0.4)'}}>{Math.round(c.growMs/60000)} mnt • jual {c.sellGold}G</div>
+                  {alreadyPlanted && (
+                    <div style={{fontSize:9,color:'rgba(255,200,80,0.5)',marginTop:2}}>Sedang tumbuh...</div>
+                  )}
+                </button>
+              )
+            })}
           </div>
         </>
       )}
+
+      {/* ── Animated progress display zone (empty space) ── */}
+      <div className="farm-anim-bar-wrap">
+        <div className="farm-anim-bar-label">📊 STATUS LAHAN AKTIF</div>
+        {crops.length === 0 ? (
+          <div style={{textAlign:'center',padding:'12px 0',color:'rgba(255,255,255,0.2)',fontSize:11}}>
+            Tidak ada tanaman aktif
+          </div>
+        ) : (
+          <div style={{display:'flex',flexDirection:'column',gap:6}}>
+            {crops.map((c, i) => {
+              const crop = CROPS.find(x => x.id === c.type)!
+              const elapsed = now - c.plantedAt
+              const done = elapsed >= crop.growMs
+              const pct = Math.min(100, (elapsed / crop.growMs) * 100)
+              const secLeft = Math.ceil((crop.growMs - elapsed) / 1000)
+              const mntLeft = Math.floor(secLeft / 60)
+              const sLeft = secLeft % 60
+              return (
+                <div key={i}>
+                  <div style={{display:'flex',justifyContent:'space-between',fontSize:10,color:'rgba(255,255,255,0.4)',marginBottom:3}}>
+                    <span>{crop.emoji} {crop.name}</span>
+                    <span style={{color: done ? '#30d158' : '#c8f500', fontWeight:700}}>
+                      {done ? '✅ SIAP PANEN' : `⏱ ${mntLeft > 0 ? `${mntLeft}m ` : ''}${sLeft}s`}
+                    </span>
+                  </div>
+                  <div className="farm-anim-bar-track">
+                    <div
+                      className="farm-anim-bar-fill"
+                      style={{
+                        width: `${pct}%`,
+                        background: done
+                          ? 'linear-gradient(90deg, #30d158, #00e676)'
+                          : `linear-gradient(90deg, rgba(60,180,60,0.5), rgba(200,245,0,0.7))`,
+                      }}
+                    >
+                      {!done && <div className="farm-anim-bar-wave"/>}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Floating particle animation zone */}
+      {crops.length > 0 && (
+        <div className="farm-empty-zone" style={{minHeight:80}}>
+          {particles.map((p, i) => (
+            <span
+              key={i}
+              className="farm-particle"
+              style={{
+                left: `${(i * 12.5) % 92}%`,
+                bottom: `${10 + (i * 7) % 60}%`,
+                animationName: 'farm-float',
+                animationDuration: `${1.8 + (i * 0.4) % 2}s`,
+                animationDelay: `${(i * 0.35) % 2}s`,
+                animationTimingFunction: 'ease-in-out',
+                animationIterationCount: 'infinite',
+                opacity: 0.4 + (i % 3) * 0.15,
+                fontSize: 14 + (i % 3) * 4,
+              }}
+            >
+              {p}
+            </span>
+          ))}
+          <span style={{fontSize:11,color:'rgba(255,255,255,0.15)',zIndex:1}}>🌿 Kebun aktif...</span>
+        </div>
+      )}
+
       <div style={{marginTop:12,fontSize:11,color:'rgba(255,255,255,0.4)'}}>
-        📦 Material kebun: {CROPS.map(c=>`${c.emoji}${(char.ores||{})[c.id]||0}x`).join(' ')}
+        📦 Material kebun: {CROPS.map(c => `${c.emoji}${(char.ores||{})[c.id]||0}x`).join(' ')}
       </div>
     </div>
   )
@@ -6130,29 +6756,180 @@ function RpgCooking({ char, msg, onCook, onBack }: { char: RpgChar; msg: string;
 // RPG TRAINING COMPONENT
 // ═══════════════════════════════════════════════════════════════
 function RpgTraining({ char, msg, onTrain, onBack }: { char: RpgChar; msg: string; onTrain: (t: typeof TRAININGS[0]) => void; onBack: () => void }) {
+  const [tick, setTick] = useState(0)
+  const [trainingId, setTrainingId] = useState<string|null>(null)
+  const [trainAnim, setTrainAnim] = useState<Record<string,boolean>>({})
+
+  useEffect(() => {
+    const iv = setInterval(() => setTick(t => t + 1), 1000)
+    return () => clearInterval(iv)
+  }, [])
+
   const now = Date.now()
-  const S = { wrap:{padding:'14px',overflowY:'auto' as const,height:'100%',boxSizing:'border-box' as const}, back:{background:'none',border:'none',color:'rgba(255,255,255,0.4)',fontSize:12,cursor:'pointer',marginBottom:10,padding:0}, title:{fontSize:16,fontWeight:900,color:'#c8f500',marginBottom:4} }
+
+  const handleTrain = async (t: typeof TRAININGS[0]) => {
+    if (trainingId) return
+    setTrainingId(t.id)
+    setTrainAnim(prev => ({...prev, [t.id]: true}))
+    await (onTrain as any)(t)
+    setTimeout(() => {
+      setTrainAnim(prev => ({...prev, [t.id]: false}))
+      setTrainingId(null)
+    }, 800)
+  }
+
+  const TRAIN_COLORS: Record<string,string> = {
+    atk: '#ff6b6b', def: '#4fc3f7', spd: '#69ff69', luck: '#ffd700', hp: '#ff8a80', mp: '#82b1ff'
+  }
+
+  const S = {
+    wrap:{padding:'14px',overflowY:'auto' as const,height:'100%',boxSizing:'border-box' as const},
+    back:{background:'none',border:'none',color:'rgba(255,255,255,0.4)',fontSize:12,cursor:'pointer',marginBottom:10,padding:0},
+    title:{fontSize:16,fontWeight:900,color:'#c8f500',marginBottom:4}
+  }
+
   return (
     <div style={S.wrap} className="gc2-fadein">
+      <style>{`
+        @keyframes train-pulse {
+          0%,100% { transform: scale(1); }
+          50%      { transform: scale(1.12); }
+        }
+        @keyframes train-shimmer {
+          0%   { background-position: -200% center; }
+          100% { background-position: 200% center; }
+        }
+        @keyframes train-ready-glow {
+          0%,100% { box-shadow: 0 0 0 rgba(100,150,255,0); }
+          50%      { box-shadow: 0 0 10px rgba(100,150,255,0.3); }
+        }
+        @keyframes train-cd-fill {
+          from { opacity: 0.5; } to { opacity: 1; }
+        }
+        .train-card-ready {
+          animation: train-ready-glow 2s ease-in-out infinite;
+        }
+        .train-btn {
+          border-radius: 8px; padding: 7px 12px;
+          font-size: 11px; font-weight: 800; cursor: pointer;
+          transition: transform 0.1s, box-shadow 0.2s;
+          border: none;
+        }
+        .train-btn:active { transform: scale(0.92); }
+        .train-btn-ready {
+          background: linear-gradient(135deg, rgba(100,150,255,0.3), rgba(130,177,255,0.2));
+          border: 1px solid rgba(100,150,255,0.5) !important;
+          color: #818cf8 !important;
+          box-shadow: 0 0 8px rgba(100,150,255,0.2);
+        }
+        .train-btn-disabled {
+          background: rgba(255,255,255,0.04) !important;
+          border: 1px solid rgba(255,255,255,0.08) !important;
+          color: rgba(255,255,255,0.25) !important;
+          cursor: not-allowed !important;
+        }
+        .train-progress-track {
+          height: 5px; border-radius: 3px; overflow: hidden;
+          background: rgba(255,255,255,0.07); margin: 4px 0;
+        }
+        .train-progress-fill {
+          height: 100%; border-radius: 3px;
+          transition: width 1s linear;
+        }
+        .train-progress-active {
+          background-size: 200% 100%;
+          animation: train-shimmer 1.2s linear infinite;
+        }
+        .train-emoji-anim {
+          display: inline-block;
+          animation: train-pulse 0.4s ease-in-out 3;
+        }
+      `}</style>
+
       <button style={S.back} onClick={onBack}>← Kembali</button>
       <div style={S.title}>💪 Training</div>
-      <p style={{fontSize:11,color:'rgba(255,255,255,0.4)',marginBottom:10}}>Habiskan Gold untuk meningkatkan stat permanen. Cooldown 1 jam per latihan.</p>
-      {msg && <div style={{background:'rgba(100,150,255,0.1)',border:'1px solid rgba(100,150,255,0.3)',borderRadius:8,padding:'8px 12px',fontSize:12,color:'#818cf8',marginBottom:10}}>{msg}</div>}
+      <p style={{fontSize:11,color:'rgba(255,255,255,0.4)',marginBottom:10}}>
+        Habiskan Gold untuk meningkatkan stat permanen. Cooldown 1 jam per latihan.
+      </p>
+      {msg && (
+        <div style={{background:'rgba(100,150,255,0.1)',border:'1px solid rgba(100,150,255,0.3)',borderRadius:8,padding:'8px 12px',fontSize:12,color:'#818cf8',marginBottom:10}}>
+          {msg}
+        </div>
+      )}
       <div style={{fontSize:12,color:'#ffd700',marginBottom:10}}>💰 Gold: {char.gold.toLocaleString()}G</div>
-      {TRAININGS.map(t=>{
-        const last=(char.trainCooldowns||{})[t.id]||0
-        const remain=Math.max(0,t.coolMs-(now-last))
-        const ready=remain===0
-        const curVal = t.stat==='maxHp'?char.maxHp:t.stat==='maxMp'?char.maxMp:(char as any)[t.stat]||0
+
+      {TRAININGS.map(t => {
+        const last = (char.trainCooldowns||{})[t.id] || 0
+        const remain = Math.max(0, t.coolMs - (now - last))
+        const ready = remain === 0
+        const canTrain = ready && char.gold >= t.cost
+        const cdPct = ready ? 100 : Math.min(100, ((t.coolMs - remain) / t.coolMs) * 100)
+        const cdMin = Math.floor(remain / 60000)
+        const cdSec = Math.floor((remain % 60000) / 1000)
+        const curVal = t.stat==='maxHp' ? char.maxHp : t.stat==='maxMp' ? char.maxMp : (char as any)[t.stat] || 0
+        const color = TRAIN_COLORS[t.id] || '#818cf8'
+        const isAnimating = trainAnim[t.id]
+        const isBusy = trainingId === t.id
+
         return (
-          <div key={t.id} style={{background:'rgba(255,255,255,0.04)',border:`1px solid ${ready?'rgba(100,150,255,0.35)':'rgba(255,255,255,0.08)'}`,borderRadius:12,padding:12,marginBottom:8,display:'flex',alignItems:'center',gap:10}}>
-            <span style={{fontSize:28}}>{t.emoji}</span>
-            <div style={{flex:1}}>
-              <div style={{fontSize:12,fontWeight:800}}>{t.name}</div>
-              <div style={{fontSize:10,color:'#818cf8'}}>{t.desc} • Biaya {t.cost}G</div>
-              <div style={{fontSize:10,color:'rgba(255,255,255,0.4)'}}>Saat ini: {curVal} {ready?'':'• ⏳ '+Math.ceil(remain/60000)+' mnt'}</div>
+          <div
+            key={t.id}
+            className={canTrain ? 'train-card-ready' : ''}
+            style={{
+              background: ready ? `${color}08` : 'rgba(255,255,255,0.03)',
+              border: `1px solid ${ready ? color+'30' : 'rgba(255,255,255,0.07)'}`,
+              borderRadius:12, padding:12, marginBottom:8,
+              transition: 'border-color 0.3s, background 0.3s'
+            }}
+          >
+            <div style={{display:'flex',alignItems:'center',gap:10}}>
+              <span className={isAnimating ? 'train-emoji-anim' : ''} style={{fontSize:26}}>
+                {t.emoji}
+              </span>
+              <div style={{flex:1}}>
+                <div style={{fontSize:12,fontWeight:800,color: ready ? '#fff' : 'rgba(255,255,255,0.5)'}}>
+                  {t.name}
+                </div>
+                <div style={{fontSize:10,color}}>
+                  {t.desc} • {t.cost}G
+                </div>
+                <div style={{fontSize:10,color:'rgba(255,255,255,0.35)',marginTop:1}}>
+                  Saat ini: <span style={{color:'#fff',fontWeight:700}}>{curVal}</span>
+                  {!ready && <span style={{color:'rgba(255,255,255,0.25)'}}> → {curVal + t.gain} setelah cooldown</span>}
+                  {ready && <span style={{color}} > → {curVal + t.gain} setelah latihan</span>}
+                </div>
+              </div>
+              <button
+                className={`train-btn ${canTrain ? 'train-btn-ready' : 'train-btn-disabled'}`}
+                onClick={() => canTrain && handleTrain(t)}
+                disabled={!canTrain || !!trainingId}
+                style={{border:'none',minWidth:52}}
+              >
+                {isBusy ? '💪' : ready ? 'Latih' : '⏳'}
+              </button>
             </div>
-            <button onClick={()=>onTrain(t)} disabled={!ready||char.gold<t.cost} style={{background:ready&&char.gold>=t.cost?'rgba(100,150,255,0.2)':'rgba(255,255,255,0.05)',border:`1px solid ${ready&&char.gold>=t.cost?'rgba(100,150,255,0.4)':'rgba(255,255,255,0.1)'}`,borderRadius:8,padding:'6px 10px',cursor:ready&&char.gold>=t.cost?'pointer':'not-allowed',color:ready&&char.gold>=t.cost?'#818cf8':'rgba(255,255,255,0.3)',fontSize:11,fontWeight:700}}>Latih</button>
+
+            {/* Cooldown progress bar */}
+            <div style={{marginTop:7}}>
+              <div className="train-progress-track">
+                <div
+                  className={`train-progress-fill ${!ready ? 'train-progress-active' : ''}`}
+                  style={{
+                    width: `${cdPct}%`,
+                    background: ready
+                      ? `linear-gradient(90deg, ${color}, ${color}aa)`
+                      : `linear-gradient(90deg, rgba(100,100,120,0.5), rgba(130,130,160,0.7), rgba(100,100,120,0.5))`,
+                    backgroundSize: '200% 100%',
+                  }}
+                />
+              </div>
+              <div style={{display:'flex',justifyContent:'space-between',fontSize:9,marginTop:2}}>
+                <span style={{color: ready ? color : 'rgba(255,255,255,0.25)'}}>
+                  {ready ? '✅ Siap!' : `⏳ ${cdMin}:${String(cdSec).padStart(2,'0')} lagi`}
+                </span>
+                <span style={{color:'rgba(255,255,255,0.2)'}}>{Math.round(cdPct)}%</span>
+              </div>
+            </div>
           </div>
         )
       })}
@@ -8901,6 +9678,9 @@ function GachaRoster({ data, onBack, onLevelUp }: { data: PlayerGacha; onBack:()
           const rarityCol = RARITY_COLOR[c.rarity]
           const cost = getCharLevelCost(charLv)
           const canLvUp = charLv < maxLv && mats.fish >= cost.fish && mats.ore >= cost.ore && mats.herb >= cost.herb
+          const charExpCur = (data.charExp ?? {})[c.id] ?? 0
+          const charExpNeed = charLv < maxLv ? getCharExpNeeded(charLv) : 1
+          const charExpPct = charLv < maxLv ? Math.min(100, Math.round(charExpCur / charExpNeed * 100)) : 100
           return (
             <div key={c.id} style={{
               background:`${col}10`, border:`1.5px solid ${rarityCol}50`,
@@ -8918,13 +9698,33 @@ function GachaRoster({ data, onBack, onLevelUp }: { data: PlayerGacha; onBack:()
                 </div>
               </div>
               {/* Level bar */}
-              <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:5 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:3 }}>
                 <span style={{ fontSize:10, color:'#ffd700', fontWeight:700 }}>Lv.{charLv}</span>
                 <div style={{ flex:1, height:4, background:'rgba(255,255,255,0.1)', borderRadius:2 }}>
                   <div style={{ width:`${(charLv/maxLv)*100}%`, height:'100%', background: rarityCol, borderRadius:2 }} />
                 </div>
                 <span style={{ fontSize:9, color:'rgba(255,255,255,0.4)' }}>{maxLv}</span>
               </div>
+              {/* Dungeon EXP progress bar */}
+              {charLv < maxLv && (
+                <div style={{ marginBottom:5 }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', fontSize:9, color:'rgba(255,255,255,0.35)', marginBottom:2 }}>
+                    <span>⚔️ EXP Battle</span>
+                    <span style={{ color: charExpPct >= 100 ? '#30d158' : 'rgba(255,255,255,0.35)' }}>
+                      {charExpCur}/{charExpNeed} ({charExpPct}%)
+                    </span>
+                  </div>
+                  <div style={{ height:3, background:'rgba(255,255,255,0.07)', borderRadius:2, overflow:'hidden' }}>
+                    <div style={{
+                      width:`${charExpPct}%`, height:'100%', borderRadius:2,
+                      background: charExpPct >= 80
+                        ? 'linear-gradient(90deg,#30d158,#00e676)'
+                        : 'linear-gradient(90deg,rgba(100,200,255,0.6),rgba(150,240,200,0.8))',
+                      transition: 'width 0.5s ease'
+                    }} />
+                  </div>
+                </div>
+              )}
               {/* Constellation */}
               <div style={{ display:'flex', gap:3, marginBottom:5 }}>
                 {[0,1,2,3,4,5,6].map(i => (
