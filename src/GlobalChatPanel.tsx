@@ -350,7 +350,7 @@ const GACHA_CHARS: GachaChar[] = [
   { id:'jiyan',     name:'Jiyan',       rarity:'5★', element:'Anemo',   weapon:'Broadblade',emoji:'🌀',source:'wuwa', desc:'Komandan Resonator Jinzhou, angin pedang tajam.',  atk:54,def:25,hp:260,spd:22, skill:'Emerald Storm', burst:'Emerald Tempest' },
   { id:'calcharo',  name:'Calcharo',    rarity:'5★', element:'Electro', weapon:'Rectifier',emoji:'⚡', source:'wuwa', desc:'Resonator Electro dengan kekuatan destruktif.',     atk:57,def:20,hp:250,spd:19, skill:'Execute',       burst:'Death Messenger' },
   { id:'jinhsi',    name:'Jinhsi',      rarity:'5★', element:'Spectro', weapon:'Rectifier',emoji:'✨', source:'wuwa', desc:'Wali Jinzhou, cahaya Spectro yang menyilaukan.',    atk:49,def:32,hp:270,spd:20, skill:'Temporal Bender',burst:'Purification Light' },
-  { id:'changli',   name:'Changli',     rarity:'5★', element:'Fire',    weapon:'Sword',    emoji:'🔮', source:'wuwa', desc:'Maha-Resonator Rinascita, api yang menerangi kegelapan.',atk:56,def:23,hp:262,spd:22, skill:'Flame Surge',  burst:'Inferno's Edge' },
+  { id:'changli',   name:'Changli',     rarity:'5★', element:'Fire',    weapon:'Sword',    emoji:'🔮', source:'wuwa', desc:'Maha-Resonator Rinascita, api yang menerangi kegelapan.',atk:56,def:23,hp:262,spd:22, skill:'Flame Surge',  burst:"Inferno's Edge" },
   { id:'xiangli',   name:'Xiangli Yao', rarity:'5★', element:'Electro', weapon:'Gauntlet', emoji:'⚙️', source:'wuwa', desc:'Insinyur Resonator dari Rinascita, petir mekanis.',  atk:58,def:21,hp:255,spd:20, skill:'Circuit Breaker',burst:'Omega Protocol' },
   { id:'camellya',  name:'Camellya',    rarity:'5★', element:'Havoc',   weapon:'Sword',    emoji:'🌸', source:'wuwa', desc:'Bunga gelap yang mekar di kegelapan, havoc murni.',  atk:60,def:19,hp:248,spd:21, skill:'Petal Slash',   burst:'Bloom of Ruin' },
   { id:'zhezhi',    name:'Zhezhi',      rarity:'5★', element:'Spectro', weapon:'Rectifier',emoji:'🎭', source:'wuwa', desc:'Seniman misterius Resonator, ilusi spectro hidup.',  atk:47,def:33,hp:278,spd:22, skill:'Painted Soul',  burst:'Living Canvas' },
@@ -363,7 +363,7 @@ const GACHA_CHARS: GachaChar[] = [
 
   // ══════════ HONKAI: STAR RAIL ══════════
   // 6★ HSR
-  { id:'hsr_aeon',    name:'The Trailblazer (Aeon)', rarity:'6★', element:'Fire', weapon:'Hands',   emoji:'🌠', source:'hsr', desc:'Trailblazer yang telah menyentuh kekuatan Aeon sejati.',  atk:68,def:58,hp:430,spd:25, skill:'Aeon's Might',  burst:'Path Convergence' },
+  { id:'hsr_aeon',    name:'The Trailblazer (Aeon)', rarity:'6★', element:'Fire', weapon:'Hands',   emoji:'🌠', source:'hsr', desc:'Trailblazer yang telah menyentuh kekuatan Aeon sejati.',  atk:68,def:58,hp:430,spd:25, skill:"Aeon's Might",  burst:'Path Convergence' },
   // 5★ HSR
   { id:'hsr_kafka',   name:'Kafka',       rarity:'5★', element:'Lightning', weapon:'Guns',     emoji:'🎵', source:'hsr', desc:'Anggota Stellaron Hunter, operator petir mematikan.',  atk:54,def:22,hp:258,spd:25, skill:'Thunderclap Myriad Doom',burst:'Twilight Trill' },
   { id:'hsr_blade',   name:'Blade',       rarity:'5★', element:'Wind',      weapon:'Sword',    emoji:'🌬️', source:'hsr', desc:'Mantan Stellaron Hunter, tak bisa mati tapi ingin mati.',atk:60,def:18,hp:300,spd:21, skill:'Shard Sword',   burst:'Death Wish' },
@@ -375,7 +375,7 @@ const GACHA_CHARS: GachaChar[] = [
   { id:'hsr_fu_xuan', name:'Fu Xuan',     rarity:'5★', element:'Quantum',   weapon:'Matrix',   emoji:'🔮', source:'hsr', desc:'Master Strategist IPC, tank Quantum sejati.',          atk:40,def:48,hp:335,spd:18, skill:'Known by Stars',burst:'Woven Fate' },
   { id:'hsr_ruan_mei',name:'Ruan Mei',    rarity:'5★', element:'Ice',       weapon:'Needle',   emoji:'🌸', source:'hsr', desc:'Genius Society #81, es abadi yang mendistorsi realita.',atk:45,def:32,hp:280,spd:20, skill:'Somatotypical Helix',burst:'Petals to Stream, Rime to River' },
   { id:'hsr_acheron', name:'Acheron',     rarity:'5★', element:'Lightning', weapon:'Sword',    emoji:'☔', source:'hsr', desc:'Galaxy Ranger, petir yang membunuh kenangan.',          atk:56,def:23,hp:260,spd:22, skill:'Slashed Dream',burst:'Slashed Dream Cries in Red' },
-  { id:'hsr_robin',   name:'Robin',       rarity:'5★', element:'Physical',  weapon:'Feather',  emoji:'🕊️', source:'hsr', desc:'Diva Penacony, suaranya bisa membalikkan nasib.',       atk:46,def:30,hp:278,spd:20, skill:'Pinion's Art',  burst:'Vox Harmonique' },
+  { id:'hsr_robin',   name:'Robin',       rarity:'5★', element:'Physical',  weapon:'Feather',  emoji:'🕊️', source:'hsr', desc:'Diva Penacony, suaranya bisa membalikkan nasib.',       atk:46,def:30,hp:278,spd:20, skill:"Pinion's Art",  burst:'Vox Harmonique' },
   { id:'hsr_firefly', name:'Firefly (SAM)',rarity:'5★',element:'Fire',      weapon:'Mecha',    emoji:'🔥', source:'hsr', desc:'Stellaron Hunter SAM, gadis yang mencari kematian.',    atk:59,def:21,hp:256,spd:21, skill:'Pyrogenic Break',burst:'Tonight, I Shall Seal the Star' },
   { id:'hsr_boothill',name:'Boothill',    rarity:'5★', element:'Fire',      weapon:'Guns',     emoji:'🤠', source:'hsr', desc:'Galaxy Ranger, koboi langit yang mematikan.',           atk:57,def:22,hp:258,spd:23, skill:'Skullcrush Spurs',burst:'Last Known Position' },
   // 4★ HSR
