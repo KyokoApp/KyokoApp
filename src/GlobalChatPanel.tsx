@@ -4940,6 +4940,12 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
                   />
                 ) : offlineSelectedGame === 'catur' ? (
                   <CaturGame onBack={() => setOfflineSelectedGame(null)} />
+                ) : offlineSelectedGame === 'snake' ? (
+                  <SnakeGame onBack={() => setOfflineSelectedGame(null)} />
+                ) : offlineSelectedGame === 'ttt' ? (
+                  <TicTacToeGame onBack={() => setOfflineSelectedGame(null)} />
+                ) : offlineSelectedGame === 'memory' ? (
+                  <MemoryCardGame onBack={() => setOfflineSelectedGame(null)} />
                 ) : null}
               </div>
             )}
@@ -10122,9 +10128,9 @@ function chessGetAIMove(board:ChessBoard,diff:CaturDiff):{fr:number;fc:number;tr
 // ── Offline Games Menu ──────────────────────────────────────────
 const OFFLINE_GAMES = [
   { id:'catur', emoji:'♟️', name:'Catur', desc:'Game strategi papan klasik. Lawan AI cerdas dengan 3 tingkat kesulitan.', tag:'Strategi', color:'#c8f500', status:'available' },
-  { id:'ttt', emoji:'❌', name:'Tic-Tac-Toe', desc:'Susun 3 simbol berurutan dan kalahkan lawan. Cepat & seru!', tag:'Kasual', color:'#4fc3f7', status:'soon' },
-  { id:'snake', emoji:'🐍', name:'Snake', desc:'Kendalikan ular, makan apel, jangan sampai menabrak diri sendiri!', tag:'Arkade', color:'#fb923c', status:'soon' },
-  { id:'memory', emoji:'🃏', name:'Memory Card', desc:'Balik kartu dan temukan pasangan yang cocok. Latih ingatanmu!', tag:'Puzzle', color:'#a78bfa', status:'soon' },
+  { id:'ttt', emoji:'❌', name:'Tic-Tac-Toe', desc:'Susun 3 simbol berurutan dan kalahkan lawan. Cepat & seru!', tag:'Kasual', color:'#4fc3f7', status:'available' },
+  { id:'snake', emoji:'🐍', name:'Snake', desc:'Kendalikan ular, makan apel, jangan sampai menabrak diri sendiri!', tag:'Arkade', color:'#fb923c', status:'available' },
+  { id:'memory', emoji:'🃏', name:'Memory Card', desc:'Balik kartu dan temukan pasangan yang cocok. Latih ingatanmu!', tag:'Puzzle', color:'#a78bfa', status:'available' },
 ]
 
 function OfflineGamesMenu({ onSelectGame, onBack }: { onSelectGame:(id:string)=>void; onBack:()=>void }) {
@@ -10426,6 +10432,388 @@ function CaturGame({ onBack }: { onBack:()=>void }) {
       </div>
     </div>
   )
+}
+
+// ═══════════════════════════════════════════════════════════════
+// OFFLINE GAME — SNAKE 🐍
+// ═══════════════════════════════════════════════════════════════
+type SnakeDiff = 'easy'|'medium'|'hard'
+type Dir = 'UP'|'DOWN'|'LEFT'|'RIGHT'
+interface Pos { x:number; y:number }
+interface SnakeStats { bestEasy:number; bestMedium:number; bestHard:number; totalApples:number }
+
+const SNAKE_GRID = 20
+const SNAKE_SPEED: Record<SnakeDiff,number> = { easy:200, medium:120, hard:65 }
+const SNAKE_DIFF_INFO: Record<SnakeDiff,{label:string;emoji:string;desc:string;color:string}> = {
+  easy:   { label:'Mudah',  emoji:'🌱', desc:'Ular lambat, santai dulu',         color:'#4ade80' },
+  medium: { label:'Sedang', emoji:'🔥', desc:'Kecepatan seimbang, cukup seru',   color:'#fb923c' },
+  hard:   { label:'Sulit',  emoji:'💀', desc:'Super cepat, refleks diuji!',       color:'#f87171' },
+}
+
+function snakeRandPos(snake: Pos[], apples: Pos[]): Pos {
+  let p: Pos
+  do { p = { x: Math.floor(Math.random()*SNAKE_GRID), y: Math.floor(Math.random()*SNAKE_GRID) } }
+  while (snake.some(s=>s.x===p.x&&s.y===p.y) || apples.some(a=>a.x===p.x&&a.y===p.y))
+  return p
+}
+
+function SnakeGame({ onBack }: { onBack:()=>void }) {
+  const [phase, setPhase] = useState<'menu'|'playing'|'over'>('menu')
+  const [difficulty, setDifficulty] = useState<SnakeDiff>('medium')
+  const [snake, setSnake] = useState<Pos[]>([{x:10,y:10},{x:9,y:10},{x:8,y:10}])
+  const [apple, setApple] = useState<Pos>({x:15,y:10})
+  const [bonusApple, setBonusApple] = useState<Pos|null>(null)
+  const [bonusTimer, setBonusTimer] = useState(0)
+  const [dir, setDir] = useState<Dir>('RIGHT')
+  const [nextDir, setNextDir] = useState<Dir>('RIGHT')
+  const [score, setScore] = useState(0)
+  const [paused, setPaused] = useState(false)
+  const [stats, setStats] = useState<SnakeStats>(()=>{
+    try{ return JSON.parse(localStorage.getItem('kyoko_snake_stats')||'{"bestEasy":0,"bestMedium":0,"bestHard":0,"totalApples":0}') }
+    catch{ return {bestEasy:0,bestMedium:0,bestHard:0,totalApples:0} }
+  })
+
+  const loopRef = useRef<ReturnType<typeof setInterval>|null>(null)
+  const snakeRef = useRef(snake)
+  const dirRef = useRef(dir)
+  const nextDirRef = useRef(nextDir)
+  const appleRef = useRef(apple)
+  const bonusRef = useRef(bonusApple)
+  const bonusTimerRef = useRef(bonusTimer)
+  const scoreRef = useRef(score)
+  const pausedRef = useRef(paused)
+  const statsRef = useRef(stats)
+
+  snakeRef.current = snake
+  dirRef.current = dir
+  nextDirRef.current = nextDir
+  appleRef.current = apple
+  bonusRef.current = bonusApple
+  bonusTimerRef.current = bonusTimer
+  scoreRef.current = score
+  pausedRef.current = paused
+  statsRef.current = stats
+
+  const saveStats = (s: SnakeStats) => {
+    statsRef.current = s
+    setStats(s)
+    localStorage.setItem('kyoko_snake_stats', JSON.stringify(s))
+  }
+
+  const stopLoop = () => { if(loopRef.current){clearInterval(loopRef.current);loopRef.current=null} }
+
+  const startGame = (diff: SnakeDiff) => {
+    stopLoop()
+    const initSnake = [{x:10,y:10},{x:9,y:10},{x:8,y:10}]
+    const initApple = snakeRandPos(initSnake,[])
+    setDifficulty(diff); setSnake(initSnake); setApple(initApple)
+    setBonusApple(null); setBonusTimer(0)
+    setDir('RIGHT'); setNextDir('RIGHT')
+    setScore(0); setPaused(false); setPhase('playing')
+    snakeRef.current = initSnake; appleRef.current = initApple
+    dirRef.current = 'RIGHT'; nextDirRef.current = 'RIGHT'
+    bonusRef.current = null; bonusTimerRef.current = 0; scoreRef.current = 0
+  }
+
+  const endGame = useCallback((finalScore: number, diff: SnakeDiff) => {
+    stopLoop()
+    setPhase('over')
+    const cur = statsRef.current
+    const bestKey = `best${diff.charAt(0).toUpperCase()+diff.slice(1)}` as keyof SnakeStats
+    const ns: SnakeStats = {
+      ...cur,
+      totalApples: cur.totalApples + finalScore,
+      [bestKey]: Math.max(cur[bestKey] as number, finalScore),
+    }
+    saveStats(ns)
+  }, [])
+
+  // Game loop
+  useEffect(() => {
+    if (phase !== 'playing') { stopLoop(); return }
+    loopRef.current = setInterval(() => {
+      if (pausedRef.current) return
+      const s = snakeRef.current
+      const d = nextDirRef.current
+      dirRef.current = d
+      const head = s[0]
+      let nh: Pos
+      if(d==='UP')    nh={x:head.x,y:(head.y-1+SNAKE_GRID)%SNAKE_GRID}
+      else if(d==='DOWN') nh={x:head.x,y:(head.y+1)%SNAKE_GRID}
+      else if(d==='LEFT') nh={x:(head.x-1+SNAKE_GRID)%SNAKE_GRID,y:head.y}
+      else               nh={x:(head.x+1)%SNAKE_GRID,y:head.y}
+      // Self collision
+      if(s.some(seg=>seg.x===nh.x&&seg.y===nh.y)){
+        endGame(scoreRef.current, difficulty); return
+      }
+      let newScore = scoreRef.current
+      let newApple = appleRef.current
+      let newBonus = bonusRef.current
+      let newBonusTimer = bonusTimerRef.current
+      let ate = false
+      let newSnake = [nh, ...s]
+      // Eat regular apple
+      if(nh.x===newApple.x&&nh.y===newApple.y){
+        ate=true; newScore+=1; newApple=snakeRandPos(newSnake,[])
+        // Spawn bonus apple every 5 apples
+        if(newScore%5===0&&!newBonus){ newBonus=snakeRandPos(newSnake,[newApple]); newBonusTimer=30 }
+      } else if(newBonus&&nh.x===newBonus.x&&nh.y===newBonus.y){
+        ate=true; newScore+=3; newBonus=null; newBonusTimer=0
+      } else {
+        newSnake = newSnake.slice(0,-1)
+      }
+      // Bonus apple timeout
+      if(newBonus&&!ate){
+        newBonusTimer-=1
+        if(newBonusTimer<=0){ newBonus=null; newBonusTimer=0 }
+      }
+      snakeRef.current = newSnake; appleRef.current = newApple
+      bonusRef.current = newBonus; bonusTimerRef.current = newBonusTimer
+      scoreRef.current = newScore
+      setSnake([...newSnake]); setApple({...newApple})
+      setBonusApple(newBonus?{...newBonus}:null); setBonusTimer(newBonusTimer)
+      setScore(newScore)
+      if(ate) setDir(d)
+    }, SNAKE_SPEED[difficulty])
+    return stopLoop
+  }, [phase, difficulty, endGame])
+
+  // Touch/swipe controls
+  const touchStart = useRef<{x:number;y:number}|null>(null)
+  const onTouchStart = (e: React.TouchEvent) => {
+    touchStart.current = {x:e.touches[0].clientX, y:e.touches[0].clientY}
+  }
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if(!touchStart.current) return
+    const dx = e.changedTouches[0].clientX - touchStart.current.x
+    const dy = e.changedTouches[0].clientY - touchStart.current.y
+    const cur = dirRef.current
+    if(Math.abs(dx)>Math.abs(dy)){
+      if(dx>20&&cur!=='LEFT')  { nextDirRef.current='RIGHT'; setNextDir('RIGHT') }
+      if(dx<-20&&cur!=='RIGHT'){ nextDirRef.current='LEFT';  setNextDir('LEFT')  }
+    } else {
+      if(dy>20&&cur!=='UP')    { nextDirRef.current='DOWN';  setNextDir('DOWN')  }
+      if(dy<-20&&cur!=='DOWN') { nextDirRef.current='UP';    setNextDir('UP')    }
+    }
+    touchStart.current = null
+  }
+
+  const changeDir = (d: Dir) => {
+    const cur = dirRef.current
+    if((d==='UP'&&cur==='DOWN')||(d==='DOWN'&&cur==='UP')||(d==='LEFT'&&cur==='RIGHT')||(d==='RIGHT'&&cur==='LEFT')) return
+    nextDirRef.current = d; setNextDir(d)
+  }
+
+  const bestKey = `best${difficulty.charAt(0).toUpperCase()+difficulty.slice(1)}` as keyof SnakeStats
+  const diffInfo = SNAKE_DIFF_INFO[difficulty]
+
+  // Cell size: fit to screen
+  const cellSize = Math.floor((Math.min(typeof window!=='undefined'?window.innerWidth:360, 440) - 32) / SNAKE_GRID)
+
+  // ── MENU ──
+  if(phase==='menu') return (
+    <div style={{display:'flex',flexDirection:'column',height:'100%',alignItems:'center',justifyContent:'center',padding:'16px',gap:14,background:'#0a0a12',overflowY:'auto'}}>
+      <div style={{textAlign:'center'}}>
+        <div style={{fontSize:52,marginBottom:4,filter:'drop-shadow(0 0 20px rgba(251,146,60,0.4))'}}>🐍</div>
+        <div style={{fontSize:24,fontWeight:900,color:'#fff',letterSpacing:2}}>SNAKE</div>
+        <div style={{fontSize:11,color:'rgba(255,255,255,0.35)',marginTop:3,letterSpacing:1}}>Classic · Offline · Swipe to move</div>
+      </div>
+
+      {/* Record cards */}
+      <div style={{display:'flex',gap:8,width:'100%',maxWidth:320}}>
+        {(['easy','medium','hard'] as SnakeDiff[]).map(d=>{
+          const dk = `best${d.charAt(0).toUpperCase()+d.slice(1)}` as keyof SnakeStats
+          const info = SNAKE_DIFF_INFO[d]
+          return (
+            <div key={d} style={{flex:1,background:'rgba(255,255,255,0.04)',border:`1px solid ${info.color}33`,borderRadius:12,padding:'8px 6px',textAlign:'center'}}>
+              <div style={{fontSize:14,marginBottom:2}}>{info.emoji}</div>
+              <div style={{fontSize:16,fontWeight:900,color:info.color}}>{stats[dk]}</div>
+              <div style={{fontSize:9,color:'rgba(255,255,255,0.3)'}}>Rekor</div>
+            </div>
+          )
+        })}
+      </div>
+
+      <div style={{fontSize:11,color:'rgba(255,255,255,0.4)',background:'rgba(255,255,255,0.04)',borderRadius:10,padding:'6px 14px'}}>
+        🍎 +1 poin &nbsp;·&nbsp; ⭐ +3 poin (bonus tiap 5 apel)
+      </div>
+
+      <div style={{fontSize:12,fontWeight:700,color:'rgba(255,255,255,0.5)',alignSelf:'flex-start',width:'100%',maxWidth:320}}>Pilih Tingkat Kesulitan:</div>
+
+      {(['easy','medium','hard'] as SnakeDiff[]).map(d=>{
+        const info=SNAKE_DIFF_INFO[d]
+        const dk=`best${d.charAt(0).toUpperCase()+d.slice(1)}` as keyof SnakeStats
+        return(
+          <button key={d} onClick={()=>startGame(d)} style={{
+            width:'100%',maxWidth:320,
+            background:`linear-gradient(135deg,${info.color}12 0%,transparent 100%)`,
+            border:`2px solid ${info.color}44`,borderRadius:16,
+            padding:'14px 18px',display:'flex',alignItems:'center',gap:14,
+            cursor:'pointer',textAlign:'left',transition:'all .2s'
+          }}
+          onMouseEnter={e=>{(e.currentTarget as HTMLElement).style.borderColor=info.color}}
+          onMouseLeave={e=>{(e.currentTarget as HTMLElement).style.borderColor=`${info.color}44`}}
+          >
+            <span style={{fontSize:28}}>{info.emoji}</span>
+            <div style={{flex:1}}>
+              <div style={{fontSize:15,fontWeight:900,color:info.color}}>{info.label}</div>
+              <div style={{fontSize:11,color:'rgba(255,255,255,0.4)'}}>{info.desc}</div>
+            </div>
+            <div style={{textAlign:'right'}}>
+              <div style={{fontSize:11,color:'rgba(255,255,255,0.3)'}}>Rekor</div>
+              <div style={{fontSize:16,fontWeight:900,color:info.color}}>{stats[dk]}</div>
+            </div>
+          </button>
+        )
+      })}
+
+      <button onClick={onBack} style={{background:'none',border:'1px solid rgba(255,255,255,0.1)',borderRadius:10,padding:'8px 22px',color:'rgba(255,255,255,0.4)',fontSize:12,cursor:'pointer'}}>
+        ← Kembali
+      </button>
+    </div>
+  )
+
+  // ── GAME OVER ──
+  if(phase==='over') return (
+    <div style={{display:'flex',flexDirection:'column',height:'100%',alignItems:'center',justifyContent:'center',gap:16,padding:20,background:'#0a0a12'}}>
+      <div style={{fontSize:64,filter:'drop-shadow(0 0 30px rgba(251,146,60,0.5))'}}>💀</div>
+      <div style={{fontSize:26,fontWeight:900,color:'#fb923c',letterSpacing:2}}>GAME OVER</div>
+      <div style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:16,padding:'16px 32px',textAlign:'center'}}>
+        <div style={{fontSize:13,color:'rgba(255,255,255,0.4)',marginBottom:4}}>Skor kamu</div>
+        <div style={{fontSize:44,fontWeight:900,color:'#fb923c'}}>{score}</div>
+        <div style={{fontSize:11,color:'rgba(255,255,255,0.3)',marginTop:4}}>
+          Rekor {diffInfo.label}: {Math.max(score, stats[bestKey] as number)}
+          {score > (stats[bestKey] as number) && score > 0 && <span style={{color:'#c8f500',marginLeft:6}}>🎉 New Best!</span>}
+        </div>
+      </div>
+      <div style={{fontSize:12,color:'rgba(255,255,255,0.4)'}}>Total apel dimakan: {stats.totalApples}</div>
+      <div style={{display:'flex',gap:12,marginTop:4}}>
+        <button onClick={()=>startGame(difficulty)} style={{background:'rgba(251,146,60,0.15)',border:'1px solid rgba(251,146,60,0.5)',borderRadius:12,padding:'11px 22px',color:'#fb923c',fontWeight:900,fontSize:13,cursor:'pointer'}}>
+          🔄 Main Lagi
+        </button>
+        <button onClick={()=>{stopLoop();setPhase('menu')}} style={{background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:12,padding:'11px 22px',color:'rgba(255,255,255,0.6)',fontWeight:700,fontSize:13,cursor:'pointer'}}>
+          🏠 Menu
+        </button>
+      </div>
+    </div>
+  )
+
+  // ── PLAYING ──
+  const gridPx = cellSize * SNAKE_GRID
+
+  return (
+    <div
+      style={{display:'flex',flexDirection:'column',height:'100%',background:'#0a0a12',overflow:'hidden',userSelect:'none'}}
+      onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}
+    >
+      {/* Header */}
+      <div style={{display:'flex',alignItems:'center',gap:8,padding:'8px 12px',borderBottom:'1px solid rgba(255,255,255,0.06)',flexShrink:0}}>
+        <button onClick={()=>{stopLoop();setPhase('menu')}} style={{background:'none',border:'1px solid rgba(255,255,255,0.1)',borderRadius:8,padding:'4px 10px',color:'rgba(255,255,255,0.5)',fontSize:11,cursor:'pointer'}}>← Menu</button>
+        <div style={{flex:1,textAlign:'center'}}>
+          <span style={{fontSize:13,fontWeight:900,color:'#fff'}}>🐍 Snake</span>
+          <span style={{fontSize:10,color:diffInfo.color,marginLeft:6}}>{diffInfo.label}</span>
+        </div>
+        <button onClick={()=>{pausedRef.current=!pausedRef.current;setPaused(p=>!p)}}
+          style={{background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:8,padding:'4px 10px',color:'rgba(255,255,255,0.7)',fontSize:11,cursor:'pointer',fontWeight:700}}>
+          {paused?'▶ Lanjut':'⏸ Pause'}
+        </button>
+      </div>
+
+      {/* Score bar */}
+      <div style={{display:'flex',justifyContent:'space-between',padding:'6px 16px',flexShrink:0}}>
+        <div style={{textAlign:'center'}}>
+          <div style={{fontSize:18,fontWeight:900,color:'#fb923c'}}>{score}</div>
+          <div style={{fontSize:9,color:'rgba(255,255,255,0.3)'}}>SKOR</div>
+        </div>
+        <div style={{textAlign:'center'}}>
+          <div style={{fontSize:18,fontWeight:900,color:'#c8f500'}}>{stats[bestKey]}</div>
+          <div style={{fontSize:9,color:'rgba(255,255,255,0.3)'}}>REKOR</div>
+        </div>
+        <div style={{textAlign:'center'}}>
+          <div style={{fontSize:18,fontWeight:900,color:'#fff'}}>{snake.length}</div>
+          <div style={{fontSize:9,color:'rgba(255,255,255,0.3)'}}>PANJANG</div>
+        </div>
+      </div>
+
+      {/* Pause overlay */}
+      {paused && (
+        <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.75)',zIndex:20,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:12}}>
+          <div style={{fontSize:36}}>⏸</div>
+          <div style={{fontSize:18,fontWeight:900,color:'#fff'}}>PAUSE</div>
+          <button onClick={()=>{pausedRef.current=false;setPaused(false)}} style={{background:'rgba(251,146,60,0.2)',border:'1px solid rgba(251,146,60,0.5)',borderRadius:12,padding:'10px 28px',color:'#fb923c',fontWeight:900,fontSize:14,cursor:'pointer'}}>▶ Lanjutkan</button>
+        </div>
+      )}
+
+      {/* Board */}
+      <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden'}}>
+        <div style={{
+          position:'relative',width:gridPx,height:gridPx,flexShrink:0,
+          background:'#0f1923',
+          border:'2px solid rgba(251,146,60,0.2)',borderRadius:4,
+          backgroundImage:'linear-gradient(rgba(255,255,255,0.02) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.02) 1px,transparent 1px)',
+          backgroundSize:`${cellSize}px ${cellSize}px`
+        }}>
+          {/* Apple */}
+          <div style={{position:'absolute',left:apple.x*cellSize,top:apple.y*cellSize,width:cellSize,height:cellSize,display:'flex',alignItems:'center',justifyContent:'center',fontSize:cellSize*0.8,lineHeight:1,transition:'all .05s'}}>🍎</div>
+
+          {/* Bonus apple */}
+          {bonusApple && (
+            <div style={{position:'absolute',left:bonusApple.x*cellSize,top:bonusApple.y*cellSize,width:cellSize,height:cellSize,display:'flex',alignItems:'center',justifyContent:'center',fontSize:cellSize*0.8,lineHeight:1,animation:'pulse 0.5s infinite',zIndex:2}}>
+              ⭐
+            </div>
+          )}
+          {bonusApple && (
+            <div style={{position:'absolute',top:2,left:'50%',transform:'translateX(-50%)',fontSize:9,color:'#fbbf24',fontWeight:700,background:'rgba(0,0,0,0.6)',padding:'2px 8px',borderRadius:6,zIndex:3,whiteSpace:'nowrap'}}>
+              ⭐ Bonus! {bonusTimer}s
+            </div>
+          )}
+
+          {/* Snake */}
+          {snake.map((seg,i)=>{
+            const isHead=i===0
+            const ratio=1-i/snake.length
+            const g=Math.round(180+ratio*75), r=Math.round(ratio*80)
+            const color=isHead?'#fb923c':`rgb(${r},${g},60)`
+            return (
+              <div key={i} style={{
+                position:'absolute',
+                left:seg.x*cellSize+1,top:seg.y*cellSize+1,
+                width:cellSize-2,height:cellSize-2,
+                background:color,
+                borderRadius:isHead?4:3,
+                zIndex:isHead?3:1,
+                display:isHead?'flex':'block',
+                alignItems:'center',justifyContent:'center',
+                fontSize:isHead?cellSize*0.55:undefined,
+                transition:'all 0.05s',
+              }}>
+                {isHead && (dir==='RIGHT'?'👁':dir==='LEFT'?'👁':dir==='UP'?'👁':'👁')}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* D-pad controls */}
+      <div style={{display:'flex',flexDirection:'column',alignItems:'center',padding:'10px 0 14px',gap:4,flexShrink:0}}>
+        <button onPointerDown={()=>changeDir('UP')} style={dpadBtn}> ▲ </button>
+        <div style={{display:'flex',gap:4}}>
+          <button onPointerDown={()=>changeDir('LEFT')} style={dpadBtn}> ◄ </button>
+          <div style={{width:44,height:44,background:'rgba(255,255,255,0.04)',borderRadius:10,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,color:'rgba(255,255,255,0.2)'}}>🐍</div>
+          <button onPointerDown={()=>changeDir('RIGHT')} style={dpadBtn}> ► </button>
+        </div>
+        <button onPointerDown={()=>changeDir('DOWN')} style={dpadBtn}> ▼ </button>
+      </div>
+    </div>
+  )
+}
+
+const dpadBtn: React.CSSProperties = {
+  width:44,height:44,background:'rgba(251,146,60,0.12)',
+  border:'1px solid rgba(251,146,60,0.3)',borderRadius:10,
+  color:'#fb923c',fontSize:16,cursor:'pointer',
+  display:'flex',alignItems:'center',justifyContent:'center',
+  fontWeight:900, touchAction:'manipulation'
 }
 
 function FishingPanel({
