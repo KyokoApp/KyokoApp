@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback, memo } from 'react'
 import AnimeStreamPanel from './AnimeStreamPanel'
+import MangaStreamPanel from './MangaStreamPanel'
 import { auth, googleProvider, dbChat, getRpgDb } from './firebase'
 import {
   rpgSaveLocal, rpgLoadLocal, rpgSyncToFirebase, rpgNeedsSync,
@@ -3705,6 +3706,7 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
     { id: 'music',  icon: '🎵', label: 'music-room',    category: 'MEDIA',   type: 'voice' },
     { id: 'voice',  icon: '📞', label: 'voice-room',    category: 'MEDIA',   type: 'voice' },
     { id: 'anime',  icon: '🎌', label: 'anime-stream',  category: 'MEDIA',   type: 'text'  },
+    { id: 'manga',  icon: '📖', label: 'kyoko-manga',   category: 'MEDIA',   type: 'text'  },
   ] as const
 
   type ChannelId = typeof CHANNELS[number]['id']
@@ -3717,6 +3719,7 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
     else if (id === 'voice') { setActiveTab('voice'); }
     else if (id === 'music') { setActiveTab('music'); }
     else if (id === 'anime') { setActiveTab('anime' as any); }
+    else if (id === 'manga') { setActiveTab('manga' as any); }
     else if (id === 'offline') { setActiveTab('offline' as any); }
     else { setActiveTab('chat'); }
   }
@@ -3724,6 +3727,7 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
   const getActiveChannelId = (): ChannelId => {
     if ((activeTab as string) === 'fishing') return 'fishing'
     if ((activeTab as string) === 'anime') return 'anime'
+    if ((activeTab as string) === 'manga') return 'manga'
     if ((activeTab as string) === 'offline') return 'offline'
     if (activeTab === 'voice') return 'voice'
     if (activeTab === 'music') return 'music'
@@ -4151,6 +4155,11 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
             {/* ── ANIME STREAM TAB ── */}
             {(activeTab as string) === 'anime' && (
               <AnimeStreamPanel isAdmin={isAdmin} userId={user?.uid || ''} />
+            )}
+
+            {/* ── MANGA TAB ── */}
+            {(activeTab as string) === 'manga' && (
+              <MangaStreamPanel isAdmin={isAdmin} userId={user?.uid || ''} />
             )}
 
             {/* ── CHAT TAB ── */}
