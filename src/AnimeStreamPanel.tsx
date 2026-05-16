@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react'
+import React, { useState, useCallback, useEffect } from 'react'
 
 // ═══════════════════════════════════════════════════════════════
 // TYPES
@@ -17,74 +17,30 @@ interface AnimeInfo {
   score: number
   year?: number
   format: string
-}
-
-interface StreamSource {
-  url: string
-  quality: string
-  isM3U8: boolean
-}
-
-interface EpisodeInfo {
-  id: string
-  number: number
-  title?: string
+  slug?: string // untuk embed URL
 }
 
 type View = 'home' | 'results' | 'detail' | 'player'
 
 // ═══════════════════════════════════════════════════════════════
-// CONSUMET API
-// Public instances — sama yang dipakai Saikou & Aniyomi
+// EMBED URL BUILDER
+// Pakai hianime.to embed — paling stabil, support banyak anime
 // ═══════════════════════════════════════════════════════════════
-const CONSUMET_INSTANCES = [
-  'https://api.consumet.org',
-  'https://consumet-api.onrender.com',
-  'https://consumet.animepahe.ru',
-]
+function buildEmbedUrl(anime: AnimeInfo, episode: number): string {
+  // Coba cari di hianime via slug dari title romaji
+  const slug = anime.titleRomaji
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
 
-async function fetchConsumet(path: string): Promise<any> {
-  for (const base of CONSUMET_INSTANCES) {
-    try {
-      const res = await fetch(`${base}${path}`, { signal: AbortSignal.timeout(8000) })
-      if (res.ok) return await res.json()
-    } catch {
-      // try next instance
-    }
-  }
-  throw new Error('Semua Consumet instance tidak bisa diakses')
-}
-
-async function getEpisodeList(malId: number): Promise<EpisodeInfo[]> {
-  try {
-    const data = await fetchConsumet(`/meta/mal/episodes/${malId}`)
-    if (data?.episodes?.length) {
-      return data.episodes.map((ep: any) => ({
-        id: ep.id,
-        number: ep.number,
-        title: ep.title,
-      }))
-    }
-  } catch {}
-  return []
-}
-
-async function getStreamSources(episodeId: string): Promise<StreamSource[]> {
-  try {
-    const data = await fetchConsumet(`/anime/gogoanime/watch/${encodeURIComponent(episodeId)}`)
-    if (data?.sources?.length) {
-      return data.sources.map((s: any) => ({
-        url: s.url,
-        quality: s.quality || 'auto',
-        isM3U8: s.isM3U8 ?? s.url?.includes('.m3u8'),
-      }))
-    }
-  } catch {}
-  return []
+  // Format: https://hianime.to/watch/{slug}-{malId}?ep={episode}
+  // Fallback: pakai 9anime embed
+  return `https://hianime.to/watch/${slug}-${anime.id}?ep=${episode}`
 }
 
 // ═══════════════════════════════════════════════════════════════
-// JIKAN API — untuk data anime (info, thumbnail, dll)
+// JIKAN API — data anime (info, thumbnail, dll)
 // ═══════════════════════════════════════════════════════════════
 const JIKAN = 'https://api.jikan.moe/v4'
 
@@ -215,9 +171,20 @@ const S = `
 .ax-ep-btn { aspect-ratio: 1; border-radius: 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); color: rgba(255,255,255,0.7); font-size: 11px; font-weight: 700; cursor: pointer; transition: all .2s; font-family: inherit; display: flex; align-items: center; justify-content: center; }
 .ax-ep-btn:active { transform: scale(0.9); }
 .ax-ep-btn.active { background: linear-gradient(135deg,#a78bfa22,#7c3aed22); border-color: #a78bfa; color: #a78bfa; }
-.ax-player-box { width: 100%; aspect-ratio: 16/9; background: #000; position: relative; flex-shrink: 0; overflow: hidden; }
-.ax-player-box video { width: 100%; height: 100%; object-fit: contain; display: block; background: #000; }
-.ax-player-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; background: #0d0d0d; z-index: 2; padding: 20px; text-align: center; }
+
+/* PLAYER - iframe embed */
+.ax-player-box {
+  width: 100%; aspect-ratio: 16/9; background: #000;
+  position: relative; flex-shrink: 0; overflow: hidden;
+}
+.ax-player-box iframe {
+  width: 100%; height: 100%; border: none; display: block;
+}
+.ax-player-loading {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 10px;
+  background: #0d0d0d; z-index: 2;
+}
 .ax-player-controls { display: flex; gap: 6px; padding: 10px 14px; flex-shrink: 0; border-bottom: 1px solid rgba(255,255,255,0.06); flex-wrap: wrap; align-items: center; }
 .ax-ctrl { padding: 6px 12px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; border: 1px solid; transition: all .2s; font-family: inherit; }
 .ax-ctrl.accent { background: rgba(167,139,250,0.12); border-color: rgba(167,139,250,0.3); color: #a78bfa; }
@@ -226,9 +193,6 @@ const S = `
 .ax-now-playing { font-size: 11px; color: rgba(255,255,255,0.35); padding: 6px 14px; flex-shrink: 0; display: flex; align-items: center; gap: 6px; }
 .ax-now-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; background: #a78bfa; animation: ax-pulse 1.4s ease infinite; }
 @keyframes ax-pulse { 0%,100%{opacity:.5;transform:scale(1)} 50%{opacity:1;transform:scale(1.3)} }
-.ax-quality-row { display: flex; gap: 6px; padding: 8px 14px; flex-shrink: 0; flex-wrap: wrap; border-bottom: 1px solid rgba(255,255,255,0.06); }
-.ax-quality-btn { padding: 4px 10px; border-radius: 6px; font-size: 10px; font-weight: 700; cursor: pointer; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.5); font-family: inherit; }
-.ax-quality-btn.active { background: rgba(167,139,250,0.15); border-color: #a78bfa; color: #a78bfa; }
 .ax-loading { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 50px 20px; color: rgba(255,255,255,0.3); font-size: 13px; }
 .ax-spinner { width: 30px; height: 30px; border: 3px solid rgba(167,139,250,0.15); border-top-color: #a78bfa; border-radius: 50%; animation: ax-spin .7s linear infinite; }
 @keyframes ax-spin { to { transform: rotate(360deg); } }
@@ -238,7 +202,41 @@ const S = `
 .ax-status.finished { background: rgba(148,163,184,0.12); border: 1px solid rgba(148,163,184,0.2); color: #94a3b8; }
 .ax-status.upcoming { background: rgba(251,191,36,0.12); border: 1px solid rgba(251,191,36,0.25); color: #fbbf24; }
 .ax-info-box { margin: 8px 14px; padding: 9px 12px; border-radius: 10px; background: rgba(96,165,250,0.08); border: 1px solid rgba(96,165,250,0.18); font-size: 11px; color: rgba(96,165,250,0.8); line-height: 1.5; flex-shrink: 0; }
+.ax-warn-box { margin: 8px 14px; padding: 9px 12px; border-radius: 10px; background: rgba(251,191,36,0.07); border: 1px solid rgba(251,191,36,0.2); font-size: 11px; color: rgba(251,191,36,0.8); line-height: 1.5; flex-shrink: 0; }
+.ax-provider-row { display: flex; gap: 6px; padding: 8px 14px 0; flex-shrink: 0; flex-wrap: wrap; }
+.ax-provider-btn { padding: 5px 12px; border-radius: 8px; font-size: 10px; font-weight: 700; cursor: pointer; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.5); font-family: inherit; transition: all .2s; }
+.ax-provider-btn.active { background: rgba(167,139,250,0.15); border-color: #a78bfa; color: #a78bfa; }
 `
+
+// ═══════════════════════════════════════════════════════════════
+// EMBED PROVIDERS
+// ═══════════════════════════════════════════════════════════════
+type Provider = 'hianime' | 'yugenanime' | 'allanime'
+
+const PROVIDERS: { id: Provider; label: string }[] = [
+  { id: 'hianime', label: '🎌 Hianime' },
+  { id: 'yugenanime', label: '🌸 YugenAnime' },
+  { id: 'allanime', label: '⚡ AllAnime' },
+]
+
+function getEmbedUrl(anime: AnimeInfo, episode: number, provider: Provider): string {
+  const slug = anime.titleRomaji
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+
+  switch (provider) {
+    case 'hianime':
+      return `https://hianime.to/watch/${slug}-${anime.id}?ep=${episode}`
+    case 'yugenanime':
+      return `https://yugenanime.tv/anime/${anime.id}/${slug}/watch/?ep=${episode}`
+    case 'allanime':
+      return `https://allanime.to/anime/${anime.id}/episode-${episode}`
+    default:
+      return `https://hianime.to/watch/${slug}-${anime.id}?ep=${episode}`
+  }
+}
 
 // ═══════════════════════════════════════════════════════════════
 // COMPONENT
@@ -258,15 +256,10 @@ export default function AnimeStreamPanel({ isAdmin, userId }: Props) {
 
   const [selectedAnime, setSelectedAnime] = useState<AnimeInfo | null>(null)
   const [selectedEp, setSelectedEp] = useState<number>(1)
-  const [episodes, setEpisodes] = useState<EpisodeInfo[]>([])
-  const [epLoading, setEpLoading] = useState(false)
+  const [iframeLoading, setIframeLoading] = useState(true)
+  const [provider, setProvider] = useState<Provider>('hianime')
 
-  const [sources, setSources] = useState<StreamSource[]>([])
-  const [activeSource, setActiveSource] = useState<StreamSource | null>(null)
-  const [streamLoading, setStreamLoading] = useState(false)
-  const [streamError, setStreamError] = useState('')
-
-  const videoRef = useRef<HTMLVideoElement>(null)
+  const epCount = selectedAnime?.episodes || 24
 
   // ── Load trending ──────────────────────────────────────────
   useEffect(() => {
@@ -275,96 +268,6 @@ export default function AnimeStreamPanel({ isAdmin, userId }: Props) {
       .catch(() => {})
       .finally(() => setTrendLoading(false))
   }, [])
-
-  // ── Load episode list saat anime dipilih ──────────────────
-  useEffect(() => {
-    if (!selectedAnime) return
-    setEpLoading(true)
-    setEpisodes([])
-    getEpisodeList(selectedAnime.id)
-      .then(eps => {
-        if (eps.length > 0) {
-          setEpisodes(eps)
-        } else {
-          const count = selectedAnime.episodes || 12
-          setEpisodes(Array.from({ length: count }, (_, i) => ({
-            id: `${selectedAnime.titleRomaji.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-episode-${i + 1}`,
-            number: i + 1,
-          })))
-        }
-      })
-      .catch(() => {
-        const count = selectedAnime.episodes || 12
-        setEpisodes(Array.from({ length: count }, (_, i) => ({
-          id: `${selectedAnime.titleRomaji.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-episode-${i + 1}`,
-          number: i + 1,
-        })))
-      })
-      .finally(() => setEpLoading(false))
-  }, [selectedAnime])
-
-  // ── Load HLS stream ────────────────────────────────────────
-  const loadStream = useCallback(async (ep: EpisodeInfo) => {
-    setStreamLoading(true)
-    setStreamError('')
-    setSources([])
-    setActiveSource(null)
-    setView('player')
-
-    try {
-      const srcs = await getStreamSources(ep.id)
-      if (srcs.length === 0) {
-        setStreamError('Tidak ada stream untuk episode ini. Coba episode lain.')
-        setStreamLoading(false)
-        return
-      }
-      setSources(srcs)
-      const best = srcs.find(s => s.quality === '1080p')
-        || srcs.find(s => s.quality === '720p')
-        || srcs.find(s => s.quality === '480p')
-        || srcs[0]
-      setActiveSource(best)
-    } catch {
-      setStreamError('Gagal mengambil stream. Cek koneksi dan coba lagi.')
-    } finally {
-      setStreamLoading(false)
-    }
-  }, [])
-
-  // ── Attach source ke video element ────────────────────────
-  useEffect(() => {
-    if (!activeSource || !videoRef.current) return
-    const video = videoRef.current
-
-    if (activeSource.isM3U8) {
-      if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        video.src = activeSource.url
-        video.load()
-      } else {
-        const loadHls = () => {
-          const Hls = (window as any).Hls
-          if (Hls?.isSupported()) {
-            const hls = new Hls({ enableWorker: false })
-            hls.loadSource(activeSource.url)
-            hls.attachMedia(video)
-            hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}))
-          }
-        }
-        if ((window as any).Hls) {
-          loadHls()
-        } else {
-          const s = document.createElement('script')
-          s.src = 'https://cdn.jsdelivr.net/npm/hls.js@latest/dist/hls.min.js'
-          s.onload = loadHls
-          document.head.appendChild(s)
-        }
-      }
-    } else {
-      video.src = activeSource.url
-      video.load()
-      video.play().catch(() => {})
-    }
-  }, [activeSource])
 
   // ── Search ─────────────────────────────────────────────────
   const handleSearch = useCallback(async () => {
@@ -384,30 +287,19 @@ export default function AnimeStreamPanel({ isAdmin, userId }: Props) {
   const handleSelectAnime = (anime: AnimeInfo) => {
     setSelectedAnime(anime)
     setSelectedEp(1)
-    setSources([])
-    setActiveSource(null)
-    setStreamError('')
     setView('detail')
   }
 
-  const handleWatch = (ep: EpisodeInfo) => {
-    setSelectedEp(ep.number)
-    loadStream(ep)
+  const handleWatch = (ep: number) => {
+    setSelectedEp(ep)
+    setIframeLoading(true)
+    setView('player')
   }
-
-  const handleFullscreen = () => {
-    const el = videoRef.current
-    if (!el) return
-    try {
-      if (el.requestFullscreen) el.requestFullscreen()
-      else if ((el as any).webkitRequestFullscreen) (el as any).webkitRequestFullscreen()
-    } catch {}
-  }
-
-  const epCount = episodes.length || selectedAnime?.episodes || 24
 
   const statusClass = (s: string) => s === 'RELEASING' ? 'airing' : s === 'FINISHED' ? 'finished' : 'upcoming'
   const statusLabel = (s: string) => s === 'RELEASING' ? '● Ongoing' : s === 'FINISHED' ? 'Selesai' : s === 'NOT_YET_RELEASED' ? 'Upcoming' : s
+
+  const embedUrl = selectedAnime ? getEmbedUrl(selectedAnime, selectedEp, provider) : ''
 
   return (
     <>
@@ -518,25 +410,19 @@ export default function AnimeStreamPanel({ isAdmin, userId }: Props) {
               {selectedAnime.description && <div className="ax-detail-desc">{selectedAnime.description}...</div>}
 
               <div className="ax-ep-section">
-                <div className="ax-ep-label">
-                  📺 PILIH EPISODE
-                  {epLoading && <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', fontWeight: 400 }}>memuat...</span>}
+                <div className="ax-ep-label">📺 PILIH EPISODE</div>
+                <div className="ax-ep-grid">
+                  {Array.from({ length: epCount }, (_, i) => i + 1).map(n => (
+                    <button key={n} className={`ax-ep-btn ${selectedEp === n ? 'active' : ''}`}
+                      onClick={() => handleWatch(n)}>
+                      {n}
+                    </button>
+                  ))}
                 </div>
-                {epLoading ? (
-                  <div className="ax-loading" style={{ padding: '20px 0' }}><div className="ax-spinner" /></div>
-                ) : (
-                  <div className="ax-ep-grid">
-                    {episodes.map(ep => (
-                      <button key={ep.number} className={`ax-ep-btn ${selectedEp === ep.number ? 'active' : ''}`}
-                        onClick={() => handleWatch(ep)}>
-                        {ep.number}
-                      </button>
-                    ))}
-                  </div>
-                )}
               </div>
+
               <div className="ax-info-box" style={{ marginTop: 12 }}>
-                💡 Stream via <strong>Consumet API + HLS</strong> — cara yang sama dipakai Saikou & Aniyomi. Tidak ada iframe, langsung ke video player.
+                🌐 Stream via <strong>embed player</strong> — pilih provider jika satu tidak jalan.
               </div>
             </div>
           </>
@@ -552,58 +438,43 @@ export default function AnimeStreamPanel({ isAdmin, userId }: Props) {
               </span>
             </div>
 
+            {/* Provider selector */}
+            <div className="ax-provider-row">
+              {PROVIDERS.map(p => (
+                <button key={p.id}
+                  className={`ax-provider-btn ${provider === p.id ? 'active' : ''}`}
+                  onClick={() => { setProvider(p.id); setIframeLoading(true) }}>
+                  {p.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Iframe Player */}
             <div className="ax-player-box">
-              {(streamLoading || (!activeSource && !streamError)) && (
-                <div className="ax-player-overlay">
+              {iframeLoading && (
+                <div className="ax-player-loading">
                   <div className="ax-spinner" style={{ width: 36, height: 36, borderWidth: 4 }} />
-                  <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12 }}>Mengambil stream HLS...</span>
-                  <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 10 }}>Menghubungi Consumet API...</span>
+                  <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12 }}>Memuat player...</span>
                 </div>
               )}
-              {streamError && (
-                <div className="ax-player-overlay">
-                  <span style={{ fontSize: 32 }}>⚠️</span>
-                  <span style={{ color: '#f87171', fontSize: 13, fontWeight: 700 }}>{streamError}</span>
-                  <button onClick={() => setView('detail')}
-                    style={{ marginTop: 8, padding: '8px 18px', background: 'rgba(167,139,250,0.15)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.3)', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-                    ← Pilih Episode Lain
-                  </button>
-                </div>
-              )}
-              <video
-                ref={videoRef}
-                controls
-                playsInline
-                style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#000', display: activeSource ? 'block' : 'none' }}
+              <iframe
+                key={`${provider}-${selectedAnime.id}-${selectedEp}`}
+                src={embedUrl}
+                allowFullScreen
+                allow="autoplay; fullscreen; picture-in-picture"
+                onLoad={() => setIframeLoading(false)}
+                style={{ opacity: iframeLoading ? 0 : 1, transition: 'opacity .3s' }}
               />
             </div>
 
-            {sources.length > 1 && (
-              <div className="ax-quality-row">
-                <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', alignSelf: 'center', marginRight: 4 }}>Kualitas:</span>
-                {sources.map((s, i) => (
-                  <button key={i} className={`ax-quality-btn ${activeSource?.url === s.url ? 'active' : ''}`}
-                    onClick={() => setActiveSource(s)}>
-                    {s.quality}
-                  </button>
-                ))}
-              </div>
-            )}
-
+            {/* Controls */}
             <div className="ax-player-controls">
-              <button className="ax-ctrl accent" onClick={handleFullscreen}>⛶ Fullscreen</button>
               <button className="ax-ctrl dim" disabled={selectedEp <= 1}
-                onClick={() => {
-                  const prev = episodes.find(e => e.number === selectedEp - 1) || { id: String(selectedEp - 1), number: selectedEp - 1 }
-                  handleWatch(prev)
-                }}>
+                onClick={() => { setSelectedEp(e => e - 1); setIframeLoading(true) }}>
                 ‹ Ep {selectedEp - 1 > 0 ? selectedEp - 1 : '-'}
               </button>
               <button className="ax-ctrl dim" disabled={selectedEp >= epCount}
-                onClick={() => {
-                  const next = episodes.find(e => e.number === selectedEp + 1) || { id: String(selectedEp + 1), number: selectedEp + 1 }
-                  handleWatch(next)
-                }}>
+                onClick={() => { setSelectedEp(e => e + 1); setIframeLoading(true) }}>
                 Ep {selectedEp < epCount ? selectedEp + 1 : '-'} ›
               </button>
             </div>
@@ -611,13 +482,11 @@ export default function AnimeStreamPanel({ isAdmin, userId }: Props) {
             <div className="ax-now-playing">
               <div className="ax-now-dot" />
               <span>{selectedAnime.title} · Episode {selectedEp}</span>
-              {activeSource && <span style={{ marginLeft: 'auto', color: 'rgba(167,139,250,0.6)', fontSize: 10 }}>{activeSource.quality}</span>}
+              <span style={{ marginLeft: 'auto', color: 'rgba(167,139,250,0.6)', fontSize: 10 }}>{PROVIDERS.find(p => p.id === provider)?.label}</span>
             </div>
 
-            <div style={{ flex: 1, overflow: 'hidden auto', padding: '8px 0 40px', scrollbarWidth: 'none' }}>
-              <div className="ax-info-box">
-                🎬 Menggunakan <strong>HLS stream langsung</strong> — bukan iframe. Video diputar native di WebView tanpa masalah sandbox atau block.
-              </div>
+            <div className="ax-warn-box">
+              ⚠️ Kalau player tidak muncul, coba ganti provider di atas. Setiap provider bisa berbeda ketersediaan episodenya.
             </div>
           </>
         )}
