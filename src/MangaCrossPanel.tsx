@@ -776,23 +776,35 @@ export default function MangaCrossPanel({ isAdmin, userId }: Props) {
             selectedManga.chapters.map(ch => {
                 const isUnlocked = isAdmin || ch.coinPrice === 0 || unlockedChapters.includes(ch.id)
                 return (
-                  <button key={ch.id} style={{ ...S.chapterBtn, opacity: 1 }}
-                    onClick={() => handleChapterClick(ch)}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: '#c8f500' }}>Ch.{ch.chapterNumber}</span>
-                    <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', flex: 1, marginLeft: 10 }}>{ch.title}</span>
-                    {isUnlocked ? (
-                      <span style={{ fontSize: 11, color: '#4fc3f7' }}>
-                        {ch.coinPrice === 0 ? '🆓' : '✅'}
-                      </span>
-                    ) : (
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 3,
-                        background: 'rgba(200,245,0,0.1)', border: '1px solid rgba(200,245,0,0.3)',
-                        borderRadius: 10, padding: '2px 7px' }}>
-                        <span style={{ fontSize: 10 }}>🪙</span>
-                        <span style={{ fontSize: 11, fontWeight: 800, color: '#c8f500' }}>{ch.coinPrice}</span>
-                      </span>
+                  <div key={ch.id} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                    <button style={{ ...S.chapterBtn, flex: 1, marginBottom: 0 }}
+                      onClick={() => handleChapterClick(ch)}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: '#c8f500' }}>Ch.{ch.chapterNumber}</span>
+                      <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', flex: 1, marginLeft: 10 }}>{ch.title}</span>
+                      {isUnlocked ? (
+                        <span style={{ fontSize: 11, color: '#4fc3f7' }}>
+                          {ch.coinPrice === 0 ? '🆓' : '✅'}
+                        </span>
+                      ) : (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 3,
+                          background: 'rgba(200,245,0,0.1)', border: '1px solid rgba(200,245,0,0.3)',
+                          borderRadius: 10, padding: '2px 7px' }}>
+                          <span style={{ fontSize: 10 }}>🪙</span>
+                          <span style={{ fontSize: 11, fontWeight: 800, color: '#c8f500' }}>{ch.coinPrice}</span>
+                        </span>
+                      )}
+                    </button>
+                    {isAdmin && (
+                      <button onClick={async () => {
+                        if (!confirm(`Hapus Chapter ${ch.chapterNumber}?`)) return
+                        const fb = FB_INSTANCES.find(f => f.name === selectedManga.firebaseName)!
+                        await deleteDoc(doc(fb.db, 'mangaCross', selectedManga.id, 'chapters', ch.id))
+                      }} style={{ background: 'rgba(255,80,80,0.15)', border: '1px solid rgba(255,80,80,0.3)',
+                        borderRadius: 8, padding: '8px 10px', cursor: 'pointer', fontSize: 14, flexShrink: 0 }}>
+                        🗑️
+                      </button>
                     )}
-                  </button>
+                  </div>
                 )
               })
             )}
@@ -1456,7 +1468,7 @@ const S: Record<string, React.CSSProperties> = {
     background: 'rgba(200,245,0,0.1)', color: '#c8f500',
   },
   grid: {
-    display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10,
+    display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6,
   },
   card: {
     background: 'none', border: 'none', cursor: 'pointer',
@@ -1464,11 +1476,11 @@ const S: Record<string, React.CSSProperties> = {
   },
   cardImg: {
     width: '100%', aspectRatio: '2/3', objectFit: 'cover',
-    borderRadius: 8, display: 'block',
+    borderRadius: 6, display: 'block',
   },
   cardTitle: {
-    fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.85)',
-    marginTop: 6, lineHeight: 1.3,
+    fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.85)',
+    marginTop: 4, lineHeight: 1.3,
     overflow: 'hidden', textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
   },

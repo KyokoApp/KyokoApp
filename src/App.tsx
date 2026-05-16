@@ -119,6 +119,31 @@ function App() {
     return () => unsub()
   }, [showLoginTutorial])
 
+  // ── OTA Update Checker ────────────────────────────────────────────────────
+  React.useEffect(() => {
+    const CURRENT_VERSION = '1.0.0'
+    const VERSION_URL = 'https://kyokoapp.vercel.app/version.json'
+    const CHECK_INTERVAL = 5 * 60 * 1000 // cek tiap 5 menit
+
+    const checkUpdate = async () => {
+      try {
+        const res = await fetch(VERSION_URL + '?t=' + Date.now(), { cache: 'no-store' })
+        if (!res.ok) return
+        const data = await res.json()
+        const isNative = !!(window as any).Capacitor?.isNativePlatform?.()
+        if (!isNative) return // OTA hanya untuk APK, web auto update sendiri
+        if (data.forceReload || data.version !== CURRENT_VERSION) {
+          // Reload WebView untuk ambil versi terbaru dari Vercel
+          window.location.reload()
+        }
+      } catch { /* silent fail */ }
+    }
+
+    checkUpdate() // cek saat pertama buka
+    const interval = setInterval(checkUpdate, CHECK_INTERVAL)
+    return () => clearInterval(interval)
+  }, [])
+
   const handleLoginClick = async () => {
     try {
       const isCapacitor = !!(window as any).Capacitor?.isNativePlatform?.()
