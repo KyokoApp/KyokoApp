@@ -46,52 +46,79 @@ interface Bookmark {
 type View = 'home' | 'search' | 'detail' | 'reader'
 
 // ═══════════════════════════════════════════════════════════════
-// MANGADEX API
+// API — Hybrid: Consumet (native app) + MangaDex direct (web/PWA)
 // ═══════════════════════════════════════════════════════════════
-const BASE = 'https://api.mangadex.org'
-const COVER_BASE = 'https://uploads.mangadex.org/covers'
+const CONSUMET_BASES = [
+  'https://api.consumet.org',
+  'https://consumet-api.onrender.com',
+  'https://consumet.animepahe.ru',
+]
+const MANGADEX_BASE = 'https://api.mangadex.org'
+const COVER_BASE    = 'https://uploads.mangadex.org/covers'
 
-async function mdFetch(path: string, params: Record<string, any> = {}): Promise<any> {
-  const url = new URL(`${BASE}${path}`)
-  Object.entries(params).forEach(([k, v]) => {
-    if (Array.isArray(v)) v.forEach(val => url.searchParams.append(k, val))
-    else url.searchParams.append(k, String(v))
-  })
+// ── Generic fetch with timeout ────────────────────────────────
+async function safeFetch(url: string): Promise<any> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 12000)
   try {
-    const res = await fetch(url.toString(), {
+    const res = await fetch(url, {
       signal: controller.signal,
-      headers: { 'Accept': 'application/json' },
+      headers: { Accept: 'application/json' },
     })
     clearTimeout(timer)
-    if (!res.ok) throw new Error(`MangaDex ${res.status}`)
-    return res.json()
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    return await res.json()
   } catch (e) {
     clearTimeout(timer)
     throw e
   }
 }
 
-function extractCover(manga: any): string {
-  const rel = manga.relationships?.find((r: any) => r.type === 'cover_art')
-  if (!rel?.attributes?.fileName) return ''
-  return `${COVER_BASE}/${manga.id}/${rel.attributes.fileName}.512.jpg`
+// ── Try Consumet first, then MangaDex direct ─────────────────
+async function consumetFetch(path: string): Promise<any> {
+  for (const base of CONSUMET_BASES) {
+    try { return await safeFetch(`${base}${path}`) } catch {}
+  }
+  throw new Error('consumet_failed')
 }
 
-function parseManga(m: any): MangaInfo {
+async function mdFetch(path: string, params: Record<string, any> = {}): Promise<any> {
+  const url = new URL(`${MANGADEX_BASE}${path}`)
+  Object.entries(params).forEach(([k, v]) => {
+    if (Array.isArray(v)) v.forEach(val => url.searchParams.append(k, val))
+    else url.searchParams.append(k, String(v))
+  })
+  return safeFetch(url.toString())
+}
+
+// ── Parse helpers ─────────────────────────────────────────────
+function parseConsumetManga(m: any): MangaInfo {
+  return {
+    id: m.id,
+    title: m.title?.english || m.title?.romaji || m.title?.native || m.title || 'Unknown',
+    description: String(m.description || '').replace(/<[^>]*>/g, '').slice(0, 400),
+    coverUrl: m.image || m.cover || '',
+    status: (m.status || 'unknown').toLowerCase(),
+    year: m.releaseDate ? parseInt(m.releaseDate) : undefined,
+    tags: (m.genres || []).slice(0, 5),
+    contentRating: 'safe',
+    lastChapter: m.lastChapter,
+  }
+}
+
+function parseMdManga(m: any): MangaInfo {
   const attr = m.attributes
-  const title =
-    attr.title?.en ||
-    attr.title?.['ja-ro'] ||
-    Object.values(attr.title || {})[0] ||
-    'Unknown Title'
-  const desc = attr.description?.en || attr.description?.id || Object.values(attr.description || {})[0] || ''
+  const title = attr.title?.en || attr.title?.['ja-ro'] || Object.values(attr.title || {})[0] || 'Unknown'
+  const desc  = attr.description?.en || attr.description?.id || Object.values(attr.description || {})[0] || ''
+  const cover = (() => {
+    const rel = m.relationships?.find((r: any) => r.type === 'cover_art')
+    return rel?.attributes?.fileName ? `${COVER_BASE}/${m.id}/${rel.attributes.fileName}.512.jpg` : ''
+  })()
   return {
     id: m.id,
     title: String(title),
     description: String(desc).replace(/<[^>]*>/g, '').slice(0, 400),
-    coverUrl: extractCover(m),
+    coverUrl: cover,
     status: attr.status || 'unknown',
     year: attr.year,
     tags: attr.tags?.slice(0, 5).map((t: any) => t.attributes?.name?.en || '') || [],
@@ -100,43 +127,69 @@ function parseManga(m: any): MangaInfo {
   }
 }
 
+// ── Public API functions ──────────────────────────────────────
 async function fetchPopular(): Promise<MangaInfo[]> {
+  try {
+    const data = await consumetFetch('/manga/mangadex?page=1&perPage=20')
+    if (data?.results?.length) return data.results.map(parseConsumetManga)
+  } catch {}
+  // Fallback: MangaDex direct
   const data = await mdFetch('/manga', {
-    limit: 20,
-    'order[followedCount]': 'desc',
+    limit: 20, 'order[followedCount]': 'desc',
     'contentRating[]': ['safe', 'suggestive'],
-    'includes[]': ['cover_art'],
-    hasAvailableChapters: 'true',
+    'includes[]': ['cover_art'], hasAvailableChapters: 'true',
   })
-  return (data.data || []).map(parseManga)
+  return (data.data || []).map(parseMdManga)
 }
 
 async function fetchLatest(): Promise<MangaInfo[]> {
+  try {
+    const data = await consumetFetch('/manga/mangadex?page=2&perPage=20')
+    if (data?.results?.length) return data.results.map(parseConsumetManga)
+  } catch {}
   const data = await mdFetch('/manga', {
-    limit: 20,
-    'order[latestUploadedChapter]': 'desc',
+    limit: 20, 'order[latestUploadedChapter]': 'desc',
     'contentRating[]': ['safe', 'suggestive'],
-    'includes[]': ['cover_art'],
-    hasAvailableChapters: 'true',
+    'includes[]': ['cover_art'], hasAvailableChapters: 'true',
   })
-  return (data.data || []).map(parseManga)
+  return (data.data || []).map(parseMdManga)
 }
 
 async function searchManga(query: string): Promise<MangaInfo[]> {
+  try {
+    const data = await consumetFetch(`/manga/mangadex/${encodeURIComponent(query)}`)
+    if (data?.results?.length) return data.results.map(parseConsumetManga)
+  } catch {}
   const data = await mdFetch('/manga', {
-    title: query,
-    limit: 20,
+    title: query, limit: 20,
     'contentRating[]': ['safe', 'suggestive'],
-    'includes[]': ['cover_art'],
-    hasAvailableChapters: 'true',
+    'includes[]': ['cover_art'], hasAvailableChapters: 'true',
   })
-  return (data.data || []).map(parseManga)
+  return (data.data || []).map(parseMdManga)
 }
 
-async function fetchChapters(mangaId: string, offset = 0): Promise<{ chapters: ChapterInfo[]; total: number }> {
+async function fetchChapters(mangaId: string, _offset = 0): Promise<{ chapters: ChapterInfo[]; total: number }> {
+  // Try Consumet
+  try {
+    const data = await consumetFetch(`/manga/mangadex/info/${mangaId}`)
+    if (data?.chapters?.length) {
+      return {
+        chapters: data.chapters.map((c: any) => ({
+          id: c.id,
+          chapter: c.chapterNumber != null ? String(c.chapterNumber) : null,
+          title: c.title,
+          pages: c.pages || 0,
+          lang: c.translatedLanguage || 'en',
+          publishedAt: c.releaseDate || '',
+          scanlationGroup: c.scanlationGroup,
+        })),
+        total: data.chapters.length,
+      }
+    }
+  } catch {}
+  // Fallback: MangaDex direct
   const data = await mdFetch(`/manga/${mangaId}/feed`, {
-    limit: 100,
-    offset,
+    limit: 100, offset: _offset,
     'translatedLanguage[]': ['en', 'id'],
     'order[chapter]': 'asc',
     'includes[]': ['scanlation_group'],
@@ -155,12 +208,21 @@ async function fetchChapters(mangaId: string, offset = 0): Promise<{ chapters: C
 }
 
 async function fetchPages(chapterId: string): Promise<PageData> {
-  const data = await mdFetch(`/at-home/server/${chapterId}`)
+  // Try Consumet
+  try {
+    const data = await consumetFetch(`/manga/mangadex/read?chapterId=${encodeURIComponent(chapterId)}`)
+    const urls: string[] = Array.isArray(data) ? data : (data.images || data.pages || [])
+    if (urls.length) return { baseUrl: '', hash: '', data: urls, dataSaver: urls }
+  } catch {}
+  // Fallback: MangaDex at-home server
+  const data = await safeFetch(`https://api.mangadex.org/at-home/server/${chapterId}`)
+  const hash = data.chapter?.hash
+  const base = data.baseUrl
   return {
-    baseUrl: data.baseUrl,
-    hash: data.chapter?.hash,
-    data: data.chapter?.data || [],
-    dataSaver: data.chapter?.dataSaver || [],
+    baseUrl: base,
+    hash,
+    data:      (data.chapter?.data || []).map((fn: string) => `${base}/data/${hash}/${fn}`),
+    dataSaver: (data.chapter?.dataSaver || []).map((fn: string) => `${base}/data-saver/${hash}/${fn}`),
   }
 }
 
@@ -300,9 +362,7 @@ export default function MangaStreamPanel({ isAdmin: _isAdmin, userId: _userId }:
     try {
       const pd = await fetchPages(chapter.id)
       setPageData(pd)
-      const pgs = (quality === 'hq' ? pd.data : pd.dataSaver).map(
-        fn => `${pd.baseUrl}/${quality === 'hq' ? 'data' : 'data-saver'}/${pd.hash}/${fn}`
-      )
+      const pgs = quality === 'hq' ? pd.data : pd.dataSaver
       setPages(pgs)
       setView('reader')
       const prog = getReadProgress(selectedManga.id)
@@ -408,9 +468,7 @@ export default function MangaStreamPanel({ isAdmin: _isAdmin, userId: _userId }:
               const newQ = quality === 'hq' ? 'lq' : 'hq'
               setQuality(newQ)
               if (pageData) {
-                const pgs = (newQ === 'hq' ? pageData.data : pageData.dataSaver).map(
-                  fn => `${pageData.baseUrl}/${newQ === 'hq' ? 'data' : 'data-saver'}/${pageData.hash}/${fn}`
-                )
+                const pgs = newQ === 'hq' ? pageData.data : pageData.dataSaver
                 setPages(pgs)
                 setImgErrors(new Set())
               }
