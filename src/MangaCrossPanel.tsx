@@ -1339,12 +1339,17 @@ export default function MangaCrossPanel({ isAdmin, userId }: Props) {
             {filteredMangas.map(m => (
               <button key={m.id} style={S.card}
                 onClick={() => { setSelectedManga(m); setView('read') }}>
-                <div style={{ position: 'relative' }}>
+                <div style={{ width: '100%', aspectRatio: '2/3', background: 'rgba(255,255,255,0.05)', overflow: 'hidden', position: 'relative', borderRadius: 6 }}>
                   <img src={m.coverUrl || 'https://via.placeholder.com/150x220/111/333?text=No+Cover'}
-                    alt={m.title} style={S.cardImg} />
-                  <div style={{ ...S.statusBadge, background: statusColor[m.status] + '22',
-                    color: statusColor[m.status], borderColor: statusColor[m.status] + '44' }}>
-                    {m.status.toUpperCase()}
+                    alt={m.title} style={S.cardImg} loading="lazy" />
+                  {/* Status gradient overlay */}
+                  <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0,
+                    background: 'linear-gradient(transparent, rgba(0,0,0,0.8))',
+                    padding: '16px 5px 5px', pointerEvents: 'none' }}>
+                    <span style={{ fontSize: 8, fontWeight: 800, color: statusColor[m.status],
+                      textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                      {m.status.toUpperCase()}
+                    </span>
                   </div>
                   <div style={S.premiumBadge}>💎</div>
                 </div>
@@ -1468,21 +1473,21 @@ const S: Record<string, React.CSSProperties> = {
     background: 'rgba(200,245,0,0.1)', color: '#c8f500',
   },
   grid: {
-    display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6,
+    display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: 8,
   },
   card: {
-    background: 'none', border: 'none', cursor: 'pointer',
+    background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)',
+    borderRadius: 8, cursor: 'pointer', overflow: 'hidden',
     textAlign: 'left', padding: 0,
   },
   cardImg: {
-    width: '100%', aspectRatio: '2/3', objectFit: 'cover',
-    borderRadius: 6, display: 'block',
+    width: '100%', height: '100%', objectFit: 'cover', display: 'block',
   },
   cardTitle: {
     fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.85)',
-    marginTop: 4, lineHeight: 1.3,
+    padding: '5px 6px', lineHeight: 1.3,
     overflow: 'hidden', textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
+    display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
   },
   statusBadge: {
     position: 'absolute', bottom: 6, left: 6,
