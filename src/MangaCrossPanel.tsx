@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react'
 import { initializeApp, getApps, FirebaseApp } from 'firebase/app'
 import {
   getStorage, ref, uploadBytesResumable, getDownloadURL,
-  deleteObject, FirebaseStorage
+  listAll, deleteObject, FirebaseStorage
 } from 'firebase/storage'
 import {
   getFirestore, collection, addDoc, getDocs, doc, deleteDoc,
