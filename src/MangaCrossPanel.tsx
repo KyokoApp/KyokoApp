@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react'
 import { initializeApp, getApps, FirebaseApp } from 'firebase/app'
 import {
   getStorage, ref, uploadBytesResumable, getDownloadURL,
-  listAll, getMetadata, deleteObject, FirebaseStorage
+  deleteObject, FirebaseStorage
 } from 'firebase/storage'
 import {
   getFirestore, collection, addDoc, getDocs, doc, deleteDoc,
@@ -356,33 +356,15 @@ export default function MangaCrossPanel({ isAdmin, userId }: Props) {
     return () => unsub()
   }, [selectedManga?.id])
 
-  // ── Fetch storage stats ──
+  // ── Fetch storage stats dari Firestore (cepat, tanpa scan file) ──
   const fetchStorageStats = useCallback(async () => {
     setLoadingStats(true)
     const stats: StorageStats[] = []
     for (const fb of FB_INSTANCES) {
       try {
-        // Hitung usage dari metadata semua file di /mangaCross/
+        const snap = await getDocs(collection(fb.db, 'mangaCross'))
         let totalBytes = 0
-        const listResult = await listAll(ref(fb.storage, 'mangaCross'))
-        // Rekursif folder
-        const processFolder = async (folderRef: any) => {
-          const result = await listAll(folderRef)
-          for (const item of result.items) {
-            const meta = await getMetadata(item)
-            totalBytes += meta.size
-          }
-          for (const folder of result.prefixes) {
-            await processFolder(folder)
-          }
-        }
-        for (const prefix of listResult.prefixes) {
-          await processFolder(prefix)
-        }
-        for (const item of listResult.items) {
-          const meta = await getMetadata(item)
-          totalBytes += meta.size
-        }
+        snap.docs.forEach(d => { totalBytes += d.data().totalBytes || 0 })
         stats.push({ name: fb.name, label: fb.label, usedBytes: totalBytes, limitBytes: LIMIT_BYTES(fb.limitGB), limitGB: fb.limitGB })
       } catch {
         stats.push({ name: fb.name, label: fb.label, usedBytes: 0, limitBytes: LIMIT_BYTES(fb.limitGB), limitGB: fb.limitGB })
@@ -410,10 +392,9 @@ export default function MangaCrossPanel({ isAdmin, userId }: Props) {
     })
   }
 
-  // ── Extract ZIP and upload pages ──
-  const uploadZipPages = async (mangaId: string, chapterId: string, fb: FbInstance): Promise<string[]> => {
-    if (!uploadZipFile) return []
-    // Dynamically import JSZip
+  // ── Extract ZIP and upload pages (parallel) ──
+  const uploadZipPages = async (mangaId: string, chapterId: string, fb: FbInstance): Promise<{ urls: string[], bytes: number }> => {
+    if (!uploadZipFile) return { urls: [], bytes: 0 }
     const JSZip = (await import('https://cdn.skypack.dev/jszip' as any)).default
     const zip = await JSZip.loadAsync(uploadZipFile)
     const files = Object.values(zip.files) as any[]
@@ -421,30 +402,32 @@ export default function MangaCrossPanel({ isAdmin, userId }: Props) {
       .filter((f: any) => !f.dir && /\.(jpg|jpeg|png|webp|gif)$/i.test(f.name))
       .sort((a: any, b: any) => a.name.localeCompare(b.name, undefined, { numeric: true }))
 
-    const pageUrls: string[] = []
-    for (let i = 0; i < imageFiles.length; i++) {
-      const file = imageFiles[i]
+    let totalBytes = 0
+    const progresses = new Array(imageFiles.length).fill(0)
+
+    const uploadOne = async (file: any, i: number): Promise<{ url: string, bytes: number }> => {
       const blob = await file.async('blob')
       const ext = file.name.split('.').pop()
       const storageRef = ref(fb.storage, `mangaCross/${mangaId}/chapters/${chapterId}/${String(i + 1).padStart(3, '0')}.${ext}`)
-      await new Promise<void>((resolve, reject) => {
+      return new Promise((resolve, reject) => {
         const task = uploadBytesResumable(storageRef, blob)
         task.on('state_changed',
           snap => {
-            const base = 40
-            const perFile = 55 / imageFiles.length
-            setUploadProgress(base + i * perFile + (snap.bytesTransferred / snap.totalBytes) * perFile)
+            progresses[i] = snap.bytesTransferred / snap.totalBytes
+            const avg = progresses.reduce((a, b) => a + b, 0) / progresses.length
+            setUploadProgress(40 + avg * 55)
+            setUploadStatus2(`Upload ${progresses.filter(p => p >= 1).length}/${imageFiles.length} halaman...`)
           },
           reject,
-          async () => {
-            pageUrls.push(await getDownloadURL(task.snapshot.ref))
-            resolve()
-          }
+          async () => resolve({ url: await getDownloadURL(task.snapshot.ref), bytes: blob.size })
         )
       })
-      setUploadStatus2(`Upload halaman ${i + 1}/${imageFiles.length}...`)
     }
-    return pageUrls
+
+    const results = await Promise.all(imageFiles.map((f: any, i: number) => uploadOne(f, i)))
+    const pageUrls = imageFiles.map((_: any, i: number) => results[i].url)
+    totalBytes = results.reduce((a, r) => a + r.bytes, 0)
+    return { urls: pageUrls, bytes: totalBytes }
   }
 
   // ── Full upload flow ──
@@ -496,11 +479,17 @@ export default function MangaCrossPanel({ isAdmin, userId }: Props) {
 
       // 4. Upload ZIP pages
       setUploadStatus2('Mengekstrak & upload halaman ZIP...')
-      const pages = await uploadZipPages(mangaId, chapterRef.id, fb)
+      const { urls: pages, bytes: chapterBytes } = await uploadZipPages(mangaId, chapterRef.id, fb)
+      const coverBytes = uploadCoverFile?.size || 0
 
-      // 5. Save pages to Firestore
+      // 5. Save pages + update totalBytes di manga doc
       setUploadStatus2('Menyimpan data...')
       await updateDoc(doc(fb.db, 'mangaCross', mangaId, 'chapters', chapterRef.id), { pages })
+      // Tambah bytes chapter ini ke total manga (increment aman untuk multi-chapter)
+      const mangaRef = doc(fb.db, 'mangaCross', mangaId)
+      const mangaSnap = await getDoc(mangaRef)
+      const prevBytes = mangaSnap.exists() ? (mangaSnap.data().totalBytes || 0) : 0
+      await updateDoc(mangaRef, { totalBytes: prevBytes + chapterBytes + coverBytes })
       setUploadProgress(100)
       setUploadStatus2('✅ Upload berhasil!')
 
