@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react'
+import React, { useState, useCallback, useEffect, useRef } from 'react'
 
 // ═══════════════════════════════════════════════════════════════
 // TYPES
@@ -32,9 +32,11 @@ const VIDSRC_DOMAINS = [
   'vsrc.su',
 ]
 
-function buildVidsrcUrl(tmdbId: number, episode: number, season = 1, domainIndex = 0): string {
+function buildVidsrcUrl(tmdbId: number, episode: number, season = 1, domainIndex = 0, subDub: 'sub' | 'dub' = 'sub'): string {
   const domain = VIDSRC_DOMAINS[domainIndex % VIDSRC_DOMAINS.length]
-  return `https://${domain}/embed/tv?tmdb=${tmdbId}&season=${season}&episode=${episode}&autoplay=1`
+  // sub = Japanese audio (original), dub = English dubbed
+  const dubParam = subDub === 'dub' ? '&dub=1' : '&sub=1'
+  return `https://${domain}/embed/tv?tmdb=${tmdbId}&season=${season}&episode=${episode}&autoplay=1${dubParam}`
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -154,7 +156,6 @@ const S = `
 .ax-ep-btn { aspect-ratio:1; border-radius:8px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.08); color:rgba(255,255,255,0.7); font-size:11px; font-weight:700; cursor:pointer; font-family:inherit; display:flex; align-items:center; justify-content:center; }
 .ax-ep-btn:active { transform:scale(0.9); }
 .ax-ep-btn.active { background:linear-gradient(135deg,#a78bfa22,#7c3aed22); border-color:#a78bfa; color:#a78bfa; }
-.ax-player-box { width:100%; aspect-ratio:16/9; background:#000; position:relative; flex-shrink:0; overflow:hidden; }
 .ax-player-box iframe { width:100%; height:100%; border:none; display:block; }
 .ax-player-loading { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; background:#0d0d0d; z-index:2; pointer-events:none; }
 .ax-ctrl { padding:6px 12px; border-radius:8px; font-size:11px; font-weight:700; cursor:pointer; border:1px solid; font-family:inherit; }
@@ -177,7 +178,23 @@ const S = `
 .ax-status.upcoming { background:rgba(251,191,36,0.12); border:1px solid rgba(251,191,36,0.25); color:#fbbf24; }
 .ax-info-box { margin:8px 14px; padding:9px 12px; border-radius:10px; background:rgba(96,165,250,0.08); border:1px solid rgba(96,165,250,0.18); font-size:11px; color:rgba(96,165,250,0.8); line-height:1.5; flex-shrink:0; }
 .ax-warn-box { margin:8px 14px; padding:9px 12px; border-radius:10px; background:rgba(251,191,36,0.07); border:1px solid rgba(251,191,36,0.2); font-size:11px; color:rgba(251,191,36,0.8); line-height:1.5; flex-shrink:0; }
+.ax-subdub-row { display:flex; gap:5px; padding:6px 14px 0; flex-shrink:0; align-items:center; }
+.ax-subdub-label { font-size:10px; color:rgba(255,255,255,0.25); margin-right:2px; }
+.ax-subdub-btn { padding:4px 12px; border-radius:20px; font-size:10px; font-weight:800; cursor:pointer; border:1px solid; font-family:inherit; transition:all .15s; letter-spacing:.5px; }
+.ax-subdub-btn.sub { border-color:rgba(52,211,153,0.25); background:rgba(52,211,153,0.06); color:rgba(52,211,153,0.4); }
+.ax-subdub-btn.sub.active { border-color:#34d399; background:rgba(52,211,153,0.18); color:#34d399; box-shadow:0 0 8px rgba(52,211,153,0.2); }
+.ax-subdub-btn.dub { border-color:rgba(96,165,250,0.25); background:rgba(96,165,250,0.06); color:rgba(96,165,250,0.4); }
+.ax-subdub-btn.dub.active { border-color:#60a5fa; background:rgba(96,165,250,0.18); color:#60a5fa; box-shadow:0 0 8px rgba(96,165,250,0.2); }
+.ax-subdub-badge { font-size:9px; font-weight:800; padding:2px 7px; border-radius:10px; letter-spacing:.5px; }
+.ax-subdub-badge.sub { background:rgba(52,211,153,0.15); border:1px solid rgba(52,211,153,0.3); color:#34d399; }
+.ax-subdub-badge.dub { background:rgba(96,165,250,0.15); border:1px solid rgba(96,165,250,0.3); color:#60a5fa; }
 .ax-resolving { display:flex; align-items:center; gap:8px; padding:8px 14px; font-size:11px; color:rgba(255,255,255,0.3); flex-shrink:0; }
+.ax-player-box { width:100%; aspect-ratio:16/9; background:#000; position:relative; flex-shrink:0; overflow:hidden; }
+.ax-player-box.ax-fullscreen-active { position:fixed; inset:0; width:100vw; height:100vh; aspect-ratio:unset; z-index:9999; background:#000; }
+.ax-fs-btn { position:absolute; bottom:8px; right:8px; z-index:10; background:rgba(0,0,0,0.6); border:1px solid rgba(255,255,255,0.2); border-radius:8px; color:#fff; font-size:14px; width:32px; height:32px; display:flex; align-items:center; justify-content:center; cursor:pointer; backdrop-filter:blur(4px); transition:background .15s; }
+.ax-fs-btn:hover { background:rgba(167,139,250,0.4); border-color:#a78bfa; }
+.ax-fs-close { position:fixed; top:12px; right:12px; z-index:10000; background:rgba(0,0,0,0.7); border:1px solid rgba(255,255,255,0.25); border-radius:50%; color:#fff; font-size:16px; width:36px; height:36px; display:flex; align-items:center; justify-content:center; cursor:pointer; backdrop-filter:blur(6px); }
+
 `
 
 // ═══════════════════════════════════════════════════════════════
@@ -201,6 +218,53 @@ export default function AnimeStreamPanel({ isAdmin, userId }: Props) {
   const [iframeLoading, setIframeLoading] = useState(true)
   const [domainIndex, setDomainIndex] = useState(0)
   const [resolving, setResolving] = useState(false)
+  const [subDub, setSubDub] = useState<'sub' | 'dub'>('sub') // default: Japanese audio
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const playerRef = useRef<HTMLDivElement>(null)
+
+  const toggleFullscreen = useCallback(() => {
+    const el = playerRef.current
+    if (!el) return
+
+    if (!isFullscreen) {
+      // Coba native Fullscreen API dulu
+      const req = (el as any).requestFullscreen
+        || (el as any).webkitRequestFullscreen
+        || (el as any).mozRequestFullScreen
+        || (el as any).msRequestFullscreen
+      if (req) {
+        req.call(el).catch(() => {
+          // Fallback: CSS fullscreen
+          setIsFullscreen(true)
+        })
+      } else {
+        setIsFullscreen(true)
+      }
+    } else {
+      const exit = (document as any).exitFullscreen
+        || (document as any).webkitExitFullscreen
+        || (document as any).mozCancelFullScreen
+        || (document as any).msExitFullscreen
+      if (exit) exit.call(document).catch(() => {})
+      setIsFullscreen(false)
+    }
+  }, [isFullscreen])
+
+  // Sync state saat user tekan Esc
+  useEffect(() => {
+    const onFsChange = () => {
+      const fsEl = (document as any).fullscreenElement
+        || (document as any).webkitFullscreenElement
+        || (document as any).mozFullScreenElement
+      if (!fsEl) setIsFullscreen(false)
+    }
+    document.addEventListener('fullscreenchange', onFsChange)
+    document.addEventListener('webkitfullscreenchange', onFsChange)
+    return () => {
+      document.removeEventListener('fullscreenchange', onFsChange)
+      document.removeEventListener('webkitfullscreenchange', onFsChange)
+    }
+  }, [])
 
   const epCount = selectedAnime?.episodes || 24
 
@@ -229,6 +293,7 @@ export default function AnimeStreamPanel({ isAdmin, userId }: Props) {
     setSelectedAnime(anime)
     setSelectedEp(1)
     setDomainIndex(0)
+    setSubDub('sub') // reset ke Japanese audio setiap pilih anime baru
     setView('detail')
 
     if (!anime.tmdbId) {
@@ -249,7 +314,7 @@ export default function AnimeStreamPanel({ isAdmin, userId }: Props) {
   const statusLabel = (s: string) => s === 'RELEASING' ? '● Ongoing' : s === 'FINISHED' ? 'Selesai' : 'Upcoming'
 
   const embedUrl = selectedAnime?.tmdbId
-    ? buildVidsrcUrl(selectedAnime.tmdbId, selectedEp, 1, domainIndex)
+    ? buildVidsrcUrl(selectedAnime.tmdbId, selectedEp, 1, domainIndex, subDub)
     : null
 
   return (
@@ -392,7 +457,7 @@ export default function AnimeStreamPanel({ isAdmin, userId }: Props) {
               )}
               {selectedAnime.tmdbId && !resolving && (
                 <div className="ax-info-box" style={{ marginTop: 12 }}>
-                  ✅ Stream siap via <strong>VidSrc</strong> — multi-server, 1080p, selalu update.
+                  ✅ Stream siap via <strong>VidSrc</strong> — default 🇯🇵 <strong>Audio Jepang (SUB)</strong>. Bisa ganti ke DUB Inggris di player.
                 </div>
               )}
             </div>
@@ -418,6 +483,24 @@ export default function AnimeStreamPanel({ isAdmin, userId }: Props) {
               </div>
             ) : (
               <>
+                {/* SUB / DUB Toggle */}
+                <div className="ax-subdub-row">
+                  <span className="ax-subdub-label">Audio:</span>
+                  <button
+                    className={`ax-subdub-btn sub ${subDub === 'sub' ? 'active' : ''}`}
+                    onClick={() => { if (subDub !== 'sub') { setSubDub('sub'); setIframeLoading(true) } }}>
+                    🇯🇵 SUB
+                  </button>
+                  <button
+                    className={`ax-subdub-btn dub ${subDub === 'dub' ? 'active' : ''}`}
+                    onClick={() => { if (subDub !== 'dub') { setSubDub('dub'); setIframeLoading(true) } }}>
+                    🇺🇸 DUB
+                  </button>
+                  <span style={{ marginLeft: 'auto', fontSize: 9, color: 'rgba(255,255,255,0.2)' }}>
+                    {subDub === 'sub' ? 'Audio Jepang + Subtitle' : 'Audio Inggris (Dubbed)'}
+                  </span>
+                </div>
+
                 {/* Server selector */}
                 <div className="ax-domain-row">
                   <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', marginRight: 2 }}>Server:</span>
@@ -431,7 +514,10 @@ export default function AnimeStreamPanel({ isAdmin, userId }: Props) {
                 </div>
 
                 {/* Iframe player */}
-                <div className="ax-player-box">
+                <div
+                  ref={playerRef}
+                  className={`ax-player-box${isFullscreen ? ' ax-fullscreen-active' : ''}`}
+                >
                   {iframeLoading && (
                     <div className="ax-player-loading">
                       <div className="ax-spinner" style={{ width: 36, height: 36, borderWidth: 4 }} />
@@ -439,13 +525,21 @@ export default function AnimeStreamPanel({ isAdmin, userId }: Props) {
                     </div>
                   )}
                   <iframe
-                    key={`${domainIndex}-${selectedAnime.tmdbId}-${selectedEp}`}
+                    key={`${subDub}-${domainIndex}-${selectedAnime.tmdbId}-${selectedEp}`}
                     src={embedUrl}
                     allowFullScreen
-                    allow="autoplay; fullscreen; picture-in-picture"
+                    allow="autoplay; fullscreen *; picture-in-picture"
                     onLoad={() => setIframeLoading(false)}
                     style={{ opacity: iframeLoading ? 0 : 1, transition: 'opacity .3s' }}
                   />
+                  {/* Tombol fullscreen custom */}
+                  <button className="ax-fs-btn" onClick={toggleFullscreen} title="Fullscreen">
+                    {isFullscreen ? '✕' : '⛶'}
+                  </button>
+                  {/* Tombol tutup saat fullscreen CSS fallback */}
+                  {isFullscreen && (
+                    <button className="ax-fs-close" onClick={toggleFullscreen}>✕</button>
+                  )}
                 </div>
 
                 {/* Controls */}
@@ -466,11 +560,13 @@ export default function AnimeStreamPanel({ isAdmin, userId }: Props) {
                 <div className="ax-now-playing">
                   <div className="ax-now-dot" />
                   <span>{selectedAnime.title} · Episode {selectedEp}</span>
-                  <span style={{ marginLeft: 'auto', color: 'rgba(167,139,250,0.5)', fontSize: 10 }}>VidSrc S{domainIndex + 1}</span>
+                  <span className={`ax-subdub-badge ${subDub}`} style={{ marginLeft: 'auto' }}>
+                    {subDub === 'sub' ? '🇯🇵 SUB' : '🇺🇸 DUB'}
+                  </span>
                 </div>
 
                 <div className="ax-warn-box">
-                  💡 Player tidak muncul? Coba ganti server S1–S4 di atas.
+                  💡 Player tidak muncul? Coba ganti server S1–S4. {subDub === 'dub' ? 'DUB Inggris mungkin tidak tersedia untuk semua anime.' : 'SUB Jepang adalah default — audio original paling lengkap.'}
                 </div>
               </>
             )}
