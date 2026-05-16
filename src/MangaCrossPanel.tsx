@@ -295,7 +295,7 @@ export default function MangaCrossPanel({ isAdmin, userId }: Props) {
   // ── Load coin requests (admin only) ──
   useEffect(() => {
     if (!isAdmin) return
-    const q = query(collection(dbChat, 'mangaCoinRequests'), where('status', '==', 'pending'), orderBy('createdAt', 'desc'))
+    const q = query(collection(dbChat, 'mangaCoinRequests'), where('status', '==', 'pending'))
     const unsub = onSnapshot(q, snap => {
       setCoinRequests(snap.docs.map(d => ({ id: d.id, ...d.data() } as CoinRequest)))
     })
