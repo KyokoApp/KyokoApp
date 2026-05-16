@@ -1,0 +1,770 @@
+import React, { useState, useEffect, useCallback, useRef } from 'react'
+
+// ═══════════════════════════════════════════════════════════════
+// TYPES
+// ═══════════════════════════════════════════════════════════════
+interface MangaInfo {
+  id: string
+  title: string
+  titleAlt?: string
+  description: string
+  coverUrl: string
+  status: string
+  year?: number
+  tags: string[]
+  contentRating: string
+  lastChapter?: string
+}
+
+interface ChapterInfo {
+  id: string
+  chapter: string | null
+  title?: string
+  pages: number
+  lang: string
+  publishedAt: string
+  scanlationGroup?: string
+}
+
+interface PageData {
+  baseUrl: string
+  hash: string
+  data: string[]
+  dataSaver: string[]
+}
+
+interface Bookmark {
+  mangaId: string
+  title: string
+  coverUrl: string
+  lastChapterId: string
+  lastChapter: string
+  lastPage: number
+  savedAt: number
+}
+
+type View = 'home' | 'search' | 'detail' | 'reader'
+
+// ═══════════════════════════════════════════════════════════════
+// API — Consumet (server-side proxy, bypass CORS/Cloudflare)
+// Provider: MangaDex via Consumet public instances
+// ═══════════════════════════════════════════════════════════════
+const CONSUMET_BASES = [
+  'https://api.consumet.org',
+  'https://consumet-api.onrender.com',
+  'https://consumet.animepahe.ru',
+]
+
+async function consumetFetch(path: string): Promise<any> {
+  for (const base of CONSUMET_BASES) {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 12000)
+    try {
+      const res = await fetch(`${base}${path}`, {
+        signal: controller.signal,
+        headers: { 'Accept': 'application/json' },
+      })
+      clearTimeout(timer)
+      if (res.ok) return await res.json()
+    } catch {
+      clearTimeout(timer)
+    }
+  }
+  throw new Error('Semua server tidak bisa diakses')
+}
+
+function parseConsumetManga(m: any): MangaInfo {
+  return {
+    id: m.id,
+    title: m.title?.english || m.title?.romaji || m.title?.native || m.title || 'Unknown',
+    description: String(m.description || '').replace(/<[^>]*>/g, '').slice(0, 400),
+    coverUrl: m.image || m.cover || '',
+    status: (m.status || 'unknown').toLowerCase(),
+    year: m.releaseDate ? parseInt(m.releaseDate) : undefined,
+    tags: (m.genres || []).slice(0, 5),
+    contentRating: 'safe',
+    lastChapter: m.lastChapter,
+  }
+}
+
+async function fetchPopular(): Promise<MangaInfo[]> {
+  const data = await consumetFetch('/manga/mangadex?page=1&perPage=20')
+  return (data.results || []).map(parseConsumetManga)
+}
+
+async function fetchLatest(): Promise<MangaInfo[]> {
+  // Consumet latest via trending sort
+  const data = await consumetFetch('/manga/mangadex?page=2&perPage=20')
+  return (data.results || []).map(parseConsumetManga)
+}
+
+async function searchManga(query: string): Promise<MangaInfo[]> {
+  const data = await consumetFetch(`/manga/mangadex/${encodeURIComponent(query)}`)
+  return (data.results || []).map(parseConsumetManga)
+}
+
+async function fetchChapters(mangaId: string, _offset = 0): Promise<{ chapters: ChapterInfo[]; total: number }> {
+  const data = await consumetFetch(`/manga/mangadex/info/${mangaId}`)
+  const chapters: ChapterInfo[] = (data.chapters || []).map((c: any) => ({
+    id: c.id,
+    chapter: c.chapterNumber ? String(c.chapterNumber) : null,
+    title: c.title,
+    pages: c.pages || 0,
+    lang: c.translatedLanguage || 'en',
+    publishedAt: c.releaseDate || '',
+    scanlationGroup: c.scanlationGroup,
+  }))
+  return { chapters, total: chapters.length }
+}
+
+async function fetchPages(chapterId: string): Promise<PageData> {
+  const data = await consumetFetch(`/manga/mangadex/read?chapterId=${encodeURIComponent(chapterId)}`)
+  // Consumet returns array of image URLs directly
+  const urls: string[] = Array.isArray(data) ? data : (data.images || data.pages || [])
+  return {
+    baseUrl: '',
+    hash: '',
+    data: urls,
+    dataSaver: urls,
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// BOOKMARK HELPERS (localStorage, no Firebase needed)
+// ═══════════════════════════════════════════════════════════════
+const BM_KEY = 'kyoko_manga_bookmarks'
+
+function loadBookmarks(): Bookmark[] {
+  try { return JSON.parse(localStorage.getItem(BM_KEY) || '[]') } catch { return [] }
+}
+
+function saveBookmark(bm: Bookmark) {
+  const bms = loadBookmarks().filter(b => b.mangaId !== bm.mangaId)
+  bms.unshift(bm)
+  localStorage.setItem(BM_KEY, JSON.stringify(bms.slice(0, 50)))
+}
+
+function removeBookmark(mangaId: string) {
+  const bms = loadBookmarks().filter(b => b.mangaId !== mangaId)
+  localStorage.setItem(BM_KEY, JSON.stringify(bms))
+}
+
+function getReadProgress(mangaId: string): Record<string, number> {
+  try { return JSON.parse(localStorage.getItem(`kyoko_manga_progress_${mangaId}`) || '{}') } catch { return {} }
+}
+
+function saveReadProgress(mangaId: string, chapterId: string, page: number) {
+  const prog = getReadProgress(mangaId)
+  prog[chapterId] = page
+  localStorage.setItem(`kyoko_manga_progress_${mangaId}`, JSON.stringify(prog))
+}
+
+// ═══════════════════════════════════════════════════════════════
+// COMPONENTS
+// ═══════════════════════════════════════════════════════════════
+
+interface Props {
+  isAdmin: boolean
+  userId: string
+}
+
+export default function MangaStreamPanel({ isAdmin: _isAdmin, userId: _userId }: Props) {
+  // ── State ────────────────────────────────────────────────────
+  const [view, setView] = useState<View>('home')
+  const [homeTab, setHomeTab] = useState<'popular' | 'latest' | 'bookmarks'>('popular')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchInput, setSearchInput] = useState('')
+
+  const [popularList, setPopularList] = useState<MangaInfo[]>([])
+  const [latestList, setLatestList] = useState<MangaInfo[]>([])
+  const [searchResults, setSearchResults] = useState<MangaInfo[]>([])
+  const [bookmarks, setBookmarks] = useState<Bookmark[]>(loadBookmarks)
+
+  const [selectedManga, setSelectedManga] = useState<MangaInfo | null>(null)
+  const [chapters, setChapters] = useState<ChapterInfo[]>([])
+  const [chapterFilter, setChapterFilter] = useState<'all' | 'en' | 'id'>('all')
+
+  const [selectedChapter, setSelectedChapter] = useState<ChapterInfo | null>(null)
+  const [pages, setPages] = useState<string[]>([])
+  const [currentPage, setCurrentPage] = useState(0)
+  const [readMode, setReadMode] = useState<'scroll' | 'paged'>('scroll')
+  const [quality, setQuality] = useState<'hq' | 'lq'>('hq')
+  const [pageData, setPageData] = useState<PageData | null>(null)
+  const [readProgress, setReadProgress] = useState<Record<string, number>>({})
+
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [imgErrors, setImgErrors] = useState<Set<number>>(new Set())
+
+  const readerRef = useRef<HTMLDivElement>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
+
+  // ── Load popular on mount ────────────────────────────────────
+  useEffect(() => {
+    if (popularList.length) return
+    setLoading(true)
+    fetchPopular()
+      .then(setPopularList)
+      .catch(() => setError('Gagal memuat manga populer'))
+      .finally(() => setLoading(false))
+  }, [popularList.length])
+
+  useEffect(() => {
+    if (homeTab !== 'latest' || latestList.length) return
+    setLoading(true)
+    fetchLatest()
+      .then(setLatestList)
+      .catch(() => setError('Gagal memuat manga terbaru'))
+      .finally(() => setLoading(false))
+  }, [homeTab, latestList.length])
+
+  // ── Search ───────────────────────────────────────────────────
+  const doSearch = useCallback(async (q: string) => {
+    if (!q.trim()) return
+    setLoading(true)
+    setError('')
+    setSearchResults([])
+    try {
+      const res = await searchManga(q)
+      setSearchResults(res)
+      setView('search')
+    } catch {
+      setError('Pencarian gagal. Coba lagi.')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  // ── Open manga detail ─────────────────────────────────────────
+  const openManga = useCallback(async (manga: MangaInfo) => {
+    setSelectedManga(manga)
+    setChapters([])
+    setError('')
+    setView('detail')
+    setLoading(true)
+    try {
+      const { chapters: chs } = await fetchChapters(manga.id)
+      setChapters(chs)
+      setReadProgress(getReadProgress(manga.id))
+    } catch {
+      setError('Gagal memuat chapter list.')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  // ── Open reader ──────────────────────────────────────────────
+  const openReader = useCallback(async (chapter: ChapterInfo) => {
+    if (!selectedManga) return
+    setSelectedChapter(chapter)
+    setPages([])
+    setCurrentPage(0)
+    setImgErrors(new Set())
+    setError('')
+    setLoading(true)
+    try {
+      const pd = await fetchPages(chapter.id)
+      setPageData(pd)
+      // Consumet returns direct URLs already
+      const pgs = quality === 'hq' ? pd.data : pd.dataSaver
+      setPages(pgs)
+      setView('reader')
+      const prog = getReadProgress(selectedManga.id)
+      setCurrentPage(prog[chapter.id] || 0)
+    } catch {
+      setError('Gagal memuat halaman. Server MangaDex mungkin sibuk.')
+    } finally {
+      setLoading(false)
+    }
+  }, [selectedManga, quality])
+
+  // ── Save progress when page changes ─────────────────────────
+  useEffect(() => {
+    if (view !== 'reader' || !selectedManga || !selectedChapter) return
+    saveReadProgress(selectedManga.id, selectedChapter.id, currentPage)
+    setReadProgress(getReadProgress(selectedManga.id))
+  }, [currentPage, view, selectedManga, selectedChapter])
+
+  // ── Keyboard nav in paged mode ───────────────────────────────
+  useEffect(() => {
+    if (view !== 'reader' || readMode !== 'paged') return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') setCurrentPage(p => Math.min(p + 1, pages.length - 1))
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') setCurrentPage(p => Math.max(p - 1, 0))
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [view, readMode, pages.length])
+
+  // ── Toggle bookmark ──────────────────────────────────────────
+  const toggleBookmark = () => {
+    if (!selectedManga) return
+    const existing = bookmarks.find(b => b.mangaId === selectedManga.id)
+    if (existing) {
+      removeBookmark(selectedManga.id)
+      setBookmarks(loadBookmarks())
+    } else {
+      const lastCh = chapters[chapters.length - 1]
+      saveBookmark({
+        mangaId: selectedManga.id,
+        title: selectedManga.title,
+        coverUrl: selectedManga.coverUrl,
+        lastChapterId: lastCh?.id || '',
+        lastChapter: lastCh?.chapter || '?',
+        lastPage: 0,
+        savedAt: Date.now(),
+      })
+      setBookmarks(loadBookmarks())
+    }
+  }
+
+  const isBookmarked = !!selectedManga && bookmarks.some(b => b.mangaId === selectedManga.id)
+
+  // ── Filtered chapters ────────────────────────────────────────
+  const filteredChapters = chapters.filter(c =>
+    chapterFilter === 'all' ? true : c.lang === chapterFilter
+  )
+
+  const displayList =
+    view === 'search' ? searchResults :
+    homeTab === 'latest' ? latestList :
+    popularList
+
+  // ═══════════════════════════════════════════════════════════════
+  // FULLSCREEN READER
+  // ═══════════════════════════════════════════════════════════════
+  if (view === 'reader' && selectedManga && selectedChapter) {
+    return (
+      <div ref={readerRef} style={{
+        position: 'fixed', inset: 0, zIndex: 99999,
+        background: '#000', display: 'flex', flexDirection: 'column',
+        overflow: 'hidden',
+      }}>
+        {/* Reader header */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          padding: '8px 12px', background: 'rgba(0,0,0,0.9)',
+          borderBottom: '1px solid rgba(200,245,0,0.15)', flexShrink: 0, zIndex: 2,
+        }}>
+          <button onClick={() => setView('detail')} style={btnStyle('#c8f500', '#000')}>
+            ← Kembali
+          </button>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 11, color: '#c8f500', fontWeight: 700, letterSpacing: .5 }}>
+              {selectedManga.title}
+            </div>
+            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)' }}>
+              Ch.{selectedChapter.chapter || '?'} {selectedChapter.title ? `— ${selectedChapter.title}` : ''}
+            </div>
+          </div>
+          {/* Mode toggle */}
+          <div style={{ display: 'flex', gap: 4 }}>
+            {(['scroll', 'paged'] as const).map(m => (
+              <button key={m} onClick={() => setReadMode(m)} style={{
+                background: readMode === m ? '#c8f500' : 'rgba(255,255,255,0.08)',
+                color: readMode === m ? '#000' : 'rgba(255,255,255,0.6)',
+                border: 'none', borderRadius: 6, padding: '4px 8px', fontSize: 10, cursor: 'pointer', fontWeight: 700,
+              }}>
+                {m === 'scroll' ? '↕ Scroll' : '↔ Paged'}
+              </button>
+            ))}
+            <button onClick={() => {
+              const newQ = quality === 'hq' ? 'lq' : 'hq'
+              setQuality(newQ)
+              if (pageData) {
+                const pgs = newQ === 'hq' ? pageData.data : pageData.dataSaver
+                setPages(pgs)
+                setImgErrors(new Set())
+              }
+            }} style={{
+              background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.6)',
+              border: 'none', borderRadius: 6, padding: '4px 8px', fontSize: 10, cursor: 'pointer', fontWeight: 700,
+            }}>
+              {quality === 'hq' ? 'HQ' : 'LQ'}
+            </button>
+          </div>
+        </div>
+
+        {loading && (
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Spinner />
+          </div>
+        )}
+
+        {error && (
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12 }}>
+            <div style={{ color: '#ff6b6b', fontSize: 13 }}>{error}</div>
+            <button onClick={() => openReader(selectedChapter)} style={btnStyle('#c8f500', '#000')}>Coba Lagi</button>
+          </div>
+        )}
+
+        {/* SCROLL MODE */}
+        {!loading && !error && readMode === 'scroll' && (
+          <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
+            {pages.map((src, i) => (
+              <div key={i} style={{ width: '100%', display: 'flex', justifyContent: 'center', marginBottom: 2 }}>
+                <img
+                  src={imgErrors.has(i) && pageData
+                    ? `${pageData.baseUrl}/data-saver/${pageData.hash}/${pageData.dataSaver[i]}`
+                    : src}
+                  alt={`Page ${i + 1}`}
+                  onError={() => setImgErrors(s => new Set([...s, i]))}
+                  style={{ maxWidth: '100%', width: '100%', display: 'block', objectFit: 'contain' }}
+                  loading="lazy"
+                />
+              </div>
+            ))}
+            <div style={{ height: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12 }}>— Selesai Ch.{selectedChapter.chapter} —</span>
+            </div>
+          </div>
+        )}
+
+        {/* PAGED MODE */}
+        {!loading && !error && readMode === 'paged' && pages.length > 0 && (
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' }}>
+              <img
+                src={imgErrors.has(currentPage) && pageData
+                  ? `${pageData.baseUrl}/data-saver/${pageData.hash}/${pageData.dataSaver[currentPage]}`
+                  : pages[currentPage]}
+                alt={`Page ${currentPage + 1}`}
+                onError={() => setImgErrors(s => new Set([...s, currentPage]))}
+                style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+              />
+              {/* Tap zones */}
+              <div onClick={() => setCurrentPage(p => Math.max(p - 1, 0))}
+                style={{ position: 'absolute', left: 0, top: 0, width: '35%', height: '100%', cursor: 'w-resize' }} />
+              <div onClick={() => setCurrentPage(p => Math.min(p + 1, pages.length - 1))}
+                style={{ position: 'absolute', right: 0, top: 0, width: '35%', height: '100%', cursor: 'e-resize' }} />
+            </div>
+            {/* Page controls */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 12, padding: '8px 16px',
+              background: 'rgba(0,0,0,0.9)', borderTop: '1px solid rgba(255,255,255,0.06)', flexShrink: 0,
+            }}>
+              <button onClick={() => setCurrentPage(0)} disabled={currentPage === 0} style={navBtn(currentPage === 0)}>«</button>
+              <button onClick={() => setCurrentPage(p => Math.max(p - 1, 0))} disabled={currentPage === 0} style={navBtn(currentPage === 0)}>‹ Prev</button>
+              <span style={{ flex: 1, textAlign: 'center', fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>
+                {currentPage + 1} / {pages.length}
+              </span>
+              <button onClick={() => setCurrentPage(p => Math.min(p + 1, pages.length - 1))} disabled={currentPage === pages.length - 1} style={navBtn(currentPage === pages.length - 1)}>Next ›</button>
+              <button onClick={() => setCurrentPage(pages.length - 1)} disabled={currentPage === pages.length - 1} style={navBtn(currentPage === pages.length - 1)}>»</button>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // DETAIL VIEW
+  // ═══════════════════════════════════════════════════════════════
+  if (view === 'detail' && selectedManga) {
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#09090f' }}>
+        {/* Detail header */}
+        <div style={{ padding: '10px 14px', background: '#0a0a14', borderBottom: '1px solid rgba(200,245,0,0.08)', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          <button onClick={() => setView(searchQuery ? 'search' : 'home')} style={btnStyle('rgba(255,255,255,0.1)', 'rgba(255,255,255,0.7)')}>
+            ← Back
+          </button>
+          <span style={{ fontSize: 12, fontWeight: 800, color: '#c8f500', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {selectedManga.title}
+          </span>
+          <button onClick={toggleBookmark} title={isBookmarked ? 'Hapus bookmark' : 'Bookmark'} style={btnStyle(isBookmarked ? '#c8f500' : 'rgba(255,255,255,0.08)', isBookmarked ? '#000' : 'rgba(255,255,255,0.5)')}>
+            {isBookmarked ? '🔖 Saved' : '+ Bookmark'}
+          </button>
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          {/* Manga info card */}
+          <div style={{ display: 'flex', gap: 12, padding: 14 }}>
+            <img src={selectedManga.coverUrl} alt="" style={{ width: 100, borderRadius: 8, objectFit: 'cover', flexShrink: 0, aspectRatio: '2/3', background: 'rgba(255,255,255,0.05)' }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: '#fff', marginBottom: 4, lineHeight: 1.3 }}>{selectedManga.title}</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
+                <span style={tagStyle(statusColor(selectedManga.status))}>{selectedManga.status}</span>
+                {selectedManga.year && <span style={tagStyle('rgba(255,255,255,0.1)')}>{selectedManga.year}</span>}
+                {selectedManga.tags.slice(0, 4).map(t => t && <span key={t} style={tagStyle('rgba(200,245,0,0.1)')}>{t}</span>)}
+              </div>
+              {selectedManga.description && (
+                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', lineHeight: 1.5, WebkitLineClamp: 5, WebkitBoxOrient: 'vertical', display: '-webkit-box', overflow: 'hidden' }}>
+                  {selectedManga.description}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Chapter list */}
+          <div style={{ padding: '0 14px 14px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: 'rgba(255,255,255,0.6)', letterSpacing: .5 }}>
+                CHAPTER ({filteredChapters.length})
+              </div>
+              <div style={{ display: 'flex', gap: 4 }}>
+                {(['all', 'en', 'id'] as const).map(f => (
+                  <button key={f} onClick={() => setChapterFilter(f)} style={{
+                    background: chapterFilter === f ? '#c8f500' : 'rgba(255,255,255,0.06)',
+                    color: chapterFilter === f ? '#000' : 'rgba(255,255,255,0.5)',
+                    border: 'none', borderRadius: 5, padding: '3px 8px', fontSize: 10, cursor: 'pointer', fontWeight: 700,
+                  }}>
+                    {f === 'all' ? 'All' : f.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {loading && <div style={{ textAlign: 'center', padding: 20 }}><Spinner /></div>}
+            {error && <div style={{ color: '#ff6b6b', fontSize: 12, textAlign: 'center', padding: 12 }}>{error}</div>}
+
+            {!loading && filteredChapters.length === 0 && !error && (
+              <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12, textAlign: 'center', padding: 20 }}>
+                Tidak ada chapter tersedia
+              </div>
+            )}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              {filteredChapters.map(ch => {
+                const prog = readProgress[ch.id]
+                const isRead = prog !== undefined
+                return (
+                  <button key={ch.id} onClick={() => openReader(ch)} style={{
+                    display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
+                    background: isRead ? 'rgba(200,245,0,0.04)' : 'rgba(255,255,255,0.03)',
+                    border: `1px solid ${isRead ? 'rgba(200,245,0,0.12)' : 'rgba(255,255,255,0.05)'}`,
+                    borderRadius: 8, cursor: 'pointer', textAlign: 'left', transition: 'all .15s',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(200,245,0,0.1)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = isRead ? 'rgba(200,245,0,0.04)' : 'rgba(255,255,255,0.03)')}
+                  >
+                    <span style={{ fontSize: 11, color: isRead ? '#c8f500' : 'rgba(255,255,255,0.7)', fontWeight: 700, minWidth: 55 }}>
+                      Ch.{ch.chapter || '?'}
+                    </span>
+                    <span style={{ flex: 1, fontSize: 11, color: 'rgba(255,255,255,0.5)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {ch.title || (ch.scanlationGroup ? `[${ch.scanlationGroup}]` : '')}
+                    </span>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, flexShrink: 0 }}>
+                      <span style={{ fontSize: 9, color: ch.lang === 'id' ? '#4ade80' : 'rgba(255,255,255,0.25)', fontWeight: 700 }}>
+                        {ch.lang.toUpperCase()}
+                      </span>
+                      {isRead && <span style={{ fontSize: 9, color: '#c8f500' }}>✓ Read</span>}
+                    </div>
+                    <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>›</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // HOME + SEARCH VIEW
+  // ═══════════════════════════════════════════════════════════════
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#09090f' }}>
+      {/* Header */}
+      <div style={{ padding: '10px 14px 8px', background: '#0a0a14', borderBottom: '1px solid rgba(200,245,0,0.08)', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <span style={{ fontSize: 16 }}>📖</span>
+          <span style={{ fontSize: 13, fontWeight: 800, color: '#c8f500', letterSpacing: .3 }}>kyoko-manga</span>
+          <span style={{ marginLeft: 'auto', fontSize: 9, color: 'rgba(255,255,255,0.25)' }}>via MangaDex</span>
+        </div>
+        {/* Search bar */}
+        <div style={{ display: 'flex', gap: 6 }}>
+          <input
+            ref={searchRef}
+            value={searchInput}
+            onChange={e => setSearchInput(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && searchInput.trim()) { setSearchQuery(searchInput); doSearch(searchInput) } }}
+            placeholder="Cari manga... (tekan Enter)"
+            style={{
+              flex: 1, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(200,245,0,0.15)',
+              borderRadius: 8, padding: '7px 12px', color: '#fff', fontSize: 12, outline: 'none',
+            }}
+          />
+          <button
+            onClick={() => searchInput.trim() && doSearch(searchInput)}
+            disabled={loading}
+            style={btnStyle('#c8f500', '#000')}
+          >
+            {loading ? '...' : '🔍'}
+          </button>
+          {view === 'search' && (
+            <button onClick={() => { setView('home'); setSearchInput(''); setSearchQuery('') }} style={btnStyle('rgba(255,255,255,0.06)', 'rgba(255,255,255,0.6)')}>
+              ✕
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Tabs (home only) */}
+      {view !== 'search' && (
+        <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid rgba(255,255,255,0.05)', flexShrink: 0 }}>
+          {([['popular', '🔥 Populer'], ['latest', '🆕 Terbaru'], ['bookmarks', '🔖 Saved']] as const).map(([tab, label]) => (
+            <button key={tab} onClick={() => setHomeTab(tab)} style={{
+              flex: 1, padding: '8px 4px', background: 'none',
+              borderBottom: homeTab === tab ? '2px solid #c8f500' : '2px solid transparent',
+              color: homeTab === tab ? '#c8f500' : 'rgba(255,255,255,0.4)',
+              border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700, letterSpacing: .3,
+            }}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Search header */}
+      {view === 'search' && (
+        <div style={{ padding: '8px 14px', flexShrink: 0 }}>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>
+            {loading ? 'Mencari...' : `${searchResults.length} hasil untuk "${searchQuery}"`}
+          </div>
+        </div>
+      )}
+
+      {/* Content */}
+      <div style={{ flex: 1, overflowY: 'auto' }}>
+        {loading && view !== 'reader' && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40 }}>
+            <Spinner />
+          </div>
+        )}
+
+        {error && (
+          <div style={{ padding: 20, textAlign: 'center', color: '#ff6b6b', fontSize: 13 }}>
+            {error}
+            <button onClick={() => { setError(''); setLoading(true); fetchPopular().then(setPopularList).finally(() => setLoading(false)) }}
+              style={{ display: 'block', margin: '12px auto 0', ...btnStyle('#c8f500', '#000') }}>
+              Coba Lagi
+            </button>
+          </div>
+        )}
+
+        {/* BOOKMARKS TAB */}
+        {view === 'home' && homeTab === 'bookmarks' && !loading && (
+          <div style={{ padding: 14 }}>
+            {bookmarks.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: 40, color: 'rgba(255,255,255,0.3)', fontSize: 13 }}>
+                <div style={{ fontSize: 32, marginBottom: 8 }}>📭</div>
+                Belum ada bookmark.<br />Buka manga dan tap "+ Bookmark"
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {bookmarks.map(bm => (
+                  <button key={bm.mangaId} onClick={() => openManga({ id: bm.mangaId, title: bm.title, coverUrl: bm.coverUrl, description: '', status: '', tags: [], contentRating: 'safe' })}
+                    style={{ display: 'flex', gap: 10, padding: 10, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(200,245,0,0.1)', borderRadius: 10, cursor: 'pointer', textAlign: 'left' }}>
+                    <img src={bm.coverUrl} alt="" style={{ width: 50, borderRadius: 6, objectFit: 'cover', aspectRatio: '2/3', background: 'rgba(255,255,255,0.05)' }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#fff', marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bm.title}</div>
+                      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>Last: Ch.{bm.lastChapter}</div>
+                      <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>Saved {new Date(bm.savedAt).toLocaleDateString('id-ID')}</div>
+                    </div>
+                    <button onClick={e => { e.stopPropagation(); removeBookmark(bm.mangaId); setBookmarks(loadBookmarks()) }}
+                      style={{ background: 'rgba(255,107,107,0.1)', border: 'none', borderRadius: 6, color: '#ff6b6b', fontSize: 12, cursor: 'pointer', padding: '0 8px', alignSelf: 'center' }}>
+                      ✕
+                    </button>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* MANGA GRID */}
+        {!loading && !error && (view === 'search' || (view === 'home' && homeTab !== 'bookmarks')) && (
+          <div style={{ padding: 10 }}>
+            {displayList.length === 0 && view === 'search' && (
+              <div style={{ textAlign: 'center', padding: 40, color: 'rgba(255,255,255,0.3)', fontSize: 13 }}>
+                Tidak ada hasil ditemukan.
+              </div>
+            )}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: 8 }}>
+              {displayList.map(manga => (
+                <MangaCard key={manga.id} manga={manga} onOpen={openManga} />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SUB COMPONENTS
+// ═══════════════════════════════════════════════════════════════
+function MangaCard({ manga, onOpen }: { manga: MangaInfo; onOpen: (m: MangaInfo) => void }) {
+  const [imgErr, setImgErr] = useState(false)
+  return (
+    <button onClick={() => onOpen(manga)} style={{
+      background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)',
+      borderRadius: 8, cursor: 'pointer', overflow: 'hidden', padding: 0, textAlign: 'left',
+      transition: 'all .2s',
+    }}
+    onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(200,245,0,0.3)'; e.currentTarget.style.transform = 'translateY(-2px)' }}
+    onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.05)'; e.currentTarget.style.transform = 'translateY(0)' }}
+    >
+      <div style={{ width: '100%', aspectRatio: '2/3', background: 'rgba(255,255,255,0.05)', overflow: 'hidden', position: 'relative' }}>
+        {!imgErr && manga.coverUrl ? (
+          <img src={manga.coverUrl} alt="" onError={() => setImgErr(true)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} loading="lazy" />
+        ) : (
+          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>📖</div>
+        )}
+        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'linear-gradient(transparent,rgba(0,0,0,0.8))', padding: '16px 4px 4px', pointerEvents: 'none' }}>
+          <span style={{ fontSize: 8, color: statusColor(manga.status), fontWeight: 700, textTransform: 'uppercase' }}>{manga.status}</span>
+        </div>
+      </div>
+      <div style={{ padding: '5px 6px' }}>
+        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.85)', fontWeight: 700, lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', display: '-webkit-box' }}>
+          {manga.title}
+        </div>
+      </div>
+    </button>
+  )
+}
+
+function Spinner() {
+  return (
+    <div style={{ width: 28, height: 28, border: '3px solid rgba(200,245,0,0.2)', borderTop: '3px solid #c8f500', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }}>
+      <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════
+// STYLE HELPERS
+// ═══════════════════════════════════════════════════════════════
+function btnStyle(bg: string, color: string): React.CSSProperties {
+  return {
+    background: bg, color, border: 'none', borderRadius: 7, padding: '5px 10px',
+    fontSize: 11, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' as const,
+    flexShrink: 0,
+  }
+}
+
+function navBtn(disabled: boolean): React.CSSProperties {
+  return {
+    background: disabled ? 'rgba(255,255,255,0.04)' : 'rgba(200,245,0,0.12)',
+    color: disabled ? 'rgba(255,255,255,0.2)' : '#c8f500',
+    border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 12,
+    cursor: disabled ? 'not-allowed' : 'pointer', fontWeight: 700,
+  }
+}
+
+function tagStyle(bg: string): React.CSSProperties {
+  return {
+    background: bg, color: 'rgba(255,255,255,0.7)', fontSize: 9,
+    padding: '2px 6px', borderRadius: 4, fontWeight: 700,
+  }
+}
+
+function statusColor(status: string): string {
+  if (status === 'ongoing') return '#4ade80'
+  if (status === 'completed') return '#60a5fa'
+  if (status === 'hiatus') return '#fbbf24'
+  if (status === 'cancelled') return '#f87171'
+  return 'rgba(255,255,255,0.4)'
+}
