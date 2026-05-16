@@ -1,12 +1,13 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react'
-import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app'
+import { initializeApp, getApps, FirebaseApp } from 'firebase/app'
 import {
   getStorage, ref, uploadBytesResumable, getDownloadURL,
-  listAll, getMetadata, FirebaseStorage
+  listAll, getMetadata, deleteObject, FirebaseStorage
 } from 'firebase/storage'
 import {
   getFirestore, collection, addDoc, getDocs, doc, deleteDoc,
-  onSnapshot, orderBy, query, updateDoc, Firestore
+  onSnapshot, orderBy, query, updateDoc, Firestore,
+  getDoc, where, setDoc, arrayUnion
 } from 'firebase/firestore'
 
 // ═══════════════════════════════════════════════════════
@@ -154,6 +155,9 @@ const FB_INSTANCES: FbInstance[] = FIREBASE_CONFIGS.map(fc => {
   }
 })
 
+// dbChat = kyokochat — untuk coins & coin requests
+const dbChat = FB_INSTANCES.find(f => f.name === 'chat')!.db
+
 // ═══════════════════════════════════════════════════════
 // TYPES
 // ═══════════════════════════════════════════════════════
@@ -178,6 +182,18 @@ interface ChapterDoc {
   pages: string[]
   firebaseName: string
   uploadedAt: number
+  coinPrice: number
+}
+
+interface CoinRequest {
+  id: string
+  uid: string
+  username: string
+  photoURL: string
+  amount: number
+  totalPrice: number
+  status: 'pending' | 'approved' | 'rejected'
+  createdAt: number
 }
 
 interface StorageStats {
@@ -217,7 +233,7 @@ function storageColor(pct: number) {
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════
 export default function MangaCrossPanel({ isAdmin, userId }: Props) {
-  const [view, setView] = useState<'home' | 'read' | 'upload' | 'storage'>('home')
+  const [view, setView] = useState<'home' | 'read' | 'upload' | 'storage' | 'topup' | 'inbox'>('home')
   const [mangas, setMangas] = useState<MangaDoc[]>([])
   const [selectedManga, setSelectedManga] = useState<MangaDoc | null>(null)
   const [selectedChapter, setSelectedChapter] = useState<ChapterDoc | null>(null)
@@ -226,14 +242,28 @@ export default function MangaCrossPanel({ isAdmin, userId }: Props) {
   const [storageStats, setStorageStats] = useState<StorageStats[]>([])
   const [loadingStats, setLoadingStats] = useState(false)
 
+  // User profile (diambil dari chatUsers)
+  const [username, setUsername] = useState('User')
+  const [photoURL, setPhotoURL] = useState('')
+
+  // Coin system state
+  const [userCoins, setUserCoins] = useState(0)
+  const [unlockedChapters, setUnlockedChapters] = useState<string[]>([])
+  const [coinRequests, setCoinRequests] = useState<CoinRequest[]>([])
+  const [topupAmount, setTopupAmount] = useState(10)
+  const [topupLoading, setTopupLoading] = useState(false)
+  const [unlockLoading, setUnlockLoading] = useState(false)
+  const [pendingChapter, setPendingChapter] = useState<ChapterDoc | null>(null)
+  const [showUnlockConfirm, setShowUnlockConfirm] = useState(false)
+
   // Upload state
   const [uploadFb, setUploadFb] = useState(FB_INSTANCES[0].name)
-  const [uploadStep, setUploadStep] = useState<'meta' | 'cover' | 'chapter'>('meta')
   const [uploadTitle, setUploadTitle] = useState('')
   const [uploadAuthor, setUploadAuthor] = useState('')
   const [uploadGenre, setUploadGenre] = useState('')
   const [uploadStatus, setUploadStatus] = useState<'ongoing'|'completed'|'hiatus'>('ongoing')
   const [uploadDesc, setUploadDesc] = useState('')
+  const [uploadCoinPrice, setUploadCoinPrice] = useState(1)
   const [uploadCoverFile, setUploadCoverFile] = useState<File | null>(null)
   const [uploadCoverPreview, setUploadCoverPreview] = useState('')
   const [uploadZipFile, setUploadZipFile] = useState<File | null>(null)
@@ -247,7 +277,30 @@ export default function MangaCrossPanel({ isAdmin, userId }: Props) {
   const coverInputRef = useRef<HTMLInputElement>(null)
   const zipInputRef = useRef<HTMLInputElement>(null)
 
-  // ── Load all mangas from all Firebase instances ──
+  // ── Load user coins, unlocked chapters, username, photoURL ──
+  useEffect(() => {
+    if (!userId) return
+    const unsub = onSnapshot(doc(dbChat, 'chatUsers', userId), snap => {
+      if (snap.exists()) {
+        const data = snap.data()
+        setUserCoins(data.mangaCoins || 0)
+        setUnlockedChapters(data.unlockedChapters || [])
+        setUsername(data.username || 'User')
+        setPhotoURL(data.photoURL || '')
+      }
+    })
+    return () => unsub()
+  }, [userId])
+
+  // ── Load coin requests (admin only) ──
+  useEffect(() => {
+    if (!isAdmin) return
+    const q = query(collection(dbChat, 'mangaCoinRequests'), where('status', '==', 'pending'), orderBy('createdAt', 'desc'))
+    const unsub = onSnapshot(q, snap => {
+      setCoinRequests(snap.docs.map(d => ({ id: d.id, ...d.data() } as CoinRequest)))
+    })
+    return () => unsub()
+  }, [isAdmin])
   useEffect(() => {
     const unsubs: (() => void)[] = []
     const allMangas: Record<string, MangaDoc> = {}
@@ -296,6 +349,7 @@ export default function MangaCrossPanel({ isAdmin, userId }: Props) {
         pages: d.data().pages || [],
         firebaseName: selectedManga.firebaseName,
         uploadedAt: d.data().uploadedAt,
+        coinPrice: d.data().coinPrice || 0,
       }))
       setSelectedManga(prev => prev ? { ...prev, chapters } : prev)
     })
@@ -435,6 +489,7 @@ export default function MangaCrossPanel({ isAdmin, userId }: Props) {
         chapterNumber: uploadChapterNum,
         title: uploadChapterTitle.trim() || `Chapter ${uploadChapterNum}`,
         pages: [],
+        coinPrice: uploadCoinPrice,
         uploadedAt: Date.now(),
       })
       setUploadProgress(40)
@@ -471,7 +526,135 @@ export default function MangaCrossPanel({ isAdmin, userId }: Props) {
     setUploadDesc(''); setUploadCoverFile(null); setUploadCoverPreview('')
     setUploadZipFile(null); setUploadChapterNum(1); setUploadChapterTitle('')
     setUploadProgress(0); setUploadStatus2(''); setUploadingMangaId('')
-    setUploadStep('meta')
+    setUploadCoinPrice(1)
+  }
+
+  // ── Request top-up coin ──
+  const handleTopupRequest = async () => {
+    if (!userId || topupAmount < 1) return
+    setTopupLoading(true)
+    try {
+      const existing = await getDocs(query(
+        collection(dbChat, 'mangaCoinRequests'),
+        where('uid', '==', userId),
+        where('status', '==', 'pending')
+      ))
+      if (!existing.empty) {
+        alert('Kamu masih punya request top-up yang belum diproses admin. Tunggu dulu ya!')
+        setTopupLoading(false)
+        return
+      }
+      await addDoc(collection(dbChat, 'mangaCoinRequests'), {
+        uid: userId,
+        username,
+        photoURL,
+        amount: topupAmount,
+        totalPrice: topupAmount * 1000,
+        status: 'pending',
+        createdAt: Date.now(),
+      })
+      alert(`✅ Request top-up ${topupAmount} coin (Rp ${(topupAmount * 1000).toLocaleString('id-ID')}) berhasil dikirim!\n\nTunggu konfirmasi admin ya.`)
+      setView('home')
+    } catch (e: any) {
+      alert('Gagal kirim request: ' + e.message)
+    }
+    setTopupLoading(false)
+  }
+
+  // ── Admin: approve top-up ──
+  const handleApproveTopup = async (req: CoinRequest) => {
+    try {
+      const userRef = doc(dbChat, 'chatUsers', req.uid)
+      const snap = await getDoc(userRef)
+      const current = snap.exists() ? (snap.data().mangaCoins || 0) : 0
+      await updateDoc(userRef, { mangaCoins: current + req.amount })
+      await updateDoc(doc(dbChat, 'mangaCoinRequests', req.id), { status: 'approved', approvedAt: Date.now() })
+    } catch (e: any) {
+      alert('Gagal approve: ' + e.message)
+    }
+  }
+
+  // ── Admin: reject top-up ──
+  const handleRejectTopup = async (req: CoinRequest) => {
+    try {
+      await updateDoc(doc(dbChat, 'mangaCoinRequests', req.id), { status: 'rejected', rejectedAt: Date.now() })
+    } catch (e: any) {
+      alert('Gagal reject: ' + e.message)
+    }
+  }
+
+  // ── User: unlock chapter with coin ──
+  const handleUnlockChapter = async (chapter: ChapterDoc) => {
+    if (!userId) return
+    if (userCoins < chapter.coinPrice) {
+      alert(`Coin kamu tidak cukup!\n\nChapter ini butuh ${chapter.coinPrice} coin, kamu punya ${userCoins} coin.\n\nTop-up dulu ya!`)
+      return
+    }
+    setUnlockLoading(true)
+    try {
+      const userRef = doc(dbChat, 'chatUsers', userId)
+      await updateDoc(userRef, {
+        mangaCoins: userCoins - chapter.coinPrice,
+        unlockedChapters: arrayUnion(chapter.id),
+      })
+      setSelectedChapter(chapter)
+      setShowUnlockConfirm(false)
+      setPendingChapter(null)
+    } catch (e: any) {
+      alert('Gagal unlock chapter: ' + e.message)
+    }
+    setUnlockLoading(false)
+  }
+
+  // ── Chapter click handler: check unlock status ──
+  const handleChapterClick = (ch: ChapterDoc) => {
+    // Admin atau gratis → langsung buka
+    if (isAdmin || ch.coinPrice === 0 || unlockedChapters.includes(ch.id)) {
+      setSelectedChapter(ch)
+      return
+    }
+    // Perlu coin → tampilkan konfirmasi
+    setPendingChapter(ch)
+    setShowUnlockConfirm(true)
+  }
+
+  // ── Delete manga (admin only) ──
+  const handleDeleteManga = async (manga: MangaDoc) => {
+    const confirmed = window.confirm(`Hapus manga "${manga.title}"?\n\nSemua chapter dan file storage akan ikut terhapus. Aksi ini tidak bisa dibatalkan!`)
+    if (!confirmed) return
+    try {
+      const fb = FB_INSTANCES.find(f => f.name === manga.firebaseName)!
+
+      // 1. Hapus semua file di storage (rekursif folder mangaId)
+      const deleteFolder = async (folderRef: any) => {
+        const result = await listAll(folderRef)
+        for (const item of result.items) {
+          await deleteObject(item)
+        }
+        for (const prefix of result.prefixes) {
+          await deleteFolder(prefix)
+        }
+      }
+      try {
+        await deleteFolder(ref(fb.storage, `mangaCross/${manga.id}`))
+      } catch {
+        // storage mungkin kosong, lanjut aja
+      }
+
+      // 2. Hapus chapters subcollection di Firestore
+      const chaptersSnap = await getDocs(collection(fb.db, 'mangaCross', manga.id, 'chapters'))
+      for (const chDoc of chaptersSnap.docs) {
+        await deleteDoc(doc(fb.db, 'mangaCross', manga.id, 'chapters', chDoc.id))
+      }
+
+      // 3. Hapus manga doc
+      await deleteDoc(doc(fb.db, 'mangaCross', manga.id))
+
+      setView('home')
+      setSelectedManga(null)
+    } catch (e: any) {
+      alert('Gagal menghapus manga: ' + e.message)
+    }
   }
 
   const filteredMangas = mangas.filter(m =>
@@ -528,7 +711,15 @@ export default function MangaCrossPanel({ isAdmin, userId }: Props) {
           <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', flex: 1, textAlign: 'center' }}>
             {selectedManga.title}
           </div>
-          <div style={{ width: 60 }} />
+          <div style={{ width: 60, display: 'flex', justifyContent: 'flex-end' }}>
+            {isAdmin && (
+              <button style={{ ...S.backBtn, color: '#ff4444' }}
+                onClick={() => handleDeleteManga(selectedManga)}
+                title="Hapus Manga">
+                🗑️
+              </button>
+            )}
+          </div>
         </div>
         <div style={{ overflowY: 'auto', flex: 1 }}>
           {/* Cover + info */}
@@ -560,18 +751,194 @@ export default function MangaCrossPanel({ isAdmin, userId }: Props) {
                 Belum ada chapter
               </div>
             ) : (
-              selectedManga.chapters.map(ch => (
-                <button key={ch.id} style={S.chapterBtn}
-                  onClick={() => setSelectedChapter(ch)}>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: '#c8f500' }}>Ch.{ch.chapterNumber}</span>
-                  <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', flex: 1, marginLeft: 10 }}>{ch.title}</span>
-                  <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>
-                    {new Date(ch.uploadedAt).toLocaleDateString('id-ID')}
-                  </span>
-                </button>
-              ))
+            selectedManga.chapters.map(ch => {
+                const isUnlocked = isAdmin || ch.coinPrice === 0 || unlockedChapters.includes(ch.id)
+                return (
+                  <button key={ch.id} style={{ ...S.chapterBtn, opacity: 1 }}
+                    onClick={() => handleChapterClick(ch)}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#c8f500' }}>Ch.{ch.chapterNumber}</span>
+                    <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', flex: 1, marginLeft: 10 }}>{ch.title}</span>
+                    {isUnlocked ? (
+                      <span style={{ fontSize: 11, color: '#4fc3f7' }}>
+                        {ch.coinPrice === 0 ? '🆓' : '✅'}
+                      </span>
+                    ) : (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 3,
+                        background: 'rgba(200,245,0,0.1)', border: '1px solid rgba(200,245,0,0.3)',
+                        borderRadius: 10, padding: '2px 7px' }}>
+                        <span style={{ fontSize: 10 }}>🪙</span>
+                        <span style={{ fontSize: 11, fontWeight: 800, color: '#c8f500' }}>{ch.coinPrice}</span>
+                      </span>
+                    )}
+                  </button>
+                )
+              })
             )}
           </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ════════════════════════════════════════════════════
+  // VIEW: TOP-UP COIN
+  // ════════════════════════════════════════════════════
+  if (view === 'topup') {
+    const presets = [5, 10, 20, 50, 100]
+    return (
+      <div style={S.wrap}>
+        <div style={S.readerHeader}>
+          <button style={S.backBtn} onClick={() => setView('home')}>‹ Kembali</button>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>🪙 Top-up Coin</div>
+          <div style={{ width: 60 }} />
+        </div>
+        <div style={{ overflowY: 'auto', flex: 1, padding: 16 }}>
+
+          {/* Saldo sekarang */}
+          <div style={{ background: 'rgba(200,245,0,0.07)', border: '1px solid rgba(200,245,0,0.2)',
+            borderRadius: 14, padding: 16, marginBottom: 20, textAlign: 'center' }}>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 4 }}>SALDO KAMU</div>
+            <div style={{ fontSize: 32, fontWeight: 900, color: '#c8f500' }}>🪙 {userCoins}</div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 4 }}>coin</div>
+          </div>
+
+          {/* Pilih jumlah */}
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.4)', letterSpacing: 1, marginBottom: 10 }}>
+            PILIH JUMLAH TOP-UP
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 12 }}>
+            {presets.map(p => (
+              <button key={p} style={{ background: topupAmount === p ? 'rgba(200,245,0,0.15)' : 'rgba(255,255,255,0.05)',
+                border: `1px solid ${topupAmount === p ? 'rgba(200,245,0,0.5)' : 'rgba(255,255,255,0.1)'}`,
+                borderRadius: 10, padding: '10px 4px', cursor: 'pointer', textAlign: 'center' }}
+                onClick={() => setTopupAmount(p)}>
+                <div style={{ fontSize: 16, fontWeight: 900, color: topupAmount === p ? '#c8f500' : '#fff' }}>🪙 {p}</div>
+                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>
+                  Rp {(p * 1000).toLocaleString('id-ID')}
+                </div>
+              </button>
+            ))}
+            {/* Custom */}
+            <button style={{ background: !presets.includes(topupAmount) ? 'rgba(200,245,0,0.15)' : 'rgba(255,255,255,0.05)',
+              border: `1px solid ${!presets.includes(topupAmount) ? 'rgba(200,245,0,0.5)' : 'rgba(255,255,255,0.1)'}`,
+              borderRadius: 10, padding: '10px 4px', cursor: 'pointer', textAlign: 'center',
+              gridColumn: 'span 3' }}>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 4 }}>Custom jumlah</div>
+              <input type="number" min={1} value={topupAmount}
+                onChange={e => setTopupAmount(Math.max(1, Number(e.target.value)))}
+                style={{ ...S.input, textAlign: 'center', fontWeight: 800, fontSize: 16, color: '#c8f500',
+                  background: 'transparent', border: 'none', outline: 'none', width: '100%' }}
+                onClick={e => e.stopPropagation()} />
+            </button>
+          </div>
+
+          {/* Summary */}
+          <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 10, padding: 14, marginBottom: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+              <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>Jumlah coin</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>🪙 {topupAmount}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+              <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>Harga per coin</span>
+              <span style={{ fontSize: 13, color: '#fff' }}>Rp 1.000</span>
+            </div>
+            <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 8, display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>Total</span>
+              <span style={{ fontSize: 15, fontWeight: 900, color: '#c8f500' }}>
+                Rp {(topupAmount * 1000).toLocaleString('id-ID')}
+              </span>
+            </div>
+          </div>
+
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginBottom: 16, lineHeight: 1.6,
+            background: 'rgba(255,255,255,0.03)', borderRadius: 8, padding: 10 }}>
+            📌 Request top-up akan dikirim ke admin untuk dikonfirmasi.<br />
+            Setelah admin approve, coin langsung masuk ke akunmu.<br />
+            Transfer pembayaran sesuai info yang diberikan admin.
+          </div>
+
+          <button style={{ ...S.submitBtn, opacity: topupLoading ? 0.5 : 1 }}
+            onClick={handleTopupRequest} disabled={topupLoading}>
+            {topupLoading ? '⏳ Mengirim...' : `🪙 Request Top-up ${topupAmount} Coin`}
+          </button>
+          <div style={{ height: 40 }} />
+        </div>
+      </div>
+    )
+  }
+
+  // ════════════════════════════════════════════════════
+  // VIEW: INBOX TOP-UP (Admin only)
+  // ════════════════════════════════════════════════════
+  if (view === 'inbox' && isAdmin) {
+    return (
+      <div style={S.wrap}>
+        <div style={S.readerHeader}>
+          <button style={S.backBtn} onClick={() => setView('home')}>‹ Kembali</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 14, fontWeight: 700, color: '#ff9d00' }}>📬 Inbox Top-up Coin</span>
+            {coinRequests.length > 0 && (
+              <span style={{ background: '#ff375f', color: '#fff', borderRadius: 10, padding: '2px 8px', fontSize: 11, fontWeight: 800 }}>
+                {coinRequests.length}
+              </span>
+            )}
+          </div>
+          <div style={{ width: 60 }} />
+        </div>
+        <div style={{ overflowY: 'auto', flex: 1, padding: 14 }}>
+          {coinRequests.length === 0 ? (
+            <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.2)', padding: 60 }}>
+              <div style={{ fontSize: 40, marginBottom: 8 }}>📭</div>
+              Tidak ada permintaan top-up
+            </div>
+          ) : (
+            coinRequests.map(req => (
+              <div key={req.id} style={{ background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,157,0,0.2)', borderRadius: 12, padding: 14, marginBottom: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                  {req.photoURL ? (
+                    <img src={req.photoURL} alt="" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover' }} />
+                  ) : (
+                    <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(255,255,255,0.1)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>👤</div>
+                  )}
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: '#fff' }}>{req.username}</div>
+                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>
+                      {new Date(req.createdAt).toLocaleString('id-ID')}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12,
+                  background: 'rgba(255,255,255,0.03)', borderRadius: 8, padding: '8px 12px' }}>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>Coin</div>
+                    <div style={{ fontSize: 18, fontWeight: 900, color: '#c8f500' }}>🪙 {req.amount}</div>
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>Total</div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: '#fff' }}>
+                      Rp {req.totalPrice.toLocaleString('id-ID')}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button style={{ flex: 1, background: 'rgba(200,245,0,0.15)',
+                    border: '1px solid rgba(200,245,0,0.4)', borderRadius: 8, padding: '10px',
+                    color: '#c8f500', fontSize: 13, fontWeight: 800, cursor: 'pointer' }}
+                    onClick={() => handleApproveTopup(req)}>
+                    ✅ Approve
+                  </button>
+                  <button style={{ flex: 1, background: 'rgba(255,68,68,0.1)',
+                    border: '1px solid rgba(255,68,68,0.3)', borderRadius: 8, padding: '10px',
+                    color: '#ff4444', fontSize: 13, fontWeight: 800, cursor: 'pointer' }}
+                    onClick={() => handleRejectTopup(req)}>
+                    ❌ Tolak
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
     )
@@ -768,13 +1135,21 @@ export default function MangaCrossPanel({ isAdmin, userId }: Props) {
             </div>
           </div>
           <div style={S.formGroup}>
+            <label style={S.label}>💰 Harga (coin) — 0 = gratis</label>
+            <input style={S.input} type="number" min={0} value={uploadCoinPrice}
+              onChange={e => setUploadCoinPrice(Number(e.target.value))} />
+            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginTop: 4 }}>
+              1 coin = Rp 1.000 · user harus beli coin untuk baca chapter berbayar
+            </div>
+          </div>
+          <div style={S.formGroup}>
             <input ref={zipInputRef} type="file" accept=".zip" style={{ display: 'none' }}
               onChange={e => setUploadZipFile(e.target.files?.[0] || null)} />
             <button style={S.uploadBtn} onClick={() => zipInputRef.current?.click()}>
               {uploadZipFile ? `✅ ${uploadZipFile.name}` : '📁 Pilih file ZIP chapter'}
             </button>
             <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginTop: 4 }}>
-              ZIP berisi gambar JPG/PNG per halaman, urut namanya (001.jpg, 002.jpg, dst)
+              ZIP berisi gambar JPG/PNG/WebP per halaman, urut namanya (001.jpg, 002.webp, dst)
             </div>
           </div>
 
@@ -822,9 +1197,32 @@ export default function MangaCrossPanel({ isAdmin, userId }: Props) {
             WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
             fontWeight: 800, letterSpacing: 1 }}>PREMIUM</span>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          {/* Coin balance */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4,
+            background: 'rgba(200,245,0,0.1)', border: '1px solid rgba(200,245,0,0.25)',
+            borderRadius: 20, padding: '4px 10px', cursor: 'pointer' }}
+            onClick={() => setView('topup')}>
+            <span style={{ fontSize: 13 }}>🪙</span>
+            <span style={{ fontSize: 12, fontWeight: 800, color: '#c8f500' }}>{userCoins}</span>
+          </div>
           {isAdmin && (
             <>
+              {/* Inbox coin requests */}
+              <button style={{ ...S.iconBtn, position: 'relative',
+                background: coinRequests.length > 0 ? 'rgba(255,157,0,0.15)' : 'rgba(255,255,255,0.06)',
+                border: `1px solid ${coinRequests.length > 0 ? 'rgba(255,157,0,0.4)' : 'transparent'}`,
+                color: coinRequests.length > 0 ? '#ff9d00' : '#fff' }}
+                onClick={() => setView('inbox')} title="Inbox Top-up">
+                📬
+                {coinRequests.length > 0 && (
+                  <span style={{ position: 'absolute', top: -4, right: -4,
+                    background: '#ff375f', color: '#fff', borderRadius: 10,
+                    padding: '1px 5px', fontSize: 9, fontWeight: 800 }}>
+                    {coinRequests.length}
+                  </span>
+                )}
+              </button>
               <button style={S.iconBtn} onClick={() => setView('storage')} title="Storage Monitor">📊</button>
               <button style={S.iconBtn} onClick={() => setView('upload')} title="Upload Manga">📤</button>
             </>
@@ -876,6 +1274,69 @@ export default function MangaCrossPanel({ isAdmin, userId }: Props) {
           </div>
         )}
       </div>
+
+      {/* Unlock chapter confirm popup */}
+      {showUnlockConfirm && pendingChapter && (
+        <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.85)',
+          display: 'flex', alignItems: 'flex-end', zIndex: 100 }}
+          onClick={() => { setShowUnlockConfirm(false); setPendingChapter(null) }}>
+          <div style={{ width: '100%', background: '#13131a', borderRadius: '20px 20px 0 0',
+            padding: 20, paddingBottom: 36 }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ width: 36, height: 4, background: 'rgba(255,255,255,0.15)',
+              borderRadius: 2, margin: '0 auto 16px' }} />
+            <div style={{ textAlign: 'center', marginBottom: 16 }}>
+              <div style={{ fontSize: 36, marginBottom: 6 }}>🪙</div>
+              <div style={{ fontSize: 15, fontWeight: 900, color: '#fff', marginBottom: 4 }}>
+                Baca Chapter Ini?
+              </div>
+              <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>
+                Ch.{pendingChapter.chapterNumber} — {pendingChapter.title}
+              </div>
+            </div>
+            <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 10,
+              padding: '12px 16px', marginBottom: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>Harga chapter</span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: '#c8f500' }}>🪙 {pendingChapter.coinPrice}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>Saldo kamu</span>
+                <span style={{ fontSize: 13, fontWeight: 800,
+                  color: userCoins >= pendingChapter.coinPrice ? '#fff' : '#ff4444' }}>
+                  🪙 {userCoins}
+                </span>
+              </div>
+              {userCoins < pendingChapter.coinPrice && (
+                <div style={{ marginTop: 8, fontSize: 11, color: '#ff6b6b', textAlign: 'center' }}>
+                  Coin tidak cukup! Top-up dulu 👇
+                </div>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              {userCoins < pendingChapter.coinPrice ? (
+                <button style={{ ...S.submitBtn, flex: 1 }}
+                  onClick={() => { setShowUnlockConfirm(false); setPendingChapter(null); setView('topup') }}>
+                  🪙 Top-up Coin
+                </button>
+              ) : (
+                <button style={{ flex: 1, background: 'linear-gradient(90deg,#c8f500,#4fc3f7)',
+                  border: 'none', borderRadius: 10, color: '#000', fontSize: 14,
+                  fontWeight: 800, cursor: 'pointer', padding: '13px', opacity: unlockLoading ? 0.5 : 1 }}
+                  onClick={() => handleUnlockChapter(pendingChapter!)} disabled={unlockLoading}>
+                  {unlockLoading ? '⏳...' : `🔓 Beli & Baca — 🪙 ${pendingChapter.coinPrice}`}
+                </button>
+              )}
+              <button style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: 10, padding: '13px 16px', color: 'rgba(255,255,255,0.5)',
+                fontSize: 14, cursor: 'pointer' }}
+                onClick={() => { setShowUnlockConfirm(false); setPendingChapter(null) }}>
+                Batal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -886,7 +1347,7 @@ export default function MangaCrossPanel({ isAdmin, userId }: Props) {
 const S: Record<string, React.CSSProperties> = {
   wrap: {
     display: 'flex', flexDirection: 'column', height: '100%',
-    background: '#0a0a0f', overflow: 'hidden',
+    background: '#0a0a0f', overflow: 'hidden', position: 'relative',
   },
   header: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -941,8 +1402,8 @@ const S: Record<string, React.CSSProperties> = {
     fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.85)',
     marginTop: 6, lineHeight: 1.3,
     overflow: 'hidden', textOverflow: 'ellipsis',
-    display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
-  } as any,
+    whiteSpace: 'nowrap',
+  },
   statusBadge: {
     position: 'absolute', bottom: 6, left: 6,
     fontSize: 9, fontWeight: 800, padding: '2px 6px',
