@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback, memo } from 'react'
 import AnimeStreamPanel from './AnimeStreamPanel'
 import MangaStreamPanel from './MangaStreamPanel'
+import MangaCrossPanel from './MangaCrossPanel'
 import { auth, googleProvider, dbChat, getRpgDb } from './firebase'
 import {
   rpgSaveLocal, rpgLoadLocal, rpgSyncToFirebase, rpgNeedsSync,
@@ -3707,6 +3708,7 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
     { id: 'voice',  icon: '📞', label: 'voice-room',    category: 'MEDIA',   type: 'voice' },
     { id: 'anime',  icon: '🎌', label: 'anime-stream',  category: 'MEDIA',   type: 'text'  },
     { id: 'manga',  icon: '📖', label: 'kyoko-manga',   category: 'MEDIA',   type: 'text'  },
+    { id: 'mangax', icon: '💎', label: 'manga-cross',   category: 'MEDIA',   type: 'text'  },
   ] as const
 
   type ChannelId = typeof CHANNELS[number]['id']
@@ -3720,6 +3722,7 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
     else if (id === 'music') { setActiveTab('music'); }
     else if (id === 'anime') { setActiveTab('anime' as any); }
     else if (id === 'manga') { setActiveTab('manga' as any); }
+    else if (id === 'mangax') { setActiveTab('mangax' as any); }
     else if (id === 'offline') { setActiveTab('offline' as any); }
     else { setActiveTab('chat'); }
   }
@@ -3728,6 +3731,7 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
     if ((activeTab as string) === 'fishing') return 'fishing'
     if ((activeTab as string) === 'anime') return 'anime'
     if ((activeTab as string) === 'manga') return 'manga'
+    if ((activeTab as string) === 'mangax') return 'mangax'
     if ((activeTab as string) === 'offline') return 'offline'
     if (activeTab === 'voice') return 'voice'
     if (activeTab === 'music') return 'music'
@@ -4160,6 +4164,11 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
             {/* ── MANGA TAB ── */}
             {(activeTab as string) === 'manga' && (
               <MangaStreamPanel isAdmin={isAdmin} userId={user?.uid || ''} />
+            )}
+
+            {/* ── MANGA CROSS TAB (PREMIUM) ── */}
+            {(activeTab as string) === 'mangax' && (
+              <MangaCrossPanel isAdmin={isAdmin} userId={user?.uid || ''} />
             )}
 
             {/* ── CHAT TAB ── */}
