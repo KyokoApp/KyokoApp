@@ -25,18 +25,24 @@ type View = 'home' | 'results' | 'detail' | 'player'
 // VIDSRC — aktif Mei 2026, support anime via TMDB ID
 // Format: https://{domain}/embed/tv?tmdb={id}&season={s}&episode={ep}
 // ═══════════════════════════════════════════════════════════════
-const VIDSRC_DOMAINS = [
-  'vidsrc-embed.ru',
-  'vidsrc-embed.su',
-  'vidsrcme.su',
-  'vsrc.su',
+// Server SUB: Japanese audio — embed.su & vidfast support multi-audio incl JP
+const SUB_SERVERS = [
+  (id: number, s: number, ep: number) => `https://embed.su/embed/tv/${id}/${s}/${ep}`,
+  (id: number, s: number, ep: number) => `https://vidfast.pro/tv/${id}/${s}/${ep}?autoPlay=true`,
+  (id: number, s: number, ep: number) => `https://vidsrc-embed.ru/embed/tv?tmdb=${id}&season=${s}&episode=${ep}&autoplay=1`,
+  (id: number, s: number, ep: number) => `https://vidsrc-embed.su/embed/tv?tmdb=${id}&season=${s}&episode=${ep}&autoplay=1`,
+]
+// Server DUB: English dubbed
+const DUB_SERVERS = [
+  (id: number, s: number, ep: number) => `https://vidsrc-embed.ru/embed/tv?tmdb=${id}&season=${s}&episode=${ep}&dub=1&autoplay=1`,
+  (id: number, s: number, ep: number) => `https://vidsrc-embed.su/embed/tv?tmdb=${id}&season=${s}&episode=${ep}&dub=1&autoplay=1`,
+  (id: number, s: number, ep: number) => `https://vidsrcme.su/embed/tv?tmdb=${id}&season=${s}&episode=${ep}&dub=1&autoplay=1`,
+  (id: number, s: number, ep: number) => `https://vsrc.su/embed/tv?tmdb=${id}&season=${s}&episode=${ep}&dub=1&autoplay=1`,
 ]
 
 function buildVidsrcUrl(tmdbId: number, episode: number, season = 1, domainIndex = 0, subDub: 'sub' | 'dub' = 'sub'): string {
-  const domain = VIDSRC_DOMAINS[domainIndex % VIDSRC_DOMAINS.length]
-  // sub = Japanese audio (original), dub = English dubbed
-  const dubParam = subDub === 'dub' ? '&dub=1' : '&sub=1'
-  return `https://${domain}/embed/tv?tmdb=${tmdbId}&season=${season}&episode=${episode}&autoplay=1${dubParam}`
+  const servers = subDub === 'sub' ? SUB_SERVERS : DUB_SERVERS
+  return servers[domainIndex % servers.length](tmdbId, season, episode)
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -191,6 +197,9 @@ const S = `
 .ax-resolving { display:flex; align-items:center; gap:8px; padding:8px 14px; font-size:11px; color:rgba(255,255,255,0.3); flex-shrink:0; }
 .ax-player-box { width:100%; aspect-ratio:16/9; background:#000; position:relative; flex-shrink:0; overflow:hidden; }
 .ax-player-box.ax-fullscreen-active { position:fixed; inset:0; width:100vw; height:100vh; aspect-ratio:unset; z-index:9999; background:#000; }
+@media (orientation:portrait) {
+  .ax-player-box.ax-fullscreen-active { width:100vh; height:100vw; top:50%; left:50%; transform:translate(-50%,-50%) rotate(90deg); }
+}
 .ax-fs-btn { position:absolute; bottom:8px; right:8px; z-index:10; background:rgba(0,0,0,0.6); border:1px solid rgba(255,255,255,0.2); border-radius:8px; color:#fff; font-size:14px; width:32px; height:32px; display:flex; align-items:center; justify-content:center; cursor:pointer; backdrop-filter:blur(4px); transition:background .15s; }
 .ax-fs-btn:hover { background:rgba(167,139,250,0.4); border-color:#a78bfa; }
 .ax-fs-close { position:fixed; top:12px; right:12px; z-index:10000; background:rgba(0,0,0,0.7); border:1px solid rgba(255,255,255,0.25); border-radius:50%; color:#fff; font-size:16px; width:36px; height:36px; display:flex; align-items:center; justify-content:center; cursor:pointer; backdrop-filter:blur(6px); }
@@ -222,7 +231,7 @@ export default function AnimeStreamPanel({ isAdmin, userId }: Props) {
   const [isFullscreen, setIsFullscreen] = useState(false)
   const playerRef = useRef<HTMLDivElement>(null)
 
-  const toggleFullscreen = useCallback(() => {
+  const toggleFullscreen = useCallback(async () => {
     const el = playerRef.current
     if (!el) return
 
@@ -233,19 +242,29 @@ export default function AnimeStreamPanel({ isAdmin, userId }: Props) {
         || (el as any).mozRequestFullScreen
         || (el as any).msRequestFullscreen
       if (req) {
-        req.call(el).catch(() => {
+        try {
+          await req.call(el)
+        } catch {
           // Fallback: CSS fullscreen
-          setIsFullscreen(true)
-        })
-      } else {
-        setIsFullscreen(true)
+        }
+      }
+      setIsFullscreen(true)
+      // Lock ke landscape agar nonton penuh horizontal
+      try {
+        await (screen.orientation as any).lock('landscape')
+      } catch {
+        // Browser tidak support orientation lock — tidak apa-apa
       }
     } else {
+      // Unlock orientasi dulu sebelum exit fullscreen
+      try { screen.orientation.unlock() } catch {}
       const exit = (document as any).exitFullscreen
         || (document as any).webkitExitFullscreen
         || (document as any).mozCancelFullScreen
         || (document as any).msExitFullscreen
-      if (exit) exit.call(document).catch(() => {})
+      if (exit) {
+        try { await exit.call(document) } catch {}
+      }
       setIsFullscreen(false)
     }
   }, [isFullscreen])
@@ -256,7 +275,10 @@ export default function AnimeStreamPanel({ isAdmin, userId }: Props) {
       const fsEl = (document as any).fullscreenElement
         || (document as any).webkitFullscreenElement
         || (document as any).mozFullScreenElement
-      if (!fsEl) setIsFullscreen(false)
+      if (!fsEl) {
+        try { screen.orientation.unlock() } catch {}
+        setIsFullscreen(false)
+      }
     }
     document.addEventListener('fullscreenchange', onFsChange)
     document.addEventListener('webkitfullscreenchange', onFsChange)
@@ -457,7 +479,7 @@ export default function AnimeStreamPanel({ isAdmin, userId }: Props) {
               )}
               {selectedAnime.tmdbId && !resolving && (
                 <div className="ax-info-box" style={{ marginTop: 12 }}>
-                  ✅ Stream siap via <strong>VidSrc</strong> — default 🇯🇵 <strong>Audio Jepang (SUB)</strong>. Bisa ganti ke DUB Inggris di player.
+                  ✅ Stream siap — pilih <strong>🇯🇵 SUB</strong> untuk audio Jepang asli (server S1/S2). DUB = Audio Inggris.
                 </div>
               )}
             </div>
@@ -468,7 +490,7 @@ export default function AnimeStreamPanel({ isAdmin, userId }: Props) {
         {view === 'player' && selectedAnime && (
           <>
             <div className="ax-header">
-              <button className="ax-back" onClick={() => setView('detail')}>← Detail</button>
+              <button className="ax-back" onClick={() => { try { screen.orientation.unlock() } catch {} setIsFullscreen(false); setView('detail') }}>← Detail</button>
               <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
                 {selectedAnime.title} · Ep {selectedEp}
               </span>
@@ -504,11 +526,11 @@ export default function AnimeStreamPanel({ isAdmin, userId }: Props) {
                 {/* Server selector */}
                 <div className="ax-domain-row">
                   <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', marginRight: 2 }}>Server:</span>
-                  {VIDSRC_DOMAINS.map((_, i) => (
+                  {(subDub === 'sub' ? SUB_SERVERS : DUB_SERVERS).map((_, i) => (
                     <button key={i}
                       className={`ax-domain-btn ${domainIndex === i ? 'active' : ''}`}
                       onClick={() => { setDomainIndex(i); setIframeLoading(true) }}>
-                      S{i + 1}
+                      {subDub === 'sub' && i < 2 ? '🇯🇵S' + (i+1) : 'S' + (i+1)}
                     </button>
                   ))}
                 </div>
@@ -528,7 +550,7 @@ export default function AnimeStreamPanel({ isAdmin, userId }: Props) {
                     key={`${subDub}-${domainIndex}-${selectedAnime.tmdbId}-${selectedEp}`}
                     src={embedUrl}
                     allowFullScreen
-                    allow="autoplay; fullscreen *; picture-in-picture"
+                    allow="autoplay; fullscreen *; picture-in-picture; screen-wake-lock"
                     onLoad={() => setIframeLoading(false)}
                     style={{ opacity: iframeLoading ? 0 : 1, transition: 'opacity .3s' }}
                   />
