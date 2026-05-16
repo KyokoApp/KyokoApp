@@ -57,9 +57,20 @@ async function mdFetch(path: string, params: Record<string, any> = {}): Promise<
     if (Array.isArray(v)) v.forEach(val => url.searchParams.append(k, val))
     else url.searchParams.append(k, String(v))
   })
-  const res = await fetch(url.toString(), { signal: AbortSignal.timeout(10000) })
-  if (!res.ok) throw new Error(`MangaDex error: ${res.status}`)
-  return res.json()
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 12000)
+  try {
+    const res = await fetch(url.toString(), {
+      signal: controller.signal,
+      headers: { 'Accept': 'application/json' },
+    })
+    clearTimeout(timer)
+    if (!res.ok) throw new Error(`MangaDex ${res.status}`)
+    return res.json()
+  } catch (e) {
+    clearTimeout(timer)
+    throw e
+  }
 }
 
 function extractCover(manga: any): string {
@@ -93,7 +104,7 @@ async function fetchPopular(): Promise<MangaInfo[]> {
   const data = await mdFetch('/manga', {
     limit: 20,
     'order[followedCount]': 'desc',
-    contentRating: ['safe', 'suggestive'],
+    'contentRating[]': ['safe', 'suggestive'],
     'includes[]': ['cover_art'],
     hasAvailableChapters: 'true',
   })
@@ -104,7 +115,7 @@ async function fetchLatest(): Promise<MangaInfo[]> {
   const data = await mdFetch('/manga', {
     limit: 20,
     'order[latestUploadedChapter]': 'desc',
-    contentRating: ['safe', 'suggestive'],
+    'contentRating[]': ['safe', 'suggestive'],
     'includes[]': ['cover_art'],
     hasAvailableChapters: 'true',
   })
@@ -115,7 +126,7 @@ async function searchManga(query: string): Promise<MangaInfo[]> {
   const data = await mdFetch('/manga', {
     title: query,
     limit: 20,
-    contentRating: ['safe', 'suggestive'],
+    'contentRating[]': ['safe', 'suggestive'],
     'includes[]': ['cover_art'],
     hasAvailableChapters: 'true',
   })
@@ -126,10 +137,10 @@ async function fetchChapters(mangaId: string, offset = 0): Promise<{ chapters: C
   const data = await mdFetch(`/manga/${mangaId}/feed`, {
     limit: 100,
     offset,
-    translatedLanguage: ['en', 'id'],
+    'translatedLanguage[]': ['en', 'id'],
     'order[chapter]': 'asc',
     'includes[]': ['scanlation_group'],
-    contentRating: ['safe', 'suggestive', 'erotica'],
+    'contentRating[]': ['safe', 'suggestive', 'erotica'],
   })
   const chapters: ChapterInfo[] = (data.data || []).map((c: any) => ({
     id: c.id,
@@ -393,7 +404,17 @@ export default function MangaStreamPanel({ isAdmin: _isAdmin, userId: _userId }:
                 {m === 'scroll' ? '↕ Scroll' : '↔ Paged'}
               </button>
             ))}
-            <button onClick={() => setQuality(q => q === 'hq' ? 'lq' : 'hq')} style={{
+            <button onClick={() => {
+              const newQ = quality === 'hq' ? 'lq' : 'hq'
+              setQuality(newQ)
+              if (pageData) {
+                const pgs = (newQ === 'hq' ? pageData.data : pageData.dataSaver).map(
+                  fn => `${pageData.baseUrl}/${newQ === 'hq' ? 'data' : 'data-saver'}/${pageData.hash}/${fn}`
+                )
+                setPages(pgs)
+                setImgErrors(new Set())
+              }
+            }} style={{
               background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.6)',
               border: 'none', borderRadius: 6, padding: '4px 8px', fontSize: 10, cursor: 'pointer', fontWeight: 700,
             }}>
