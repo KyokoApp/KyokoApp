@@ -5008,6 +5008,10 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
               </div>
             )}
 
+          </>
+          </div>{/* bloom wrapper */}
+        )}
+
         {/* ── GROUP INFO PANEL (tap icon grup) ── */}
         {showGroupInfo && (
           <div className="gc-group-info-panel gc2-fadein">
@@ -5278,8 +5282,6 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
               </div>
             </div>
           </div>
-          </>
-          </div>{/* bloom wrapper */}
         )}
       </div>{/* zzz-main-content */}
       </div>{/* zzz-discord-layout */}
