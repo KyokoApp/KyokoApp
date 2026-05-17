@@ -824,7 +824,10 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
   const appVersionRef = useRef<string | null>(null) // versi yang sedang dipakai user
 
   const [activeTab, setActiveTab] = useState<'chat'|'rpg'|'fishing'|'voice'|'music'|'anime'>('chat')
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => window.innerWidth < 400)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true)
+  const [navOpen, setNavOpen] = useState(false)
+  const [navTransDir, setNavTransDir] = useState<'up'|'down'>('up')
+  const [navContentKey, setNavContentKey] = useState(0)
   const [offlineSelectedGame, setOfflineSelectedGame] = useState<string|null>(null)
 
   // ── Voice Call state ───────────────────────────────────────────
@@ -3724,6 +3727,13 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
   type ChannelId = typeof CHANNELS[number]['id']
 
   const handleChannelClick = (id: ChannelId) => {
+    const allIds = CHANNELS.map(c => c.id)
+    const oldIdx = allIds.indexOf(getActiveChannelId())
+    const newIdx = allIds.indexOf(id)
+    setNavTransDir(newIdx >= oldIdx ? 'up' : 'down')
+    setNavContentKey(k => k + 1)
+    setNavOpen(false)
+
     if (id === 'rpg') { setActiveTab('rpg'); setActiveGachaTab('rpg'); fetchActiveBattles(); }
     else if (id === 'gacha') { setActiveTab('rpg'); setActiveGachaTab('gacha'); }
     else if (id === 'planet') { setActiveTab('rpg'); setActiveGachaTab('planet'); }
@@ -3760,57 +3770,57 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
     <div className="gc-overlay" onClick={() => { if (battleState) clearActiveBattle(); onClose() }} style={{ zIndex: 9999, position:'fixed', inset:0, display:'flex', alignItems:'stretch', justifyContent:'stretch' }}>
       <div className="gc-container gc2-container zzz-discord-layout" onClick={e => e.stopPropagation()} style={{ position: 'relative', display: 'flex', flexDirection: 'row', padding: 0, overflow: 'hidden', width:'100vw', height:'100dvh', borderRadius:0, flex:1 }}>
 
-        {/* ── ZZZ DISCORD SIDEBAR ── */}
-        <div className={`zzz-sidebar${sidebarCollapsed ? ' zzz-sidebar-collapsed' : ''}`}>
-          {/* Server header */}
-          <div className="zzz-server-header">
-            <div
-              className="zzz-server-icon"
-              onClick={sidebarCollapsed ? () => setSidebarCollapsed(false) : undefined}
-              style={sidebarCollapsed ? {cursor:'pointer',boxShadow:'0 0 0 2px rgba(200,245,0,0.4)'} : undefined}
-              title={sidebarCollapsed ? 'Buka sidebar' : undefined}
-            >
+        {/* ── QUARTER CIRCLE NAV TRIGGER ── */}
+        <div className="qc-trigger-wrap">
+          {/* Animated arc border */}
+          <svg className="qc-arc-svg" viewBox="0 0 80 80">
+            <path className="qc-arc-path" d="M 78 2 A 76 76 0 0 1 2 78" />
+          </svg>
+          {/* Quarter circle shape */}
+          <div
+            className={`qc-shape${navOpen ? ' qc-open' : ''}`}
+            onClick={() => setNavOpen(v => !v)}
+          >
+            <div className="qc-avatar">
               {groupInfo?.iconUrl
-                ? <img src={groupInfo.iconUrl} alt="server" style={{width:'100%',height:'100%',objectFit:'cover',borderRadius:'inherit'}}/>
-                : <span style={{fontSize:18}}>⚡</span>}
+                ? <img src={groupInfo.iconUrl} alt="g" style={{width:'100%',height:'100%',objectFit:'cover',borderRadius:'50%'}}/>
+                : <span style={{fontSize:16}}>⚡</span>}
             </div>
-            {!sidebarCollapsed && (
-              <div className="zzz-server-name">
-                <div style={{fontSize:13,fontWeight:800,color:'#fff',letterSpacing:.5,lineHeight:1.2}}>{groupInfo?.name || 'KyokoMd'}</div>
-                <div style={{fontSize:10,color:'rgba(255,255,255,0.35)',letterSpacing:.3}}>{groupInfo?.members?.length||0} members</div>
-              </div>
-            )}
-            {!sidebarCollapsed && (
-              <button className="zzz-sidebar-toggle" onClick={() => setSidebarCollapsed(true)} title="Collapse">
-                <svg viewBox="0 0 20 20" fill="currentColor" width="12" height="12"><path fillRule="evenodd" d="M12.707 4.293a1 1 0 0 1 0 1.414L8.414 10l4.293 4.293a1 1 0 0 1-1.414 1.414l-5-5a1 1 0 0 1 0-1.414l5-5a1 1 0 0 1 1.414 0z" clipRule="evenodd"/></svg>
-              </button>
-            )}
+            <div className="qc-arrow-icon">▾</div>
+          </div>
+        </div>
+
+        {/* ── NAV BACKDROP ── */}
+        <div className={`qc-backdrop${navOpen ? ' qc-backdrop-visible' : ''}`} onClick={() => setNavOpen(false)} />
+
+        {/* ── NAV PANEL ── */}
+        <div className={`qc-nav-panel${navOpen ? ' qc-nav-open' : ''}`}>
+          {/* Group info */}
+          <div className="qc-group-info">
+            <div style={{fontSize:14,fontWeight:800,color:'#fff',letterSpacing:.4}}>{groupInfo?.name || 'KyokoMd Global'}</div>
+            <div style={{fontSize:10,color:'rgba(200,245,0,0.5)',fontFamily:'monospace',marginTop:2}}>{groupInfo?.members?.length||0} members</div>
           </div>
 
-          {/* Channel categories */}
-          <div className="zzz-channel-list">
+          {/* Channel list */}
+          <div className="qc-channel-scroll">
             {categories.map(cat => (
-              <div key={cat} className="zzz-category">
-                {!sidebarCollapsed && <div className="zzz-category-label">{cat}</div>}
-                {CHANNELS.filter(c => c.category === cat).map(ch => {
+              <div key={cat}>
+                <div className="qc-cat-label">{cat}</div>
+                {CHANNELS.filter(c => c.category === cat).map((ch, chIdx) => {
                   const isActive = getActiveChannelId() === ch.id
                   const isVoiceActive = ch.id === 'voice' && voiceCallActive
+                  const globalIdx = CHANNELS.indexOf(ch)
                   return (
                     <button
                       key={ch.id}
-                      className={`zzz-channel-item${isActive ? ' active' : ''}${isVoiceActive ? ' voice-active' : ''}`}
+                      className={`qc-ch-item${isActive ? ' qc-ch-active' : ''}${isVoiceActive ? ' qc-ch-voice' : ''}`}
+                      style={navOpen ? {animationDelay:`${globalIdx * 35}ms`} : {}}
                       onClick={() => handleChannelClick(ch.id as ChannelId)}
-                      title={sidebarCollapsed ? ch.label : undefined}
                     >
-                      <span className="zzz-channel-icon">{ch.icon}</span>
-                      {!sidebarCollapsed && (
-                        <>
-                          <span className="zzz-channel-name">{ch.label}</span>
-                          {ch.id === 'voice' && voiceCallActive && (
-                            <span className="zzz-voice-badge">{Object.keys(voiceParticipants).length}</span>
-                          )}
-                          {ch.type === 'voice' && <span className="zzz-channel-type-badge">🔊</span>}
-                        </>
+                      <span className="qc-ch-icon">{ch.icon}</span>
+                      <span className="qc-ch-label">{ch.label}</span>
+                      {ch.id === 'voice' && voiceCallActive && (
+                        <span className="qc-voice-badge">{Object.keys(voiceParticipants).length}</span>
                       )}
                     </button>
                   )
@@ -3819,31 +3829,27 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
             ))}
           </div>
 
-          {/* User panel at bottom */}
+          {/* User panel */}
           {step === 'main' && user && (
-            <div className="zzz-user-panel">
-              <div className="zzz-user-avatar" style={{background: avatarColor(user.uid)}}>
+            <div className="qc-user-bar">
+              <div className="qc-user-av" style={{background: avatarColor(user.uid)}}>
                 {user.photoURL
                   ? <img src={user.photoURL} alt="" style={{width:'100%',height:'100%',objectFit:'cover',borderRadius:'50%'}}/>
                   : username[0]?.toUpperCase()}
-                <span className="zzz-user-status-dot"/>
+                <span className="qc-status-dot"/>
               </div>
-              {!sidebarCollapsed && (
-                <div className="zzz-user-info">
-                  <div style={{fontSize:11,fontWeight:700,color:'#fff',lineHeight:1.2,maxWidth:90,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{username}</div>
-                  <div style={{fontSize:9,color:'rgba(200,245,0,0.7)'}}>● Online</div>
-                </div>
-              )}
-              {!sidebarCollapsed && (
-                <div style={{display:'flex',gap:4,marginLeft:'auto'}}>
-                  <button className="zzz-icon-btn" title="Logout" onClick={handleLogout}>
-                    <svg viewBox="0 0 20 20" fill="currentColor" width="12" height="12"><path fillRule="evenodd" d="M3 3a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8a1 1 0 1 0 0-2H4V5h7a1 1 0 1 0 0-2H3zm12.293 4.293a1 1 0 0 1 1.414 1.414L14.414 11H9a1 1 0 1 1 0-2h5.414l2.293-2.293z" clipRule="evenodd"/></svg>
-                  </button>
-                  <button className="zzz-icon-btn" title="Kembali" onClick={() => { if (battleState) clearActiveBattle(); onClose() }}>
-                    <svg viewBox="0 0 20 20" fill="currentColor" width="12" height="12"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 0 1 1.414 0L10 8.586l4.293-4.293a1 1 0 1 1 1.414 1.414L11.414 10l4.293 4.293a1 1 0 0 1-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 0 1-1.414-1.414L8.586 10 4.293 5.707a1 1 0 0 1 0-1.414z" clipRule="evenodd"/></svg>
-                  </button>
-                </div>
-              )}
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:11,fontWeight:700,color:'#fff',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{username}</div>
+                <div style={{fontSize:9,color:'rgba(74,222,128,0.8)'}}>● Online</div>
+              </div>
+              <div style={{display:'flex',gap:4}}>
+                <button className="zzz-icon-btn" title="Logout" onClick={handleLogout}>
+                  <svg viewBox="0 0 20 20" fill="currentColor" width="11" height="11"><path fillRule="evenodd" d="M3 3a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8a1 1 0 1 0 0-2H4V5h7a1 1 0 1 0 0-2H3zm12.293 4.293a1 1 0 0 1 1.414 1.414L14.414 11H9a1 1 0 1 1 0-2h5.414l2.293-2.293z" clipRule="evenodd"/></svg>
+                </button>
+                <button className="zzz-icon-btn" title="Kembali" onClick={() => { if (battleState) clearActiveBattle(); onClose() }}>
+                  <svg viewBox="0 0 20 20" fill="currentColor" width="11" height="11"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 0 1 1.414 0L10 8.586l4.293-4.293a1 1 0 1 1 1.414 1.414L11.414 10l4.293 4.293a1 1 0 0 1-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 0 1-1.414-1.414L8.586 10 4.293 5.707a1 1 0 0 1 0-1.414z" clipRule="evenodd"/></svg>
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -3959,7 +3965,7 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
         <ToastContainer toasts={toasts} onRemove={(id) => setToasts(prev => prev.filter(t => t.id !== id))} />
 
         {/* ── ZZZ CHANNEL HEADER ── */}
-        <div className="zzz-channel-header">
+        <div className="zzz-channel-header" style={{paddingLeft:82}}>
           <div className="zzz-channel-header-left">
             <span className="zzz-channel-header-icon">
               {CHANNELS.find(c => c.id === getActiveChannelId())?.icon || '💬'}
@@ -4026,6 +4032,7 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
 
         {/* ── MAIN (TABS) ── */}
         {step === 'main' && (
+          <div key={navContentKey} className={`gc-bloom-enter-${navTransDir}`} style={{display:'contents'}}>
           <>
             {/* ── VOICE ROOM TAB ── */}
             {activeTab === 'voice' && (
@@ -5273,6 +5280,7 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
               </div>
             </div>
           </div>
+          </div>{/* bloom wrapper */}
         )}
       </div>{/* zzz-main-content */}
       </div>{/* zzz-discord-layout */}
@@ -5794,54 +5802,185 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
         .fish-claim-btn:hover { transform:scale(1.02); }
 
         /* ══════════════════════════════════════════════════════════
-           ZZZ DISCORD LAYOUT — SIDEBAR + MAIN
+           ZZZ DISCORD LAYOUT — FULL WIDTH (no sidebar)
         ══════════════════════════════════════════════════════════ */
         .zzz-discord-layout { display:flex !important; flex-direction:row !important; width:100%; max-width:100vw; height:100dvh; border-radius:0; overflow:hidden; border:none; box-shadow:none; }
 
-        /* ── Sidebar ── */
-        .zzz-sidebar { width:175px; min-width:175px; background:#0a0a0f; border-right:1px solid rgba(200,245,0,0.07); display:flex; flex-direction:column; flex-shrink:0; transition:width .25s cubic-bezier(.4,0,.2,1),min-width .25s; overflow:hidden; }
-        .zzz-sidebar-collapsed { width:44px; min-width:44px; }
-
-        /* ── Responsive narrow screens ── */
-        @media (max-width: 400px) {
-          .zzz-sidebar:not(.zzz-sidebar-collapsed) { width:155px; min-width:155px; }
-          .zzz-channel-name { font-size:10px; }
-          .zzz-category-label { font-size:8px; }
-          .gc-input-icon-btn { padding:5px 6px; }
+        /* ── Quarter Circle Trigger ── */
+        .qc-trigger-wrap {
+          position:absolute; top:0; left:0;
+          width:72px; height:72px;
+          z-index:60; pointer-events:none;
         }
-        @media (max-width: 360px) {
-          .zzz-sidebar:not(.zzz-sidebar-collapsed) { width:140px; min-width:140px; }
+        .qc-arc-svg {
+          position:absolute; top:-2px; left:-2px;
+          width:80px; height:80px;
+          pointer-events:none; overflow:visible;
+        }
+        .qc-arc-path {
+          fill:none; stroke:#c8f500; stroke-width:2;
+          stroke-dasharray:12 6;
+          stroke-linecap:round;
+          filter:drop-shadow(0 0 4px #c8f500);
+          animation:qcArcSpin 2.4s linear infinite;
+          transform-origin:0 0;
+        }
+        @keyframes qcArcSpin {
+          0%   { stroke-dashoffset:0; }
+          100% { stroke-dashoffset:-54; }
+        }
+        .qc-shape {
+          position:absolute; top:0; left:0;
+          width:72px; height:72px;
+          border-bottom-right-radius:72px;
+          background:linear-gradient(135deg,rgba(14,14,28,0.97),rgba(18,18,36,0.95));
+          border-bottom:1px solid rgba(200,245,0,0.2);
+          border-right:1px solid rgba(200,245,0,0.2);
+          pointer-events:all; cursor:pointer;
+          transition:background .25s;
+          display:flex; align-items:flex-start; justify-content:flex-start;
+        }
+        .qc-shape:hover, .qc-shape.qc-open {
+          background:linear-gradient(135deg,rgba(200,245,0,0.07),rgba(18,18,36,0.98));
+        }
+        .qc-avatar {
+          position:absolute; top:9px; left:9px;
+          width:36px; height:36px; border-radius:50%;
+          background:linear-gradient(135deg,#1a1a2e,#16213e);
+          border:2px solid rgba(200,245,0,0.45);
+          display:flex; align-items:center; justify-content:center;
+          overflow:hidden;
+          box-shadow:0 0 10px rgba(200,245,0,0.15);
+          transition:box-shadow .2s;
+        }
+        .qc-shape:hover .qc-avatar, .qc-shape.qc-open .qc-avatar {
+          box-shadow:0 0 18px rgba(200,245,0,0.35);
+        }
+        .qc-arrow-icon {
+          position:absolute; bottom:7px; right:9px;
+          color:rgba(200,245,0,0.75); font-size:13px;
+          animation:qcArrowBounce 1.3s ease infinite;
+          transition:transform .25s;
+        }
+        .qc-shape.qc-open .qc-arrow-icon { transform:rotate(180deg); animation:none; }
+        @keyframes qcArrowBounce {
+          0%,100% { transform:translateY(0); }
+          50%      { transform:translateY(3px); }
         }
 
-        .zzz-server-header { display:flex; align-items:center; gap:8px; padding:12px 10px 10px; border-bottom:1px solid rgba(200,245,0,0.08); flex-shrink:0; min-height:52px; }
-        .zzz-server-icon { width:28px; height:28px; min-width:28px; border-radius:8px; background:linear-gradient(135deg,rgba(200,245,0,0.2),rgba(200,245,0,0.05)); border:1.5px solid rgba(200,245,0,0.3); display:flex; align-items:center; justify-content:center; overflow:hidden; box-shadow:0 0 10px rgba(200,245,0,0.1); flex-shrink:0; }
-        .zzz-server-name { flex:1; min-width:0; overflow:hidden; }
-        .zzz-sidebar-toggle { background:none; border:none; cursor:pointer; color:rgba(255,255,255,0.3); padding:4px; border-radius:6px; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:all .2s; }
-        .zzz-sidebar-toggle:hover { color:#c8f500; background:rgba(200,245,0,0.08); }
+        /* ── Backdrop ── */
+        .qc-backdrop {
+          position:absolute; inset:0; z-index:45;
+          background:rgba(0,0,0,0.72);
+          backdrop-filter:blur(7px);
+          opacity:0; pointer-events:none;
+          transition:opacity .3s ease;
+        }
+        .qc-backdrop-visible { opacity:1; pointer-events:all; }
 
-        .zzz-channel-list { flex:1; overflow-y:auto; padding:8px 0 4px; scrollbar-width:none; }
-        .zzz-channel-list::-webkit-scrollbar { display:none; }
-        .zzz-category { margin-bottom:4px; }
-        .zzz-category-label { font-size:9px; font-weight:800; color:rgba(255,255,255,0.22); letter-spacing:1.2px; padding:6px 10px 3px; text-transform:uppercase; }
-        .zzz-channel-item { display:flex; align-items:center; gap:7px; width:100%; padding:6px 8px; background:none; border:none; cursor:pointer; border-radius:6px; margin:1px 4px; width:calc(100% - 8px); transition:all .15s; color:rgba(255,255,255,0.38); text-align:left; }
-        .zzz-channel-item:hover { background:rgba(255,255,255,0.05); color:rgba(255,255,255,0.7); }
-        .zzz-channel-item.active { background:rgba(200,245,0,0.1); color:#c8f500; border-left:2px solid #c8f500; }
-        .zzz-channel-item.voice-active { background:rgba(100,220,100,0.1); color:#4ade80; border-left:2px solid #4ade80; }
-        .zzz-channel-icon { font-size:14px; flex-shrink:0; }
-        .zzz-channel-name { font-size:11px; font-weight:600; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; letter-spacing:.1px; }
-        .zzz-channel-type-badge { font-size:9px; opacity:.5; flex-shrink:0; }
-        .zzz-voice-badge { background:#4ade80; color:#000; font-size:9px; font-weight:800; border-radius:10px; padding:1px 5px; flex-shrink:0; }
+        /* ── Nav Panel ── */
+        .qc-nav-panel {
+          position:absolute; top:0; left:0;
+          width:230px; max-height:92vh;
+          z-index:50;
+          background:linear-gradient(160deg,#0d0d1a 0%,#09090f 100%);
+          border-right:1px solid rgba(200,245,0,0.13);
+          border-bottom:1px solid rgba(200,245,0,0.07);
+          border-bottom-right-radius:18px;
+          display:flex; flex-direction:column;
+          transform:translateX(-105%) translateY(-40px) scale(.93);
+          opacity:0; transform-origin:top left;
+          transition:
+            transform .38s cubic-bezier(.22,1.15,.36,1),
+            opacity .26s ease;
+          pointer-events:none;
+          overflow:hidden;
+        }
+        .qc-nav-open {
+          transform:translateX(0) translateY(0) scale(1);
+          opacity:1; pointer-events:all;
+        }
+        .qc-group-info {
+          padding:14px 16px 10px;
+          border-bottom:1px solid rgba(200,245,0,0.07);
+          margin-top:70px; flex-shrink:0;
+        }
+        .qc-channel-scroll {
+          flex:1; overflow-y:auto; overflow-x:hidden;
+          padding:6px 0 4px; scrollbar-width:none;
+        }
+        .qc-channel-scroll::-webkit-scrollbar { display:none; }
+        .qc-cat-label {
+          font-size:9px; font-weight:800; letter-spacing:2px;
+          color:rgba(200,245,0,0.3); text-transform:uppercase;
+          padding:8px 16px 3px;
+        }
+        .qc-ch-item {
+          display:flex; align-items:center; gap:9px;
+          width:100%; padding:7px 14px;
+          background:none; border:none; cursor:pointer;
+          color:rgba(255,255,255,0.45); text-align:left;
+          border-radius:0; transition:background .15s, color .15s;
+          position:relative; overflow:hidden;
+          animation:none;
+        }
+        .qc-nav-open .qc-ch-item {
+          animation:qcItemIn .3s ease both;
+        }
+        @keyframes qcItemIn {
+          from { transform:translateX(-14px); opacity:0; }
+          to   { transform:translateX(0); opacity:1; }
+        }
+        .qc-ch-item:hover { background:rgba(200,245,0,0.05); color:rgba(255,255,255,0.75); }
+        .qc-ch-active {
+          background:rgba(200,245,0,0.09) !important;
+          color:#c8f500 !important;
+        }
+        .qc-ch-active::before {
+          content:''; position:absolute; left:0; top:18%; height:64%;
+          width:3px; border-radius:0 2px 2px 0;
+          background:#c8f500; box-shadow:0 0 6px #c8f500;
+        }
+        .qc-ch-voice { color:#4ade80 !important; }
+        .qc-ch-icon { font-size:14px; flex-shrink:0; width:18px; text-align:center; }
+        .qc-ch-label { font-size:12px; font-weight:600; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; letter-spacing:.2px; }
+        .qc-voice-badge { background:#4ade80; color:#000; font-size:9px; font-weight:800; border-radius:10px; padding:1px 5px; flex-shrink:0; }
+        .qc-user-bar {
+          display:flex; align-items:center; gap:8px;
+          padding:10px 14px; border-top:1px solid rgba(200,245,0,0.07);
+          background:#080810; flex-shrink:0;
+        }
+        .qc-user-av {
+          width:26px; height:26px; min-width:26px; border-radius:50%;
+          display:flex; align-items:center; justify-content:center;
+          font-size:11px; font-weight:800; color:#000;
+          position:relative; flex-shrink:0; overflow:hidden;
+        }
+        .qc-status-dot {
+          position:absolute; bottom:0; right:0;
+          width:7px; height:7px; border-radius:50%;
+          background:#4ade80; border:1.5px solid #080810;
+        }
 
-        /* ── User panel ── */
-        .zzz-user-panel { display:flex; align-items:center; gap:7px; padding:8px 10px; border-top:1px solid rgba(200,245,0,0.07); background:#080810; flex-shrink:0; }
-        .zzz-user-avatar { width:26px; height:26px; min-width:26px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:800; color:#000; position:relative; flex-shrink:0; }
-        .zzz-user-status-dot { position:absolute; bottom:0; right:0; width:7px; height:7px; border-radius:50%; background:#4ade80; border:1.5px solid #080810; }
-        .zzz-user-info { flex:1; min-width:0; overflow:hidden; }
-        .zzz-icon-btn { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.08); border-radius:6px; cursor:pointer; color:rgba(255,255,255,0.35); padding:4px 6px; display:flex; align-items:center; justify-content:center; transition:all .2s; }
-        .zzz-icon-btn:hover { background:rgba(200,245,0,0.1); color:#c8f500; border-color:rgba(200,245,0,0.2); }
+        /* ── Content bloom transition ── */
+        .gc-bloom-enter-up {
+          animation:gcBloomUp .42s cubic-bezier(.4,0,.2,1) both;
+        }
+        .gc-bloom-enter-down {
+          animation:gcBloomDown .42s cubic-bezier(.4,0,.2,1) both;
+        }
+        @keyframes gcBloomUp {
+          from { transform:translateY(36px) scale(.97); opacity:0; filter:blur(8px) brightness(1.6); }
+          to   { transform:translateY(0) scale(1); opacity:1; filter:blur(0) brightness(1); }
+        }
+        @keyframes gcBloomDown {
+          from { transform:translateY(-36px) scale(.97); opacity:0; filter:blur(8px) brightness(1.6); }
+          to   { transform:translateY(0) scale(1); opacity:1; filter:blur(0) brightness(1); }
+        }
 
-        /* ── Main content area ── */
-        .zzz-main-content { flex:1; display:flex; flex-direction:column; min-width:0; overflow:hidden; background:#0d0d12; position:relative; }
+        /* ── Sidebar compat (keep for any remaining refs) ── */
+        .zzz-sidebar { display:none; }
+        .zzz-sidebar-collapsed { display:none; }
 
         /* ── Channel header ── */
         .zzz-channel-header { display:flex; align-items:center; justify-content:space-between; padding:10px 14px; background:#0a0a0f; border-bottom:1px solid rgba(200,245,0,0.08); flex-shrink:0; min-height:44px; }
