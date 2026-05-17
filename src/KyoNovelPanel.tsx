@@ -139,7 +139,26 @@ const FB_INSTANCES: FbInstance[] = FIREBASE_CONFIGS.map(fc => {
 })
 
 const dbChat = FB_INSTANCES.find(f => f.name === 'chat')!.db
-const PROXY = 'https://api.allorigins.win/raw?url='
+
+// ── Multi-proxy fallback list ──
+const PROXIES = [
+  'https://api.allorigins.win/raw?url=',
+  'https://corsproxy.io/?',
+  'https://api.codetabs.com/v1/proxy?quest=',
+]
+
+async function fetchWithProxy(url: string): Promise<Response> {
+  let lastErr: any
+  for (const proxy of PROXIES) {
+    try {
+      const res = await fetch(proxy + encodeURIComponent(url))
+      if (res.ok) return res
+    } catch (e) {
+      lastErr = e
+    }
+  }
+  throw lastErr ?? new Error('Semua proxy gagal')
+}
 
 // ═══════════════════════════════════════════════════════
 // TYPES
@@ -247,10 +266,8 @@ function sanitizeHtml(raw: string): string {
   return html.trim()
 }
 
-// ── BARU: sanitize HTML tapi pertahankan <style> internal ──
-// Khusus untuk file HTML novel yang punya CSS sendiri (drop cap, scene break, dll)
+// ── sanitize HTML tapi pertahankan <style> internal ──
 function sanitizeHtmlFull(raw: string): string {
-  // Buang script, iframe, form, event handlers — tapi PERTAHANKAN <style>
   let html = raw
     .replace(/<script[\s\S]*?<\/script>/gi, '')
     .replace(/<iframe[\s\S]*?<\/iframe>/gi, '')
@@ -262,7 +279,6 @@ function sanitizeHtmlFull(raw: string): string {
     .replace(/<meta[^>]*>/gi, '')
   html = html.replace(/\s+on\w+\s*=\s*["'][^"']*["']/gi, '')
   html = html.replace(/\s+on\w+\s*=\s*[^\s>]*/gi, '')
-  // Ambil hanya konten <body> kalau ada, supaya tidak dobel DOCTYPE
   const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i)
   const styleMatch = raw.match(/(<style[\s\S]*?<\/style>)/gi) || []
   const bodyContent = bodyMatch ? bodyMatch[1] : html
@@ -480,7 +496,6 @@ export default function KyoNovelPanel({ isAdmin, userId }: Props) {
       const res = await fetch(ch.textUrl)
       const raw = await res.text()
       if (isHtmlContent(raw)) {
-        // ── HTML novel: gunakan sanitizer yang pertahankan <style> ──
         setChapterText(sanitizeHtmlFull(raw))
       } else {
         setChapterText(raw)
@@ -510,11 +525,9 @@ export default function KyoNovelPanel({ isAdmin, userId }: Props) {
     if (!window.confirm(`Hapus novel "${selectedNovel.title}"?\n\nSemua chapter juga akan terhapus. Tidak bisa dibatalkan!`)) return
     try {
       const fb = FB_INSTANCES.find(f => f.name === selectedNovel.firebaseName)!
-      // Hapus semua chapter dulu
       for (const ch of chapters) {
         await deleteDoc(doc(fb.db, 'kyoNovels', selectedNovel.id, 'chapters', ch.id))
       }
-      // Hapus novel
       await deleteDoc(doc(fb.db, 'kyoNovels', selectedNovel.id))
       setView('home')
       setSelectedNovel(null)
@@ -646,7 +659,7 @@ export default function KyoNovelPanel({ isAdmin, userId }: Props) {
         ? `https://www.royalroad.com/fictions/search?title=${encodeURIComponent(keyword)}&type=0&genres=&tags=&minPages=0&maxPages=0&minRating=0&maxRating=5&status=ALL&orderBy=relevance&count=20`
         : `https://www.royalroad.com/fictions/best-rated?type=0&genres=&tags=&minPages=0&maxPages=0&minRating=0&maxRating=5&status=ALL&count=20`
 
-      const res = await fetch(PROXY + encodeURIComponent(url))
+      const res = await fetchWithProxy(url)
       const html = await res.text()
       const parser = new DOMParser()
       const dom = parser.parseFromString(html, 'text/html')
@@ -692,48 +705,72 @@ export default function KyoNovelPanel({ isAdmin, userId }: Props) {
     }
   }, [mainTab])
 
+  // ── FIX: Gunakan RR API resmi + multi-proxy fallback ──
   const openPublicNovel = async (novel: PublicNovel) => {
     setPubNovel(novel)
     setPubView('detail')
     setPubChapters([])
     setPubChapLoading(true)
     try {
-      const url = `https://www.royalroad.com${novel.slug}`
-      const res = await fetch(PROXY + encodeURIComponent(url))
-      const html = await res.text()
-      const parser = new DOMParser()
-      const dom = parser.parseFromString(html, 'text/html')
+      // Coba Royal Road API resmi dulu (return JSON chapter list)
+      const apiUrl = `https://www.royalroad.com/api/fiction/${novel.id}/chapters`
+      let data: any = null
+      for (const proxy of PROXIES) {
+        try {
+          const res = await fetch(proxy + encodeURIComponent(apiUrl))
+          if (!res.ok) continue
+          const text = await res.text()
+          data = JSON.parse(text)
+          break
+        } catch { continue }
+      }
 
-      // Coba selector tabel chapter dulu
-      let rows = Array.from(dom.querySelectorAll('#chapters tbody tr, .chapter-row'))
-
-      if (rows.length > 0) {
-        // Ada tabel — proses normal, simpan href asli sebagai id
-        const chaps: PublicChapter[] = []
-        rows.forEach((row, i) => {
-          const linkEl = row.querySelector('a') as HTMLAnchorElement
-          if (!linkEl) return
-          const href = linkEl.getAttribute('href') || ''
-          if (!href.includes('/chapter/')) return
-          const title = linkEl.textContent?.trim() || `Chapter ${i + 1}`
-          const dateEl = row.querySelector('time, .text-muted')
-          const date = dateEl?.getAttribute('datetime') || dateEl?.textContent?.trim() || ''
-          chaps.push({ id: encodeURIComponent(href), title, date, order: i + 1 })
-        })
+      if (data && Array.isArray(data) && data.length > 0) {
+        // API berhasil — map ke PublicChapter
+        const chaps: PublicChapter[] = data.map((ch: any, i: number) => ({
+          id: encodeURIComponent(`/fiction/${novel.id}/${novel.slug.split('/').pop() || 'novel'}/chapter/${ch.id}/${ch.slug || 'chapter'}`),
+          title: ch.title || `Chapter ${i + 1}`,
+          date: ch.date ? new Date(ch.date).toLocaleDateString('id-ID') : '',
+          order: i + 1,
+        }))
         setPubChapters(chaps)
       } else {
-        // Tabel kosong (JS-rendered) — fallback: cari semua <a> ber-pola chapter
-        const allLinks = Array.from(dom.querySelectorAll('a[href*="/chapter/"]')) as HTMLAnchorElement[]
-        const seen = new Set<string>()
-        const chaps: PublicChapter[] = []
-        allLinks.forEach((a, i) => {
-          const href = a.getAttribute('href') || ''
-          if (!href.includes('/chapter/') || seen.has(href)) return
-          seen.add(href)
-          const title = a.textContent?.trim() || `Chapter ${i + 1}`
-          chaps.push({ id: encodeURIComponent(href), title, date: '', order: chaps.length + 1 })
-        })
-        setPubChapters(chaps)
+        // Fallback: scrape halaman novel
+        const res = await fetchWithProxy(`https://www.royalroad.com${novel.slug}`)
+        const html = await res.text()
+        const parser = new DOMParser()
+        const dom = parser.parseFromString(html, 'text/html')
+
+        // Coba tabel chapter dulu
+        let rows = Array.from(dom.querySelectorAll('#chapters tbody tr, .chapter-row'))
+        if (rows.length > 0) {
+          const chaps: PublicChapter[] = []
+          rows.forEach((row, i) => {
+            const linkEl = row.querySelector('a') as HTMLAnchorElement
+            if (!linkEl) return
+            const href = linkEl.getAttribute('href') || ''
+            if (!href.includes('/chapter/')) return
+            const title = linkEl.textContent?.trim() || `Chapter ${i + 1}`
+            const dateEl = row.querySelector('time, .text-muted')
+            const date = dateEl?.getAttribute('datetime') || dateEl?.textContent?.trim() || ''
+            chaps.push({ id: encodeURIComponent(href), title, date, order: chaps.length + 1 })
+          })
+          setPubChapters(chaps)
+        } else {
+          // Fallback akhir: cari semua link chapter
+          const allLinks = Array.from(dom.querySelectorAll('a[href*="/chapter/"]')) as HTMLAnchorElement[]
+          const seen = new Set<string>()
+          const chaps: PublicChapter[] = []
+          allLinks.forEach(a => {
+            const href = a.getAttribute('href') || ''
+            if (!href.includes('/chapter/') || seen.has(href)) return
+            seen.add(href)
+            const title = a.textContent?.trim() || `Chapter ${chaps.length + 1}`
+            if (title.length < 2) return
+            chaps.push({ id: encodeURIComponent(href), title, date: '', order: chaps.length + 1 })
+          })
+          setPubChapters(chaps)
+        }
       }
     } catch (e) {
       console.error('Gagal load chapter list:', e)
@@ -741,24 +778,37 @@ export default function KyoNovelPanel({ isAdmin, userId }: Props) {
     setPubChapLoading(false)
   }
 
+  // ── FIX: Multi-proxy fallback untuk baca chapter ──
   const openPublicChapter = async (chap: PublicChapter, novelSlug: string) => {
     setPubSelectedChap(chap)
     setPubChapText('')
     setPubChapReadLoading(true)
     setPubView('read')
     try {
-      // Decode href asli dari id — tidak perlu reconstruct lagi
       const chapHref = decodeURIComponent(chap.id)
       const fullUrl = chapHref.startsWith('http')
         ? chapHref
         : `https://www.royalroad.com${chapHref}`
 
-      const res = await fetch(PROXY + encodeURIComponent(fullUrl))
-      const html = await res.text()
+      let html = ''
+      for (const proxy of PROXIES) {
+        try {
+          const res = await fetch(proxy + encodeURIComponent(fullUrl))
+          if (!res.ok) continue
+          html = await res.text()
+          break
+        } catch { continue }
+      }
+
+      if (!html) {
+        setPubChapText('❌ Semua proxy gagal. Coba lagi nanti atau buka langsung di browser.')
+        setPubChapReadLoading(false)
+        return
+      }
+
       const parser = new DOMParser()
       const dom = parser.parseFromString(html, 'text/html')
 
-      // Coba beberapa selector konten chapter Royal Road
       const content =
         dom.querySelector('.chapter-content') ||
         dom.querySelector('[class*="chapter-content"]') ||
@@ -769,7 +819,6 @@ export default function KyoNovelPanel({ isAdmin, userId }: Props) {
       if (content) {
         setPubChapText(stripHtml(content.innerHTML))
       } else {
-        // Fallback: kumpulkan semua <p> panjang (bukan nav/footer)
         const paragraphs = Array.from(dom.querySelectorAll('p'))
           .map(p => p.textContent?.trim() || '')
           .filter(t => t.length > 50)
@@ -990,7 +1039,6 @@ export default function KyoNovelPanel({ isAdmin, userId }: Props) {
             <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginTop: 4 }}>1 coin = Rp 1.000</div>
           </div>
 
-          {/* ── File input: accept .txt dan .html ── */}
           <div style={S.formGroup}>
             <input
               ref={txtInputRef}
@@ -1052,12 +1100,44 @@ export default function KyoNovelPanel({ isAdmin, userId }: Props) {
           {loadingText ? (
             <div style={{ textAlign: 'center', paddingTop: 60, color: 'rgba(255,255,255,0.3)', fontSize: fontSize }}>⏳ Memuat chapter...</div>
           ) : isHtml ? (
-            // ── HTML Novel: render langsung dengan styling asli ──
+            // ── FIX: HTML Novel reader — override agresif supaya pas di layar ──
             <>
               <style>{`
-                .kyo-html-reader * { font-size: inherit !important; }
-                .kyo-html-reader p { margin-bottom: 1.2em; }
-                .kyo-html-reader .book-wrap { max-width: 100% !important; box-shadow: none !important; margin: 0 !important; }
+                .kyo-html-reader {
+                  padding: 16px 18px;
+                  color: rgba(255,255,255,0.88);
+                  line-height: 1.85;
+                  word-break: break-word;
+                  overflow-wrap: break-word;
+                }
+                .kyo-html-reader * {
+                  max-width: 100% !important;
+                  box-sizing: border-box !important;
+                  font-size: inherit !important;
+                  font-family: inherit !important;
+                }
+                .kyo-html-reader body,
+                .kyo-html-reader .book-wrap,
+                .kyo-html-reader .container,
+                .kyo-html-reader .content,
+                .kyo-html-reader .chapter-content,
+                .kyo-html-reader .text-content {
+                  max-width: 100% !important;
+                  width: 100% !important;
+                  min-width: unset !important;
+                  margin: 0 !important;
+                  padding: 0 !important;
+                  box-shadow: none !important;
+                  background: transparent !important;
+                }
+                .kyo-html-reader p { margin-bottom: 1.2em; margin-top: 0; }
+                .kyo-html-reader h1, .kyo-html-reader h2, .kyo-html-reader h3 {
+                  font-size: 1.1em !important;
+                  margin-bottom: 0.8em;
+                  color: rgba(255,255,255,0.95);
+                }
+                .kyo-html-reader img { max-width: 100% !important; height: auto !important; }
+                .kyo-html-reader table { width: 100% !important; }
               `}</style>
               <div
                 className="kyo-html-reader"
@@ -1066,7 +1146,7 @@ export default function KyoNovelPanel({ isAdmin, userId }: Props) {
               />
             </>
           ) : (
-            // ── Plain text: render per paragraf ──
+            // ── Plain text ──
             <div style={{ padding: '16px 18px', lineHeight: 1.85, color: 'rgba(255,255,255,0.88)', fontSize: fontSize }}>
               {chapterText.split('\n').map((para, i) =>
                 para.trim() ? <p key={i} style={{ marginBottom: '1em', marginTop: 0 }}>{para}</p> : <br key={i} />
