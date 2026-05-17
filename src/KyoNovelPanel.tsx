@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react'
+import html2canvas from 'html2canvas'
 import { initializeApp, getApps, FirebaseApp } from 'firebase/app'
 import {
   getFirestore, collection, addDoc, getDocs, doc, deleteDoc,
@@ -12,6 +13,7 @@ import {
 const CLOUDINARY_CLOUD_NAME = 'dgkmzfek4'
 const CLOUDINARY_UPLOAD_PRESET = 'kyonovel'
 const CLOUDINARY_UPLOAD_URL = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/raw/upload`
+const CLOUDINARY_IMAGE_UPLOAD_URL = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`
 
 // ═══════════════════════════════════════════════════════
 // FIREBASE CONFIGS
@@ -289,6 +291,10 @@ function isHtmlContent(content: string): boolean {
   return /<[a-z][\s\S]*>/i.test(content.trim())
 }
 
+function isImageUrl(url: string): boolean {
+  return /\.(jpg|jpeg|webp|png|gif)(\?|$)/i.test(url)
+}
+
 // ═══════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════
@@ -301,6 +307,7 @@ export default function KyoNovelPanel({ isAdmin, userId }: Props) {
   const [chapters, setChapters] = useState<ChapterDoc[]>([])
   const [selectedChapter, setSelectedChapter] = useState<ChapterDoc | null>(null)
   const [chapterText, setChapterText] = useState('')
+  const [chapterIsImage, setChapterIsImage] = useState(false)
   const [loadingText, setLoadingText] = useState(false)
   const [search, setSearch] = useState('')
   const [activeHomeTab, setActiveHomeTab] = useState<'semua' | 'ongoing' | 'completed'>('semua')
@@ -345,6 +352,7 @@ export default function KyoNovelPanel({ isAdmin, userId }: Props) {
   const [uploadingNovelId, setUploadingNovelId] = useState('')
 
   const txtInputRef = useRef<HTMLInputElement>(null)
+  const htmlRenderRef = useRef<HTMLDivElement>(null)
   const [fontSize, setFontSize] = useState(15)
 
   // ═══════════════════════════════════════════════════
@@ -490,20 +498,59 @@ export default function KyoNovelPanel({ isAdmin, userId }: Props) {
   const openKyoChapter = async (ch: ChapterDoc) => {
     setSelectedChapter(ch)
     setChapterText('')
+    setChapterIsImage(false)
     setLoadingText(true)
     setView('read')
     try {
-      const res = await fetch(ch.textUrl)
-      const raw = await res.text()
-      if (isHtmlContent(raw)) {
-        setChapterText(sanitizeHtmlFull(raw))
+      // Kalau URL-nya gambar, langsung tampilkan sebagai <img>
+      if (isImageUrl(ch.textUrl)) {
+        setChapterIsImage(true)
+        setChapterText(ch.textUrl)
       } else {
-        setChapterText(raw)
+        const res = await fetch(ch.textUrl)
+        const raw = await res.text()
+        if (isHtmlContent(raw)) {
+          setChapterText(sanitizeHtmlFull(raw))
+        } else {
+          setChapterText(raw)
+        }
       }
     } catch (e: any) {
       setChapterText('❌ Gagal load konten chapter: ' + (e as any).message)
     }
     setLoadingText(false)
+  }
+
+  // ── Convert HTML file ke image blob via html2canvas ──
+  const htmlFileToImageBlob = (htmlContent: string, width = 680): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const container = htmlRenderRef.current
+      if (!container) { reject(new Error('Render container tidak ditemukan')); return }
+      container.style.width = width + 'px'
+      container.innerHTML = htmlContent
+      // Tunggu font & layout settle
+      setTimeout(async () => {
+        try {
+          const canvas = await html2canvas(container, {
+            scale: 2,
+            useCORS: true,
+            allowTaint: true,
+            backgroundColor: '#0a0a0f',
+            logging: false,
+            width,
+            windowWidth: width,
+          })
+          container.innerHTML = ''
+          canvas.toBlob(blob => {
+            if (blob) resolve(blob)
+            else reject(new Error('Canvas toBlob gagal'))
+          }, 'image/jpeg', 0.92)
+        } catch (e) {
+          container.innerHTML = ''
+          reject(e)
+        }
+      }, 900)
+    })
   }
 
   // ═══════════════════════════════════════════════════
@@ -583,21 +630,47 @@ export default function KyoNovelPanel({ isAdmin, userId }: Props) {
       })
       setUploadProgress(35)
 
-      setUploadStatusMsg('Upload file chapter...')
-      const fileBytes = uploadTxtFile.size
+      const isHtmlFile = uploadTxtFile.name.toLowerCase().endsWith('.html')
+        || uploadTxtFile.type === 'text/html'
+
+      let uploadFile: File | Blob = uploadTxtFile
+      let fileBytes = uploadTxtFile.size
+      let uploadEndpoint = CLOUDINARY_UPLOAD_URL
+      let wordCount = 0
+
+      if (isHtmlFile) {
+        // ── HTML → convert ke JPG dulu, baru upload ──
+        setUploadStatusMsg('Mengkonversi HTML ke gambar...')
+        setUploadProgress(36)
+        const rawHtml = await uploadTxtFile.text()
+        const imageBlob = await htmlFileToImageBlob(rawHtml, 680)
+        uploadFile = imageBlob
+        fileBytes = imageBlob.size
+        uploadEndpoint = CLOUDINARY_IMAGE_UPLOAD_URL
+        wordCount = 0
+        setUploadProgress(50)
+        setUploadStatusMsg('Upload gambar ke Cloudinary...')
+      } else {
+        setUploadStatusMsg('Upload file chapter...')
+        const rawText = await uploadTxtFile.text()
+        const plainText = isHtmlContent(rawText) ? stripHtml(rawText) : rawText
+        wordCount = plainText.trim().split(/\s+/).length
+      }
+
       const formData = new FormData()
-      formData.append('file', uploadTxtFile)
+      formData.append('file', uploadFile, isHtmlFile ? `${chapRef.id}.jpg` : uploadTxtFile.name)
       formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET)
       formData.append('public_id', `kyoNovels/${novelId}/${chapRef.id}`)
-      formData.append('resource_type', 'raw')
+      if (!isHtmlFile) formData.append('resource_type', 'raw')
 
       const xhr = await new Promise<string>((resolve, reject) => {
         const x = new XMLHttpRequest()
-        x.open('POST', CLOUDINARY_UPLOAD_URL)
+        x.open('POST', uploadEndpoint)
         x.upload.onprogress = e => {
           if (e.lengthComputable) {
-            const pct = (e.loaded / e.total) * 60
-            setUploadProgress(35 + pct)
+            const base = isHtmlFile ? 50 : 35
+            const pct = (e.loaded / e.total) * (isHtmlFile ? 45 : 60)
+            setUploadProgress(base + pct)
           }
         }
         x.onload = () => {
@@ -613,10 +686,6 @@ export default function KyoNovelPanel({ isAdmin, userId }: Props) {
       })
       const textUrl = xhr
       setUploadProgress(95)
-
-      const rawText = await uploadTxtFile.text()
-      const plainText = isHtmlContent(rawText) ? stripHtml(rawText) : rawText
-      const wordCount = plainText.trim().split(/\s+/).length
 
       setUploadStatusMsg('Menyimpan data...')
       await updateDoc(doc(fb.db, 'kyoNovels', novelId, 'chapters', chapRef.id), { textUrl, wordCount })
@@ -1082,11 +1151,11 @@ export default function KyoNovelPanel({ isAdmin, userId }: Props) {
   // VIEW: READ — KyoNovel reader
   // ═══════════════════════════════════════════════════
   if (view === 'read' && selectedChapter) {
-    const isHtml = isHtmlContent(chapterText)
+    const isHtml = !chapterIsImage && isHtmlContent(chapterText)
     return (
       <div style={{ ...S.wrap, background: '#0e0e16' }}>
         <div style={S.readerHeader}>
-          <button style={S.backBtn} onClick={() => { setView('detail'); setSelectedChapter(null); setChapterText('') }}>‹ Kembali</button>
+          <button style={S.backBtn} onClick={() => { setView('detail'); setSelectedChapter(null); setChapterText(''); setChapterIsImage(false) }}>‹ Kembali</button>
           <div style={{ fontSize: 12, fontWeight: 700, color: '#fff', textAlign: 'center', maxWidth: '55%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {selectedChapter.title}
           </div>
@@ -1096,25 +1165,27 @@ export default function KyoNovelPanel({ isAdmin, userId }: Props) {
           </div>
         </div>
 
-        <div style={{ overflowY: 'auto', flex: 1 }}>
+        <div style={{ overflowY: 'auto', overflowX: 'hidden', flex: 1, maxWidth: '100%' }}>
           {loadingText ? (
             <div style={{ textAlign: 'center', paddingTop: 60, color: 'rgba(255,255,255,0.3)', fontSize: fontSize }}>⏳ Memuat chapter...</div>
           ) : isHtml ? (
-            // ── FIX: HTML Novel reader — override agresif supaya pas di layar ──
+            // ── HTML Novel reader — override supaya pas di layar ──
             <>
               <style>{`
                 .kyo-html-reader {
-                  padding: 16px 18px;
+                  padding: 0;
                   color: rgba(255,255,255,0.88);
                   line-height: 1.85;
                   word-break: break-word;
                   overflow-wrap: break-word;
+                  overflow-x: hidden;
+                  max-width: 100%;
+                  width: 100%;
                 }
                 .kyo-html-reader * {
                   max-width: 100% !important;
                   box-sizing: border-box !important;
-                  font-size: inherit !important;
-                  font-family: inherit !important;
+                  overflow-x: hidden !important;
                 }
                 .kyo-html-reader body,
                 .kyo-html-reader .book-wrap,
@@ -1122,22 +1193,44 @@ export default function KyoNovelPanel({ isAdmin, userId }: Props) {
                 .kyo-html-reader .content,
                 .kyo-html-reader .chapter-content,
                 .kyo-html-reader .text-content {
-                  max-width: 100% !important;
                   width: 100% !important;
                   min-width: unset !important;
                   margin: 0 !important;
                   padding: 0 !important;
                   box-shadow: none !important;
-                  background: transparent !important;
+                  display: block !important;
                 }
-                .kyo-html-reader p { margin-bottom: 1.2em; margin-top: 0; }
+                .kyo-html-reader .title-page {
+                  padding-left: 16px !important;
+                  padding-right: 16px !important;
+                }
+                .kyo-html-reader .chapter-page {
+                  padding-left: 16px !important;
+                  padding-right: 16px !important;
+                }
+                .kyo-html-reader .cover-band {
+                  padding-left: 12px !important;
+                  padding-right: 12px !important;
+                  flex-wrap: wrap !important;
+                  gap: 4px !important;
+                }
+                .kyo-html-reader .inner-quote {
+                  margin-left: 8px !important;
+                  padding-left: 12px !important;
+                }
+                .kyo-html-reader .chapter-footer {
+                  padding-left: 0 !important;
+                  padding-right: 0 !important;
+                }
+                .kyo-html-reader div { max-width: 100% !important; }
+                .kyo-html-reader p { margin-bottom: 1.2em; margin-top: 0; word-break: break-word; overflow-wrap: break-word; }
                 .kyo-html-reader h1, .kyo-html-reader h2, .kyo-html-reader h3 {
-                  font-size: 1.1em !important;
                   margin-bottom: 0.8em;
                   color: rgba(255,255,255,0.95);
+                  word-break: break-word;
                 }
                 .kyo-html-reader img { max-width: 100% !important; height: auto !important; }
-                .kyo-html-reader table { width: 100% !important; }
+                .kyo-html-reader table { width: 100% !important; overflow-x: auto !important; display: block !important; }
               `}</style>
               <div
                 className="kyo-html-reader"
@@ -1145,6 +1238,15 @@ export default function KyoNovelPanel({ isAdmin, userId }: Props) {
                 dangerouslySetInnerHTML={{ __html: chapterText }}
               />
             </>
+          ) : chapterIsImage ? (
+            // ── Image chapter (dari HTML yang diconvert) ──
+            <div style={{ padding: '12px 0', textAlign: 'center' }}>
+              <img
+                src={chapterText}
+                alt={selectedChapter.title}
+                style={{ width: '100%', height: 'auto', display: 'block' }}
+              />
+            </div>
           ) : (
             // ── Plain text ──
             <div style={{ padding: '16px 18px', lineHeight: 1.85, color: 'rgba(255,255,255,0.88)', fontSize: fontSize }}>
@@ -1534,6 +1636,15 @@ export default function KyoNovelPanel({ isAdmin, userId }: Props) {
           </div>
         </>
       )}
+      {/* Hidden render target untuk html2canvas */}
+      <div
+        ref={htmlRenderRef}
+        style={{
+          position: 'fixed', top: -99999, left: -99999,
+          visibility: 'hidden', pointerEvents: 'none',
+          zIndex: -1,
+        }}
+      />
     </div>
   )
 }
