@@ -348,7 +348,17 @@ export default function KyoNovelPanel({ isAdmin, userId }: Props) {
   const [uploadingNovelId, setUploadingNovelId] = useState('')
 
   const txtInputRef = useRef<HTMLInputElement>(null)
+  const editTxtInputRef = useRef<HTMLInputElement>(null)
   const [fontSize, setFontSize] = useState(15)
+
+  // ── Edit chapter state ──
+  const [editingChapter, setEditingChapter] = useState<ChapterDoc | null>(null)
+  const [editTitle, setEditTitle] = useState('')
+  const [editCoinPrice, setEditCoinPrice] = useState(0)
+  const [editTxtFile, setEditTxtFile] = useState<File | null>(null)
+  const [editSaving, setEditSaving] = useState(false)
+  const [editStatusMsg, setEditStatusMsg] = useState('')
+  const [editProgress, setEditProgress] = useState(0)
 
   // ═══════════════════════════════════════════════════
   // EFFECTS
@@ -537,6 +547,81 @@ export default function KyoNovelPanel({ isAdmin, userId }: Props) {
       setChapters([])
     } catch (err: any) {
       alert('Gagal hapus novel: ' + err.message)
+    }
+  }
+
+  // ═══════════════════════════════════════════════════
+  // HANDLERS — EDIT CHAPTER
+  // ═══════════════════════════════════════════════════
+  const openEditChapter = (ch: ChapterDoc, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setEditingChapter(ch)
+    setEditTitle(ch.title)
+    setEditCoinPrice(ch.coinPrice)
+    setEditTxtFile(null)
+    setEditStatusMsg('')
+    setEditProgress(0)
+  }
+
+  const handleSaveEditChapter = async () => {
+    if (!editingChapter) return
+    setEditSaving(true)
+    setEditStatusMsg('Menyimpan...')
+    setEditProgress(10)
+    try {
+      const fb = FB_INSTANCES.find(f => f.name === editingChapter.firebaseName)!
+      const chRef = doc(fb.db, 'kyoNovels', editingChapter.novelId, 'chapters', editingChapter.id)
+
+      let textUrl = editingChapter.textUrl
+      let wordCount = editingChapter.wordCount
+
+      if (editTxtFile) {
+        setEditStatusMsg('Upload file baru...')
+        const formData = new FormData()
+        formData.append('file', editTxtFile)
+        formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET)
+        formData.append('public_id', `kyoNovels/${editingChapter.novelId}/${editingChapter.id}_${Date.now()}`)
+        formData.append('resource_type', 'raw')
+
+        textUrl = await new Promise<string>((resolve, reject) => {
+          const x = new XMLHttpRequest()
+          x.open('POST', CLOUDINARY_UPLOAD_URL)
+          x.upload.onprogress = e => {
+            if (e.lengthComputable) setEditProgress(10 + (e.loaded / e.total) * 80)
+          }
+          x.onload = () => {
+            if (x.status === 200) resolve(JSON.parse(x.responseText).secure_url)
+            else reject(new Error('Upload gagal: ' + x.responseText))
+          }
+          x.onerror = () => reject(new Error('Network error'))
+          x.send(formData)
+        })
+
+        const rawText = await editTxtFile.text()
+        const plain = isHtmlContent(rawText) ? stripHtml(rawText) : rawText
+        wordCount = plain.trim().split(/\s+/).length
+      }
+
+      setEditProgress(90)
+      setEditStatusMsg('Menyimpan data...')
+      await updateDoc(chRef, {
+        title: editTitle.trim() || editingChapter.title,
+        coinPrice: editCoinPrice,
+        ...(editTxtFile ? { textUrl, wordCount, uploadedAt: Date.now() } : {}),
+      })
+
+      setEditProgress(100)
+      setEditStatusMsg('✅ Berhasil disimpan!')
+      setTimeout(() => {
+        setEditingChapter(null)
+        setEditTxtFile(null)
+        setEditStatusMsg('')
+        setEditProgress(0)
+        setEditSaving(false)
+      }, 1200)
+    } catch (e: any) {
+      setEditStatusMsg('❌ Error: ' + e.message)
+      setEditSaving(false)
     }
   }
 
@@ -1278,17 +1363,87 @@ export default function KyoNovelPanel({ isAdmin, userId }: Props) {
                     </div>
                   )}
                   {isAdmin && (
-                    <button
-                      onClick={e => handleDeleteChapter(ch, e)}
-                      style={{ marginLeft: 8, background: 'rgba(255,68,68,0.1)', border: '1px solid rgba(255,68,68,0.25)', borderRadius: 6, color: '#ff4444', fontSize: 11, padding: '4px 7px', cursor: 'pointer', flexShrink: 0 }}>
-                      🗑️
-                    </button>
+                    <div style={{ display: 'flex', gap: 4, marginLeft: 8 }}>
+                      <button
+                        onClick={e => openEditChapter(ch, e)}
+                        style={{ background: 'rgba(79,195,247,0.1)', border: '1px solid rgba(79,195,247,0.25)', borderRadius: 6, color: '#4fc3f7', fontSize: 11, padding: '4px 7px', cursor: 'pointer', flexShrink: 0 }}>
+                        ✏️
+                      </button>
+                      <button
+                        onClick={e => handleDeleteChapter(ch, e)}
+                        style={{ background: 'rgba(255,68,68,0.1)', border: '1px solid rgba(255,68,68,0.25)', borderRadius: 6, color: '#ff4444', fontSize: 11, padding: '4px 7px', cursor: 'pointer', flexShrink: 0 }}>
+                        🗑️
+                      </button>
+                    </div>
                   )}
                 </button>
               )
             })}
           </div>
         </div>
+
+        {editingChapter && (
+          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.9)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 100 }}>
+            <div style={{ background: '#16161f', border: '1px solid rgba(79,195,247,0.25)', borderRadius: '16px 16px 0 0', padding: 20, width: '100%', maxHeight: '85vh', overflowY: 'auto' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                <div style={{ fontSize: 14, fontWeight: 800, color: '#4fc3f7' }}>✏️ Edit Bab {editingChapter.chapterNumber}</div>
+                <button onClick={() => { setEditingChapter(null); setEditTxtFile(null); setEditStatusMsg('') }}
+                  style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', fontSize: 18, cursor: 'pointer' }}>✕</button>
+              </div>
+
+              <div style={S.formGroup}>
+                <label style={S.label}>Judul Bab</label>
+                <input style={S.input} value={editTitle} onChange={e => setEditTitle(e.target.value)}
+                  placeholder={`Bab ${editingChapter.chapterNumber}`} />
+              </div>
+
+              <div style={S.formGroup}>
+                <label style={S.label}>💰 Harga (coin) — 0 = gratis</label>
+                <input style={S.input} type="number" min={0} value={editCoinPrice}
+                  onChange={e => setEditCoinPrice(Number(e.target.value))} />
+              </div>
+
+              <div style={S.formGroup}>
+                <label style={S.label}>Upload Ulang File (opsional)</label>
+                <input ref={editTxtInputRef} type="file" accept=".txt,.html" style={{ display: 'none' }}
+                  onChange={e => setEditTxtFile(e.target.files?.[0] || null)} />
+                <button style={S.uploadBtn} onClick={() => editTxtInputRef.current?.click()}>
+                  {editTxtFile ? `✅ ${editTxtFile.name}` : '📁 Pilih file baru (.txt / .html)'}
+                </button>
+                {!editTxtFile && (
+                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', marginTop: 4 }}>
+                    Kosongkan kalau tidak mau ganti isi bab
+                  </div>
+                )}
+              </div>
+
+              {editSaving && editProgress > 0 && (
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 6, height: 6, overflow: 'hidden', marginBottom: 4 }}>
+                    <div style={{ height: '100%', background: '#4fc3f7', borderRadius: 6, width: editProgress + '%', transition: 'width .3s' }} />
+                  </div>
+                </div>
+              )}
+              {editStatusMsg && (
+                <div style={{ fontSize: 12, color: editStatusMsg.startsWith('✅') ? '#c8f500' : editStatusMsg.startsWith('❌') ? '#ff6b6b' : 'rgba(255,255,255,0.5)', textAlign: 'center', marginBottom: 12, padding: '6px', background: 'rgba(255,255,255,0.04)', borderRadius: 6 }}>
+                  {editStatusMsg}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button style={{ flex: 1, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: 'rgba(255,255,255,0.6)', fontSize: 13, padding: 10, cursor: 'pointer' }}
+                  onClick={() => { setEditingChapter(null); setEditTxtFile(null); setEditStatusMsg('') }}>
+                  Batal
+                </button>
+                <button style={{ flex: 2, ...S.submitBtn, marginTop: 0, opacity: editSaving ? 0.5 : 1, background: 'linear-gradient(90deg,#4fc3f7,#c8f500)' }}
+                  onClick={handleSaveEditChapter} disabled={editSaving}>
+                  {editSaving ? '⏳ Menyimpan...' : '💾 Simpan Perubahan'}
+                </button>
+              </div>
+              <div style={{ height: 20 }} />
+            </div>
+          </div>
+        )}
 
         {showUnlockConfirm && pendingChapter && (
           <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, zIndex: 100 }}>
