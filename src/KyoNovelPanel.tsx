@@ -1,14 +1,17 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react'
 import { initializeApp, getApps, FirebaseApp } from 'firebase/app'
 import {
-  getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL,
-  deleteObject, FirebaseStorage,
-} from 'firebase/storage'
-import {
   getFirestore, collection, addDoc, getDocs, doc, deleteDoc,
   onSnapshot, orderBy, query, updateDoc, Firestore,
   getDoc, where, setDoc, arrayUnion,
 } from 'firebase/firestore'
+
+// ═══════════════════════════════════════════════════════
+// CLOUDINARY CONFIG
+// ═══════════════════════════════════════════════════════
+const CLOUDINARY_CLOUD_NAME = 'dgkmzfek4'
+const CLOUDINARY_UPLOAD_PRESET = 'kyonovel'
+const CLOUDINARY_UPLOAD_URL = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/raw/upload`
 
 // ═══════════════════════════════════════════════════════
 // FIREBASE CONFIGS
@@ -127,12 +130,12 @@ function getFirebaseInstance(name: string, config: object): FirebaseApp {
 
 interface FbInstance {
   name: string; label: string; limitGB: number
-  app: FirebaseApp; storage: FirebaseStorage; db: Firestore
+  app: FirebaseApp; db: Firestore
 }
 
 const FB_INSTANCES: FbInstance[] = FIREBASE_CONFIGS.map(fc => {
   const app = getFirebaseInstance(fc.name, fc.config)
-  return { name: fc.name, label: fc.label, limitGB: fc.limitGB, app, storage: getStorage(app), db: getFirestore(app) }
+  return { name: fc.name, label: fc.label, limitGB: fc.limitGB, app, db: getFirestore(app) }
 })
 
 const dbChat = FB_INSTANCES.find(f => f.name === 'chat')!.db
@@ -308,7 +311,7 @@ export default function KyoNovelPanel({ isAdmin, userId }: Props) {
   const [pendingChapter, setPendingChapter] = useState<ChapterDoc | null>(null)
   const [showUnlockConfirm, setShowUnlockConfirm] = useState(false)
 
-  const [uploadFb, setUploadFb] = useState(FB_INSTANCES[0].name)
+  const uploadFb = 'kyokocross'
   const [uploadTitle, setUploadTitle] = useState('')
   const [uploadAuthor, setUploadAuthor] = useState('')
   const [uploadGenre, setUploadGenre] = useState('')
@@ -536,21 +539,33 @@ export default function KyoNovelPanel({ isAdmin, userId }: Props) {
 
       setUploadStatusMsg('Upload file chapter...')
       const fileBytes = uploadTxtFile.size
-      const fileExt = uploadTxtFile.name.endsWith('.html') ? 'html' : 'txt'
-      const storagePath = `kyoNovels/${novelId}/chapters/${chapRef.id}.${fileExt}`
-      const fileRef = storageRef(fb.storage, storagePath)
-      await new Promise<void>((resolve, reject) => {
-        const task = uploadBytesResumable(fileRef, uploadTxtFile)
-        task.on('state_changed',
-          snap => {
-            const pct = (snap.bytesTransferred / snap.totalBytes) * 60
+      const formData = new FormData()
+      formData.append('file', uploadTxtFile)
+      formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET)
+      formData.append('public_id', `kyoNovels/${novelId}/${chapRef.id}`)
+      formData.append('resource_type', 'raw')
+
+      const xhr = await new Promise<string>((resolve, reject) => {
+        const x = new XMLHttpRequest()
+        x.open('POST', CLOUDINARY_UPLOAD_URL)
+        x.upload.onprogress = e => {
+          if (e.lengthComputable) {
+            const pct = (e.loaded / e.total) * 60
             setUploadProgress(35 + pct)
-          },
-          reject,
-          () => resolve()
-        )
+          }
+        }
+        x.onload = () => {
+          if (x.status === 200) {
+            const res = JSON.parse(x.responseText)
+            resolve(res.secure_url)
+          } else {
+            reject(new Error('Upload Cloudinary gagal: ' + x.responseText))
+          }
+        }
+        x.onerror = () => reject(new Error('Network error saat upload'))
+        x.send(formData)
       })
-      const textUrl = await getDownloadURL(fileRef)
+      const textUrl = xhr
       setUploadProgress(95)
 
       const rawText = await uploadTxtFile.text()
@@ -873,14 +888,6 @@ export default function KyoNovelPanel({ isAdmin, userId }: Props) {
         </div>
         <div style={{ overflowY: 'auto', flex: 1, padding: 14 }}>
 
-          <div style={S.sectionTitle}>TARGET FIREBASE</div>
-          <div style={{ ...S.formGroup }}>
-            <label style={S.label}>Simpan ke Firebase</label>
-            <select style={S.select} value={uploadFb} onChange={e => setUploadFb(e.target.value)}>
-              {FB_INSTANCES.map(fb => <option key={fb.name} value={fb.name}>{fb.label}</option>)}
-            </select>
-          </div>
-
           {!uploadingNovelId ? (
             <>
               <div style={S.sectionTitle}>📚 DETAIL NOVEL (baru)</div>
@@ -1075,7 +1082,7 @@ export default function KyoNovelPanel({ isAdmin, userId }: Props) {
               setUploadTitle(selectedNovel.title); setUploadAuthor(selectedNovel.author)
               setUploadGenre(selectedNovel.genre); setUploadDesc(selectedNovel.description)
               setUploadCoverUrl(selectedNovel.coverUrl); setUploadStatus(selectedNovel.status)
-              setUploadFb(selectedNovel.firebaseName); setUploadingNovelId(selectedNovel.id)
+              setUploadingNovelId(selectedNovel.id)
               setUploadChapterNum(chapters.length + 1); setView('upload')
             }}>+ Bab</button>
           )}
