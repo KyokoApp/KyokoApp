@@ -4921,8 +4921,6 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
                 )}
               </div>
             )}
-          </>
-        )}
 
             {/* ── FISHING TAB ── */}
             {activeTab === 'fishing' && (
@@ -5280,6 +5278,7 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
               </div>
             </div>
           </div>
+          </>
           </div>{/* bloom wrapper */}
         )}
       </div>{/* zzz-main-content */}
