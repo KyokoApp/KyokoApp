@@ -5007,7 +5007,7 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
               </div>
             )}
 
-          </div>{/* bloom wrapper */}
+          </div>
         )}
 
         {/* ── GROUP INFO PANEL (tap icon grup) ── */}
