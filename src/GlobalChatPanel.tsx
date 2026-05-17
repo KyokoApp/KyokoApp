@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback, memo } from 'react'
 import AnimeStreamPanel from './AnimeStreamPanel'
 import MangaStreamPanel from './MangaStreamPanel'
 import MangaCrossPanel from './MangaCrossPanel'
+import KyoNovelPanel from './KyoNovelPanel'
 import { auth, googleProvider, dbChat, getRpgDb } from './firebase'
 import {
   rpgSaveLocal, rpgLoadLocal, rpgSyncToFirebase, rpgNeedsSync,
@@ -3709,6 +3710,7 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
     { id: 'anime',  icon: '🎌', label: 'anime-stream',  category: 'MEDIA',   type: 'text'  },
     { id: 'manga',  icon: '📖', label: 'kyoko-manga',   category: 'MEDIA',   type: 'text'  },
     { id: 'mangax', icon: '💎', label: 'manga-cross',   category: 'MEDIA',   type: 'text'  },
+    { id: 'novel',  icon: '📕', label: 'kyonovel',      category: 'MEDIA',   type: 'text'  },
   ] as const
 
   type ChannelId = typeof CHANNELS[number]['id']
@@ -3723,6 +3725,7 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
     else if (id === 'anime') { setActiveTab('anime' as any); }
     else if (id === 'manga') { setActiveTab('manga' as any); }
     else if (id === 'mangax') { setActiveTab('mangax' as any); }
+    else if (id === 'novel') { setActiveTab('novel' as any); }
     else if (id === 'offline') { setActiveTab('offline' as any); }
     else { setActiveTab('chat'); }
   }
@@ -4169,6 +4172,11 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
             {/* ── MANGA CROSS TAB (PREMIUM) ── */}
             {(activeTab as string) === 'mangax' && (
               <MangaCrossPanel isAdmin={isAdmin} userId={user?.uid || ''} />
+            )}
+
+            {/* ── KYONOVEL TAB ── */}
+            {(activeTab as string) === 'novel' && (
+              <KyoNovelPanel isAdmin={isAdmin} userId={user?.uid || ''} />
             )}
 
             {/* ── CHAT TAB ── */}
