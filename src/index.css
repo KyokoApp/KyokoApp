@@ -3159,8 +3159,8 @@ body.theme-light .nav-drawer-trigger.open .nav-drawer-dot { background: #333; }
   background: rgba(0,0,0,0.6);
   backdrop-filter: blur(4px);
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: stretch;
+  justify-content: stretch;
   /* Critical: prevent web page scroll from affecting this overlay */
   overflow: hidden;
   touch-action: none;
@@ -3175,17 +3175,15 @@ body.theme-light .nav-drawer-trigger.open .nav-drawer-dot { background: #333; }
   to { opacity: 1; }
 }
 .gc-container {
-  width: min(480px, 100vw);
-  height: min(700px, 100vh);
-  /* Use dvh so it shrinks when keyboard opens, not hides */
-  height: min(700px, 100dvh);
+  width: 100%;
+  height: 100dvh;
   background: #111;
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 16px;
+  border: none;
+  border-radius: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: 0 24px 80px rgba(0,0,0,0.7);
+  box-shadow: none;
   /* Don't animate container since overlay animates */
 }
 .gc-header {
@@ -3439,8 +3437,6 @@ body.theme-light .gc-auth-title { color: #111; }
 body.theme-light .gc-auth-desc { color: rgba(0,0,0,0.5); }
 body.theme-light .gc-send-btn { background: rgba(0,0,0,0.06); }
 @media (max-width: 520px) {
-  .gc-container { width: 100vw; height: 100dvh; border-radius: 0; border: none; max-height: 100dvh; }
-  .gc-overlay { padding: 0; align-items: stretch; }
   .gc-fab { bottom: 80px; right: 16px; }
 }
 

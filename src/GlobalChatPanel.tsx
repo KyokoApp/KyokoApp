@@ -824,7 +824,7 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
   const appVersionRef = useRef<string | null>(null) // versi yang sedang dipakai user
 
   const [activeTab, setActiveTab] = useState<'chat'|'rpg'|'fishing'|'voice'|'music'|'anime'>('chat')
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => window.innerWidth < 400)
   const [offlineSelectedGame, setOfflineSelectedGame] = useState<string|null>(null)
 
   // ── Voice Call state ───────────────────────────────────────────
@@ -1104,6 +1104,14 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
   }, [onClose])
 
   // ── Lock body scroll while panel open ─────────────────────────
+  useEffect(() => {
+    const handleResize = () => {
+      setSidebarCollapsed(window.innerWidth < 400)
+    }
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
   useEffect(() => {
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
@@ -5271,7 +5279,7 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
 
       <style>{`
         /* ── Container ── */
-        .gc2-container { display:flex; flex-direction:column; height:620px; width:420px; max-width:100%; border-radius:20px; background:#0a0a0a; border:1px solid rgba(200,245,0,0.15); overflow:hidden; box-shadow:0 24px 64px rgba(0,0,0,0.8),0 0 0 1px rgba(255,255,255,0.04),inset 0 1px 0 rgba(200,245,0,0.08); }
+        .gc2-container { display:flex; flex-direction:column; height:100dvh; width:100%; max-width:100%; border-radius:0; background:#0a0a0a; border:none; overflow:hidden; box-shadow:none; }
         /* ── Header ── */
         .gc2-header { display:flex; align-items:center; justify-content:space-between; padding:12px 14px; background:linear-gradient(180deg,#111 0%,#0d0d0d 100%); border-bottom:1px solid rgba(200,245,0,0.1); flex-shrink:0; }
         .gc2-group-info { display:flex; align-items:center; gap:10px; }
@@ -5435,7 +5443,7 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
         button:focus-visible { outline: 2px solid rgba(200,245,0,0.5); outline-offset: 2px; }
         button { -webkit-tap-highlight-color: transparent; user-select: none; }
         .gc2-sticker { max-width:120px; border-radius:12px; }
-        @media(max-width:520px) { .gc2-container { width:100vw; height:100dvh; border-radius:0; } }
+        
 
         /* ── Fan-out header menu ── */
         .gc-fanout-trigger {
@@ -5577,8 +5585,9 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
         .gc-msg-menu button:hover { background:rgba(255,80,80,0.12); }
 
         /* ── Input icon buttons ── */
-        .gc-input-icon-btn { background:rgba(200,245,0,0.06); border:1px solid rgba(200,245,0,0.12); color:rgba(200,245,0,0.6); border-radius:8px; padding:6px 8px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all .15s; flex-shrink:0; }
+        .gc-input-icon-btn { background:rgba(200,245,0,0.06); border:1px solid rgba(200,245,0,0.12); color:rgba(200,245,0,0.6); border-radius:8px; padding:6px 8px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all .15s; flex-shrink:0; min-width:32px; min-height:32px; }
         .gc-input-icon-btn:hover { background:rgba(200,245,0,0.12); color:#c8f500; border-color:rgba(200,245,0,0.3); }
+        .gc-input-icon-btn-active { background:rgba(200,245,0,0.15) !important; color:#c8f500 !important; border-color:rgba(200,245,0,0.4) !important; }
 
         /* ── Music panel ── */
         .gc-music-panel { background:#111; border:1px solid rgba(200,245,0,0.15); border-radius:14px; overflow:hidden; margin-bottom:8px; animation:fadeInUp .25s ease; }
@@ -5787,11 +5796,22 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
         /* ══════════════════════════════════════════════════════════
            ZZZ DISCORD LAYOUT — SIDEBAR + MAIN
         ══════════════════════════════════════════════════════════ */
-        .zzz-discord-layout { display:flex !important; flex-direction:row !important; width:100vw; height:100dvh; max-width:100%; border-radius:0; overflow:hidden; border:none; box-shadow:none; }
+        .zzz-discord-layout { display:flex !important; flex-direction:row !important; width:100%; max-width:100vw; height:100dvh; border-radius:0; overflow:hidden; border:none; box-shadow:none; }
 
         /* ── Sidebar ── */
         .zzz-sidebar { width:175px; min-width:175px; background:#0a0a0f; border-right:1px solid rgba(200,245,0,0.07); display:flex; flex-direction:column; flex-shrink:0; transition:width .25s cubic-bezier(.4,0,.2,1),min-width .25s; overflow:hidden; }
-        .zzz-sidebar-collapsed { width:46px; min-width:46px; }
+        .zzz-sidebar-collapsed { width:44px; min-width:44px; }
+
+        /* ── Responsive narrow screens ── */
+        @media (max-width: 400px) {
+          .zzz-sidebar:not(.zzz-sidebar-collapsed) { width:155px; min-width:155px; }
+          .zzz-channel-name { font-size:10px; }
+          .zzz-category-label { font-size:8px; }
+          .gc-input-icon-btn { padding:5px 6px; }
+        }
+        @media (max-width: 360px) {
+          .zzz-sidebar:not(.zzz-sidebar-collapsed) { width:140px; min-width:140px; }
+        }
 
         .zzz-server-header { display:flex; align-items:center; gap:8px; padding:12px 10px 10px; border-bottom:1px solid rgba(200,245,0,0.08); flex-shrink:0; min-height:52px; }
         .zzz-server-icon { width:28px; height:28px; min-width:28px; border-radius:8px; background:linear-gradient(135deg,rgba(200,245,0,0.2),rgba(200,245,0,0.05)); border:1.5px solid rgba(200,245,0,0.3); display:flex; align-items:center; justify-content:center; overflow:hidden; box-shadow:0 0 10px rgba(200,245,0,0.1); flex-shrink:0; }
