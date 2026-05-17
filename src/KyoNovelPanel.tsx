@@ -1202,19 +1202,29 @@ export default function KyoNovelPanel({ isAdmin, userId }: Props) {
                   max-width: 100%;
                   box-sizing: border-box;
                 }
-                .kyo-html-reader * {
+
+                /* Reset semua elemen & class/id agar tidak overflow */
+                .kyo-html-reader *,
+                .kyo-html-reader [class],
+                .kyo-html-reader [id] {
                   max-width: 100% !important;
-                  box-sizing: border-box !important;
-                  font-size: inherit !important;
-                  font-family: inherit !important;
                   min-width: 0 !important;
+                  box-sizing: border-box !important;
+                  font-family: inherit !important;
                 }
+
+                /* Reset layout / positioning dari HTML novel */
                 .kyo-html-reader body,
+                .kyo-html-reader .wrapper,
+                .kyo-html-reader .prose,
                 .kyo-html-reader .book-wrap,
                 .kyo-html-reader .container,
                 .kyo-html-reader .content,
                 .kyo-html-reader .chapter-content,
+                .kyo-html-reader .chapter-header,
                 .kyo-html-reader .text-content,
+                .kyo-html-reader .leaves,
+                .kyo-html-reader .leaf,
                 .kyo-html-reader [class],
                 .kyo-html-reader [id] {
                   max-width: 100% !important;
@@ -1231,13 +1241,70 @@ export default function KyoNovelPanel({ isAdmin, userId }: Props) {
                   left: auto !important;
                   right: auto !important;
                   transform: none !important;
+                  animation: none !important;
+                  transition: none !important;
                 }
-                .kyo-html-reader p { margin-bottom: 1.2em; margin-top: 0; }
-                .kyo-html-reader h1, .kyo-html-reader h2, .kyo-html-reader h3 {
+
+                /* Paksa semua fixed/absolute/sticky jadi static */
+                .kyo-html-reader *[style*="position: fixed"],
+                .kyo-html-reader *[style*="position:fixed"],
+                .kyo-html-reader *[style*="position: absolute"],
+                .kyo-html-reader *[style*="position:absolute"] {
+                  position: static !important;
+                }
+
+                /* Typography — biarkan font-size dikontrol parent (fontSize state) */
+                .kyo-html-reader p {
+                  margin-bottom: 1.2em;
+                  margin-top: 0;
+                  font-size: inherit;
+                  line-height: 1.85;
+                  color: rgba(255,255,255,0.88);
+                }
+                .kyo-html-reader h1, .kyo-html-reader h2, .kyo-html-reader h3,
+                .kyo-html-reader h4, .kyo-html-reader h5, .kyo-html-reader h6 {
                   font-size: 1.1em !important;
                   margin-bottom: 0.8em;
+                  margin-top: 1em;
+                  color: rgba(255,255,255,0.95);
+                  font-weight: 700;
+                }
+                .kyo-html-reader em, .kyo-html-reader i {
+                  font-style: italic;
+                  color: inherit;
+                }
+                .kyo-html-reader strong, .kyo-html-reader b {
+                  font-weight: 700;
                   color: rgba(255,255,255,0.95);
                 }
+
+                /* Drop cap — matiin supaya tidak geser layout */
+                .kyo-html-reader p:first-of-type::first-letter {
+                  float: none !important;
+                  font-size: inherit !important;
+                  line-height: inherit !important;
+                  margin: 0 !important;
+                }
+
+                /* Scene break / divider tetap center */
+                .kyo-html-reader .scene-break,
+                .kyo-html-reader .divider,
+                .kyo-html-reader .chapter-end {
+                  text-align: center !important;
+                  width: 100% !important;
+                }
+
+                /* Inner thought / blockquote */
+                .kyo-html-reader .inner-thought,
+                .kyo-html-reader blockquote {
+                  font-style: italic;
+                  color: rgba(255,180,100,0.85);
+                  border-left: 2px solid rgba(200,160,80,0.5);
+                  padding-left: 12px !important;
+                  margin: 1.2em 0;
+                }
+
+                /* Media */
                 .kyo-html-reader img { max-width: 100% !important; height: auto !important; display: block; }
                 .kyo-html-reader table { width: 100% !important; table-layout: fixed !important; }
                 .kyo-html-reader td, .kyo-html-reader th { word-break: break-word !important; }
