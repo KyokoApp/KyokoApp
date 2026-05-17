@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState, useCallback, memo } from 'react'
-import GameRpg from './GameRpg'
+import React, { useEffect, useRef, useState, useCallback, memo, Suspense } from 'react'
+const GameRpg = React.lazy(() => import('./GameRpg'))
 import AnimeStreamPanel from './AnimeStreamPanel'
 import MangaStreamPanel from './MangaStreamPanel'
 import MangaCrossPanel from './MangaCrossPanel'
@@ -4749,8 +4749,14 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
 
             {/* ── RPG TAB ── */}
             {activeTab === 'rpg' && activeGachaTab === 'rpg' && (
-              <GameRpg
-                rpgChar={rpgChar}
+              <Suspense fallback={
+                <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%',flexDirection:'column',gap:12,color:'rgba(255,255,255,0.4)'}}>
+                  <div style={{fontSize:32}}>⚔️</div>
+                  <div style={{fontSize:13}}>Memuat RPG...</div>
+                </div>
+              }>
+                <GameRpg
+                  rpgChar={rpgChar}
                 rpgView={rpgView}
                 setRpgView={setRpgView}
                 battleState={battleState}
@@ -4830,6 +4836,7 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
                 claimBattlePassTier={claimBattlePassTier}
                 setActiveTab={setActiveTab}
               />
+              </Suspense>
             )}
 
             {/* ── GACHA TAB ── */}

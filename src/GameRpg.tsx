@@ -2,7 +2,10 @@
 // GameRpg.tsx — RPG Feature (terpisah dari GlobalChatPanel)
 // Semua state & handlers tetap di GlobalChatPanel, dikirim via props
 // ═══════════════════════════════════════════════════════════════
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
+import { doc, getDoc, setDoc, updateDoc, query, collection, orderBy, limit, getDocs } from 'firebase/firestore'
+import { getRpgDb } from './firebase'
+import { getSyncMeta } from './rpgStore'
 
 interface RpgChar {
   uid: string; username: string; class: RpgClass; level: number; exp: number
@@ -717,6 +720,20 @@ function ToastContainer({ toasts, onRemove }: { toasts: ToastItem[]; onRemove: (
 // ═══════════════════════════════════════════════════════════════
 
 // ═══════════════════════════════════════════════════════════════
+// STAT BAR COMPONENT
+// ═══════════════════════════════════════════════════════════════
+function StatBar({ val, max, type }: { val: number; max: number; type: 'hp'|'mp'|'exp' }) {
+  const pct = Math.max(0, Math.min(1, val / max)) * 100
+  const color = type === 'hp' ? 'linear-gradient(90deg,#ff2d55,#ff6b35)' : type === 'mp' ? 'linear-gradient(90deg,#007aff,#5ac8fa)' : 'linear-gradient(90deg,#f5ff00,#00e5ff)'
+  return (
+    <div style={{ position:'relative', background:'rgba(255,255,255,0.06)', borderRadius:3, overflow:'hidden', height:8 }}>
+      <div style={{ height:'100%', borderRadius:3, background:color, width:`${pct}%`, transition:'width .5s cubic-bezier(.4,0,.2,1)', boxShadow: type==='hp'?'0 0 8px rgba(255,45,85,0.6)':type==='mp'?'0 0 8px rgba(0,122,255,0.6)':'0 0 8px rgba(245,255,0,0.5)' }}/>
+    </div>
+  )
+}
+
+
+// ═══════════════════════════════════════════════════════════════
 // GAME RPG PROPS
 // ═══════════════════════════════════════════════════════════════
 export interface GameRpgProps {
@@ -787,7 +804,7 @@ export interface GameRpgProps {
   claimQuest: (id: string) => void
   buyItem: (item: typeof ITEMS_SHOP[0]) => void
   changeClass: (cls: RpgClass) => void
-  startDungeon: (boss: DungeonBoss, charIds: string[]) => void
+  startDungeon: (bossIdx: number, party: GachaChar[]) => void
   endDungeon: () => void
   handleDungeonWin: (boss: DungeonBoss) => void
   setParty: (charIds: string[]) => void
@@ -811,10 +828,10 @@ export interface GameRpgProps {
   doGachaPull: (n: 1|10) => void
   doCharLevelUp: (id: string) => void
   onBuyRequest: () => void
-  claimBattlePassTier: (tier: number) => void
+  claimBattlePassTier: (tier: typeof BATTLE_PASS_TIERS[0], isPremium: boolean) => void
   setBattleState: React.Dispatch<React.SetStateAction<GameRpgProps['battleState']>>
   setDungeonState: React.Dispatch<React.SetStateAction<GameRpgProps['dungeonState']>>
-  setActiveTab: (tab: string) => void
+  setActiveTab: (tab: any) => void
 }
 
 // ═══════════════════════════════════════════════════════════════
