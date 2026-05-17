@@ -801,7 +801,7 @@ export interface GameRpgProps {
   onToggleAuto: () => void
   acceptQuest: (id: string) => void
   cancelQuest: () => void
-  claimQuest: (id: string) => void
+  claimQuest: () => void
   buyItem: (item: typeof ITEMS_SHOP[0]) => void
   changeClass: (cls: RpgClass) => void
   startDungeon: (bossIdx: number, party: GachaChar[]) => void
