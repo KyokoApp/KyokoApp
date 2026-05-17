@@ -3772,24 +3772,32 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
       <div className="gc-container gc2-container zzz-discord-layout" onClick={e => e.stopPropagation()} style={{ position: 'relative', display: 'flex', flexDirection: 'row', padding: 0, overflow: 'hidden', width:'100vw', height:'100dvh', borderRadius:0, flex:1 }}>
 
         {/* ── QUARTER CIRCLE NAV TRIGGER ── */}
-        <div className="qc-trigger-wrap">
-          {/* Animated arc border */}
-          <svg className="qc-arc-svg" viewBox="0 0 80 80">
-            <path className="qc-arc-path" d="M 78 2 A 76 76 0 0 1 2 78" />
-          </svg>
-          {/* Quarter circle shape */}
-          <div
-            className={`qc-shape${navOpen ? ' qc-open' : ''}`}
-            onClick={() => setNavOpen(v => !v)}
-          >
-            <div className="qc-avatar">
-              {groupInfo?.iconUrl
-                ? <img src={groupInfo.iconUrl} alt="g" style={{width:'100%',height:'100%',objectFit:'cover',borderRadius:'50%'}}/>
-                : <span style={{fontSize:16}}>⚡</span>}
-            </div>
-            <div className="qc-arrow-icon">▾</div>
+        {/* ── ICON NAV STRIP ── */}
+        <div className="qc-icon-strip">
+          <div className="qc-strip-avatar" onClick={() => setNavOpen(v => !v)}>
+            {groupInfo?.iconUrl
+              ? <img src={groupInfo.iconUrl} alt="g" style={{width:'100%',height:'100%',objectFit:'cover',borderRadius:'50%'}}/>
+              : <span style={{fontSize:15}}>⚡</span>}
           </div>
+          <div className="qc-strip-divider"/>
+          {CHANNELS.map((ch) => {
+            const isActive = getActiveChannelId() === ch.id
+            const isVoiceActive = ch.id === 'voice' && voiceCallActive
+            return (
+              <button
+                key={ch.id}
+                className={`qc-strip-btn${isActive ? ' qc-strip-active' : ''}${isVoiceActive ? ' qc-strip-voice' : ''}`}
+                onClick={() => handleChannelClick(ch.id as ChannelId)}
+                title={ch.label}
+              >
+                <span className="qc-strip-icon">{ch.icon}</span>
+                {isVoiceActive && <span className="qc-strip-badge">{Object.keys(voiceParticipants).length}</span>}
+              </button>
+            )
+          })}
         </div>
+
+        {/* ── GROUP NAV POPUP (click avatar) ── */}
 
         {/* ── NAV BACKDROP ── */}
         <div className={`qc-backdrop${navOpen ? ' qc-backdrop-visible' : ''}`} onClick={() => setNavOpen(false)} />
@@ -3966,7 +3974,7 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
         <ToastContainer toasts={toasts} onRemove={(id) => setToasts(prev => prev.filter(t => t.id !== id))} />
 
         {/* ── ZZZ CHANNEL HEADER ── */}
-        <div className="zzz-channel-header" style={{paddingLeft:82}}>
+        <div className="zzz-channel-header" style={{paddingLeft:14}}>
           <div className="zzz-channel-header-left">
             <span className="zzz-channel-header-icon">
               {CHANNELS.find(c => c.id === getActiveChannelId())?.icon || '💬'}
@@ -5747,181 +5755,164 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
            ZZZ DISCORD LAYOUT — FULL WIDTH (no sidebar)
         ══════════════════════════════════════════════════════════ */
         .zzz-discord-layout { display:flex !important; flex-direction:row !important; width:100%; max-width:100vw; height:100dvh; border-radius:0; overflow:hidden; border:none; box-shadow:none; }
-        .zzz-main-content { flex:1; display:flex; flex-direction:column; overflow:hidden; min-height:0; position:relative; min-width:0; }
+        .zzz-main-content { flex:1; display:flex; flex-direction:column; overflow:hidden; min-height:0; position:relative; min-width:0; margin-left:52px; }
 
-        /* ── Quarter Circle Trigger ── */
-        .qc-trigger-wrap {
-          position:absolute; top:0; left:0;
-          width:72px; height:72px;
-          z-index:60; pointer-events:none;
+        /* ── Icon Nav Strip ── */
+        .qc-icon-strip {
+          position:absolute; top:0; left:0; bottom:0;
+          width:52px; z-index:60;
+          display:flex; flex-direction:column; align-items:center;
+          padding:8px 0 10px;
+          background:linear-gradient(180deg,#0b0b16 0%,#080810 100%);
+          border-right:1px solid rgba(200,245,0,0.08);
+          gap:2px;
         }
-        .qc-arc-svg {
-          position:absolute; top:-2px; left:-2px;
-          width:80px; height:80px;
-          pointer-events:none; overflow:visible;
-        }
-        .qc-arc-path {
-          fill:none; stroke:#c8f500; stroke-width:2;
-          stroke-dasharray:12 6;
-          stroke-linecap:round;
-          filter:drop-shadow(0 0 4px #c8f500);
-          animation:qcArcSpin 2.4s linear infinite;
-          transform-origin:0 0;
-        }
-        @keyframes qcArcSpin {
-          0%   { stroke-dashoffset:0; }
-          100% { stroke-dashoffset:-54; }
-        }
-        .qc-shape {
-          position:absolute; top:0; left:0;
-          width:72px; height:72px;
-          border-bottom-right-radius:72px;
-          background:linear-gradient(135deg,rgba(14,14,28,0.97),rgba(18,18,36,0.95));
-          border-bottom:1px solid rgba(200,245,0,0.2);
-          border-right:1px solid rgba(200,245,0,0.2);
-          pointer-events:all; cursor:pointer;
-          transition:background .25s;
-          display:flex; align-items:flex-start; justify-content:flex-start;
-        }
-        .qc-shape:hover, .qc-shape.qc-open {
-          background:linear-gradient(135deg,rgba(200,245,0,0.07),rgba(18,18,36,0.98));
-        }
-        .qc-avatar {
-          position:absolute; top:9px; left:9px;
-          width:36px; height:36px; border-radius:50%;
+        .qc-strip-avatar {
+          width:34px; height:34px; border-radius:50%;
           background:linear-gradient(135deg,#1a1a2e,#16213e);
-          border:2px solid rgba(200,245,0,0.45);
+          border:2px solid rgba(200,245,0,0.4);
           display:flex; align-items:center; justify-content:center;
-          overflow:hidden;
-          box-shadow:0 0 10px rgba(200,245,0,0.15);
-          transition:box-shadow .2s;
+          overflow:hidden; cursor:pointer; flex-shrink:0;
+          box-shadow:0 0 10px rgba(200,245,0,0.12);
+          transition:border-color .2s, box-shadow .2s;
+          margin-bottom:4px;
         }
-        .qc-shape:hover .qc-avatar, .qc-shape.qc-open .qc-avatar {
-          box-shadow:0 0 18px rgba(200,245,0,0.35);
+        .qc-strip-avatar:hover {
+          border-color:rgba(200,245,0,0.8);
+          box-shadow:0 0 16px rgba(200,245,0,0.28);
         }
-        .qc-arrow-icon {
-          position:absolute; bottom:7px; right:9px;
-          color:rgba(200,245,0,0.75); font-size:13px;
-          animation:qcArrowBounce 1.3s ease infinite;
-          transition:transform .25s;
+        .qc-strip-divider {
+          width:28px; height:1px; border-radius:2px;
+          background:rgba(200,245,0,0.12);
+          margin:2px 0 4px; flex-shrink:0;
         }
-        .qc-shape.qc-open .qc-arrow-icon { transform:rotate(180deg); animation:none; }
-        @keyframes qcArrowBounce {
-          0%,100% { transform:translateY(0); }
-          50%      { transform:translateY(3px); }
+        .qc-strip-btn {
+          position:relative;
+          width:38px; height:38px; border-radius:10px;
+          background:none; border:none; cursor:pointer;
+          display:flex; align-items:center; justify-content:center;
+          color:rgba(255,255,255,0.3);
+          transition:background .15s, color .15s, border-radius .2s;
+          flex-shrink:0;
+        }
+        .qc-strip-btn:hover {
+          background:rgba(200,245,0,0.07);
+          color:rgba(255,255,255,0.7);
+          border-radius:12px;
+        }
+        .qc-strip-active {
+          background:rgba(200,245,0,0.12) !important;
+          color:#c8f500 !important;
+          border-radius:12px !important;
+        }
+        .qc-strip-active::after {
+          content:''; position:absolute; left:-1px; top:20%; height:60%;
+          width:3px; border-radius:0 3px 3px 0;
+          background:#c8f500; box-shadow:0 0 8px #c8f500;
+        }
+        .qc-strip-voice { color:#4ade80 !important; }
+        .qc-strip-icon { font-size:17px; line-height:1; }
+        .qc-strip-badge {
+          position:absolute; top:4px; right:4px;
+          background:#4ade80; color:#000; font-size:8px; font-weight:900;
+          border-radius:8px; padding:0 4px; min-width:14px; text-align:center;
         }
 
         /* ── Backdrop ── */
         .qc-backdrop {
           position:absolute; inset:0; z-index:45;
-          background:rgba(0,0,0,0.72);
-          backdrop-filter:blur(7px);
+          background:rgba(0,0,0,0.7);
+          backdrop-filter:blur(6px);
           opacity:0; pointer-events:none;
           transition:opacity .3s ease;
         }
         .qc-backdrop-visible { opacity:1; pointer-events:all; }
 
-        /* ── Nav Panel ── */
+        /* ── Nav Popup Panel ── */
         .qc-nav-panel {
-          position:absolute; top:0; left:0;
-          width:230px; max-height:92vh;
+          position:absolute; top:8px; left:58px;
+          width:200px; max-height:85vh;
           z-index:50;
-          background:linear-gradient(160deg,#0d0d1a 0%,#09090f 100%);
-          border-right:1px solid rgba(200,245,0,0.13);
-          border-bottom:1px solid rgba(200,245,0,0.07);
-          border-bottom-right-radius:18px;
+          background:linear-gradient(160deg,#0d0d1c 0%,#09090f 100%);
+          border:1px solid rgba(200,245,0,0.12);
+          border-radius:14px;
           display:flex; flex-direction:column;
-          transform:translateX(-105%) translateY(-40px) scale(.93);
-          opacity:0; transform-origin:top left;
-          transition:
-            transform .38s cubic-bezier(.22,1.15,.36,1),
-            opacity .26s ease;
+          transform:translateX(-12px) scale(.94);
+          transform-origin:top left;
+          opacity:0;
+          transition:transform .3s cubic-bezier(.22,1.15,.36,1), opacity .22s ease;
           pointer-events:none;
           overflow:hidden;
+          box-shadow:0 8px 32px rgba(0,0,0,0.6), 0 0 0 1px rgba(200,245,0,0.06);
         }
         .qc-nav-open {
-          transform:translateX(0) translateY(0) scale(1);
+          transform:translateX(0) scale(1);
           opacity:1; pointer-events:all;
         }
         .qc-group-info {
-          padding:14px 16px 10px;
+          padding:12px 14px 10px;
           border-bottom:1px solid rgba(200,245,0,0.07);
-          margin-top:70px; flex-shrink:0;
+          flex-shrink:0;
         }
         .qc-channel-scroll {
           flex:1; overflow-y:auto; overflow-x:hidden;
           padding:6px 0 4px; scrollbar-width:none;
+          max-height:calc(85vh - 110px);
         }
         .qc-channel-scroll::-webkit-scrollbar { display:none; }
         .qc-cat-label {
           font-size:9px; font-weight:800; letter-spacing:2px;
-          color:rgba(200,245,0,0.3); text-transform:uppercase;
-          padding:8px 16px 3px;
+          color:rgba(200,245,0,0.28); text-transform:uppercase;
+          padding:8px 14px 3px;
         }
         .qc-ch-item {
-          display:flex; align-items:center; gap:9px;
-          width:100%; padding:7px 14px;
+          display:flex; align-items:center; gap:8px;
+          width:100%; padding:6px 12px;
           background:none; border:none; cursor:pointer;
-          color:rgba(255,255,255,0.45); text-align:left;
-          border-radius:0; transition:background .15s, color .15s;
+          color:rgba(255,255,255,0.4); text-align:left;
+          transition:background .15s, color .15s;
           position:relative; overflow:hidden;
           animation:none;
         }
         .qc-nav-open .qc-ch-item {
-          animation:qcItemIn .3s ease both;
+          animation:qcItemIn .28s ease both;
         }
         @keyframes qcItemIn {
-          from { transform:translateX(-14px); opacity:0; }
+          from { transform:translateX(-10px); opacity:0; }
           to   { transform:translateX(0); opacity:1; }
         }
         .qc-ch-item:hover { background:rgba(200,245,0,0.05); color:rgba(255,255,255,0.75); }
         .qc-ch-active {
-          background:rgba(200,245,0,0.09) !important;
+          background:rgba(200,245,0,0.08) !important;
           color:#c8f500 !important;
         }
         .qc-ch-active::before {
           content:''; position:absolute; left:0; top:18%; height:64%;
-          width:3px; border-radius:0 2px 2px 0;
+          width:2.5px; border-radius:0 2px 2px 0;
           background:#c8f500; box-shadow:0 0 6px #c8f500;
         }
         .qc-ch-voice { color:#4ade80 !important; }
-        .qc-ch-icon { font-size:14px; flex-shrink:0; width:18px; text-align:center; }
-        .qc-ch-label { font-size:12px; font-weight:600; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; letter-spacing:.2px; }
+        .qc-ch-icon { font-size:13px; flex-shrink:0; width:16px; text-align:center; }
+        .qc-ch-label { font-size:11px; font-weight:600; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; letter-spacing:.2px; }
         .qc-voice-badge { background:#4ade80; color:#000; font-size:9px; font-weight:800; border-radius:10px; padding:1px 5px; flex-shrink:0; }
         .qc-user-bar {
           display:flex; align-items:center; gap:8px;
-          padding:10px 14px; border-top:1px solid rgba(200,245,0,0.07);
-          background:#080810; flex-shrink:0;
+          padding:9px 12px; border-top:1px solid rgba(200,245,0,0.07);
+          background:#07070e; flex-shrink:0;
         }
         .qc-user-av {
-          width:26px; height:26px; min-width:26px; border-radius:50%;
+          width:24px; height:24px; min-width:24px; border-radius:50%;
           display:flex; align-items:center; justify-content:center;
-          font-size:11px; font-weight:800; color:#000;
+          font-size:10px; font-weight:800; color:#000;
           position:relative; flex-shrink:0; overflow:hidden;
         }
         .qc-status-dot {
           position:absolute; bottom:0; right:0;
-          width:7px; height:7px; border-radius:50%;
-          background:#4ade80; border:1.5px solid #080810;
+          width:6px; height:6px; border-radius:50%;
+          background:#4ade80; border:1.5px solid #07070e;
         }
 
-        /* ── Content bloom transition ── */
-        .gc-bloom-enter-up {
-          animation:gcBloomUp .42s cubic-bezier(.4,0,.2,1) both;
-        }
-        .gc-bloom-enter-down {
-          animation:gcBloomDown .42s cubic-bezier(.4,0,.2,1) both;
-        }
-        @keyframes gcBloomUp {
-          from { transform:translateY(36px) scale(.97); opacity:0; filter:blur(8px) brightness(1.6); }
-          to   { transform:translateY(0) scale(1); opacity:1; filter:blur(0) brightness(1); }
-        }
-        @keyframes gcBloomDown {
-          from { transform:translateY(-36px) scale(.97); opacity:0; filter:blur(8px) brightness(1.6); }
-          to   { transform:translateY(0) scale(1); opacity:1; filter:blur(0) brightness(1); }
-        }
-
-        /* ── Sidebar compat (keep for any remaining refs) ── */
+                /* ── Sidebar compat (keep for any remaining refs) ── */
         .zzz-sidebar { display:none; }
         .zzz-sidebar-collapsed { display:none; }
 
