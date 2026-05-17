@@ -279,10 +279,16 @@ function sanitizeHtmlFull(raw: string): string {
     .replace(/<meta[^>]*>/gi, '')
   html = html.replace(/\s+on\w+\s*=\s*["'][^"']*["']/gi, '')
   html = html.replace(/\s+on\w+\s*=\s*[^\s>]*/gi, '')
+  // strip semua inline style yang ada width/min-width/margin fixed
+  html = html.replace(/\s+style\s*=\s*["'][^"']*["']/gi, (m) => {
+    const cleaned = m.replace(/\b(width|min-width|max-width|margin-left|margin-right|padding-left|padding-right|position|left|right|float|transform)\s*:[^;'"]+;?/gi, '')
+    return cleaned
+  })
   const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i)
-  const styleMatch = raw.match(/(<style[\s\S]*?<\/style>)/gi) || []
+  // buang style dari source, kita inject reset kita sendiri
   const bodyContent = bodyMatch ? bodyMatch[1] : html
-  return styleMatch.join('\n') + '\n' + bodyContent
+  const resetCss = `<style>*{max-width:100%!important;min-width:0!important;box-sizing:border-box!important;}body,.book-wrap,.container,.content,.chapter-content,.text-content,[class],[id]{width:auto!important;max-width:100%!important;min-width:0!important;margin-left:0!important;margin-right:0!important;padding-left:0!important;padding-right:0!important;float:none!important;position:static!important;transform:none!important;background:transparent!important;box-shadow:none!important;}img{max-width:100%!important;height:auto!important;}table{width:100%!important;table-layout:fixed!important;}pre,code{white-space:pre-wrap!important;}</style>`
+  return resetCss + '\n' + bodyContent
 }
 
 function isHtmlContent(content: string): boolean {
@@ -1084,7 +1090,7 @@ export default function KyoNovelPanel({ isAdmin, userId }: Props) {
   if (view === 'read' && selectedChapter) {
     const isHtml = isHtmlContent(chapterText)
     return (
-      <div style={{ ...S.wrap, background: '#0e0e16' }}>
+      <div style={{ ...S.wrap, background: '#0e0e16', overflowX: 'hidden', maxWidth: '100vw' }}>
         <div style={S.readerHeader}>
           <button style={S.backBtn} onClick={() => { setView('detail'); setSelectedChapter(null); setChapterText('') }}>‹ Kembali</button>
           <div style={{ fontSize: 12, fontWeight: 700, color: '#fff', textAlign: 'center', maxWidth: '55%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -1096,7 +1102,7 @@ export default function KyoNovelPanel({ isAdmin, userId }: Props) {
           </div>
         </div>
 
-        <div style={{ overflowY: 'auto', flex: 1 }}>
+        <div style={{ overflowY: 'auto', overflowX: 'hidden', flex: 1, width: '100%', maxWidth: '100vw' }}>
           {loadingText ? (
             <div style={{ textAlign: 'center', paddingTop: 60, color: 'rgba(255,255,255,0.3)', fontSize: fontSize }}>⏳ Memuat chapter...</div>
           ) : isHtml ? (
@@ -1109,26 +1115,40 @@ export default function KyoNovelPanel({ isAdmin, userId }: Props) {
                   line-height: 1.85;
                   word-break: break-word;
                   overflow-wrap: break-word;
+                  overflow-x: hidden;
+                  width: 100%;
+                  max-width: 100%;
+                  box-sizing: border-box;
                 }
                 .kyo-html-reader * {
                   max-width: 100% !important;
                   box-sizing: border-box !important;
                   font-size: inherit !important;
                   font-family: inherit !important;
+                  min-width: 0 !important;
                 }
                 .kyo-html-reader body,
                 .kyo-html-reader .book-wrap,
                 .kyo-html-reader .container,
                 .kyo-html-reader .content,
                 .kyo-html-reader .chapter-content,
-                .kyo-html-reader .text-content {
+                .kyo-html-reader .text-content,
+                .kyo-html-reader [class],
+                .kyo-html-reader [id] {
                   max-width: 100% !important;
-                  width: 100% !important;
-                  min-width: unset !important;
-                  margin: 0 !important;
-                  padding: 0 !important;
+                  width: auto !important;
+                  min-width: 0 !important;
+                  margin-left: 0 !important;
+                  margin-right: 0 !important;
+                  padding-left: 0 !important;
+                  padding-right: 0 !important;
                   box-shadow: none !important;
                   background: transparent !important;
+                  float: none !important;
+                  position: static !important;
+                  left: auto !important;
+                  right: auto !important;
+                  transform: none !important;
                 }
                 .kyo-html-reader p { margin-bottom: 1.2em; margin-top: 0; }
                 .kyo-html-reader h1, .kyo-html-reader h2, .kyo-html-reader h3 {
@@ -1136,8 +1156,10 @@ export default function KyoNovelPanel({ isAdmin, userId }: Props) {
                   margin-bottom: 0.8em;
                   color: rgba(255,255,255,0.95);
                 }
-                .kyo-html-reader img { max-width: 100% !important; height: auto !important; }
-                .kyo-html-reader table { width: 100% !important; }
+                .kyo-html-reader img { max-width: 100% !important; height: auto !important; display: block; }
+                .kyo-html-reader table { width: 100% !important; table-layout: fixed !important; }
+                .kyo-html-reader td, .kyo-html-reader th { word-break: break-word !important; }
+                .kyo-html-reader pre, .kyo-html-reader code { white-space: pre-wrap !important; word-break: break-word !important; }
               `}</style>
               <div
                 className="kyo-html-reader"
