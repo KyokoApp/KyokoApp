@@ -492,6 +492,39 @@ export default function KyoNovelPanel({ isAdmin, userId }: Props) {
   }
 
   // ═══════════════════════════════════════════════════
+  // HANDLERS — DELETE
+  // ═══════════════════════════════════════════════════
+  const handleDeleteChapter = async (ch: ChapterDoc, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!window.confirm(`Hapus Bab ${ch.chapterNumber}?\n"${ch.title}"\n\nTidak bisa dibatalkan!`)) return
+    try {
+      const fb = FB_INSTANCES.find(f => f.name === ch.firebaseName)!
+      await deleteDoc(doc(fb.db, 'kyoNovels', ch.novelId, 'chapters', ch.id))
+    } catch (err: any) {
+      alert('Gagal hapus chapter: ' + err.message)
+    }
+  }
+
+  const handleDeleteNovel = async () => {
+    if (!selectedNovel) return
+    if (!window.confirm(`Hapus novel "${selectedNovel.title}"?\n\nSemua chapter juga akan terhapus. Tidak bisa dibatalkan!`)) return
+    try {
+      const fb = FB_INSTANCES.find(f => f.name === selectedNovel.firebaseName)!
+      // Hapus semua chapter dulu
+      for (const ch of chapters) {
+        await deleteDoc(doc(fb.db, 'kyoNovels', selectedNovel.id, 'chapters', ch.id))
+      }
+      // Hapus novel
+      await deleteDoc(doc(fb.db, 'kyoNovels', selectedNovel.id))
+      setView('home')
+      setSelectedNovel(null)
+      setChapters([])
+    } catch (err: any) {
+      alert('Gagal hapus novel: ' + err.message)
+    }
+  }
+
+  // ═══════════════════════════════════════════════════
   // HANDLERS — UPLOAD
   // ═══════════════════════════════════════════════════
   const handleUpload = async () => {
@@ -1078,13 +1111,17 @@ export default function KyoNovelPanel({ isAdmin, userId }: Props) {
           <button style={S.backBtn} onClick={() => { setView('home'); setSelectedNovel(null); setChapters([]) }}>‹ Kembali</button>
           <div style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>📖 Detail Novel</div>
           {isAdmin && (
-            <button style={{ ...S.iconBtn, fontSize: 11 }} onClick={() => {
-              setUploadTitle(selectedNovel.title); setUploadAuthor(selectedNovel.author)
-              setUploadGenre(selectedNovel.genre); setUploadDesc(selectedNovel.description)
-              setUploadCoverUrl(selectedNovel.coverUrl); setUploadStatus(selectedNovel.status)
-              setUploadingNovelId(selectedNovel.id)
-              setUploadChapterNum(chapters.length + 1); setView('upload')
-            }}>+ Bab</button>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button style={{ ...S.iconBtn, fontSize: 11 }} onClick={() => {
+                setUploadTitle(selectedNovel.title); setUploadAuthor(selectedNovel.author)
+                setUploadGenre(selectedNovel.genre); setUploadDesc(selectedNovel.description)
+                setUploadCoverUrl(selectedNovel.coverUrl); setUploadStatus(selectedNovel.status)
+                setUploadingNovelId(selectedNovel.id)
+                setUploadChapterNum(chapters.length + 1); setView('upload')
+              }}>+ Bab</button>
+              <button style={{ ...S.iconBtn, fontSize: 11, background: 'rgba(255,68,68,0.1)', border: '1px solid rgba(255,68,68,0.3)', color: '#ff4444' }}
+                onClick={handleDeleteNovel}>🗑️</button>
+            </div>
           )}
         </div>
         <div style={{ overflowY: 'auto', flex: 1 }}>
@@ -1140,6 +1177,13 @@ export default function KyoNovelPanel({ isAdmin, userId }: Props) {
                       <span style={{ fontSize: 11 }}>🔒</span>
                       <span style={{ fontSize: 11, fontWeight: 800, color: '#c8f500' }}>🪙 {ch.coinPrice}</span>
                     </div>
+                  )}
+                  {isAdmin && (
+                    <button
+                      onClick={e => handleDeleteChapter(ch, e)}
+                      style={{ marginLeft: 8, background: 'rgba(255,68,68,0.1)', border: '1px solid rgba(255,68,68,0.25)', borderRadius: 6, color: '#ff4444', fontSize: 11, padding: '4px 7px', cursor: 'pointer', flexShrink: 0 }}>
+                      🗑️
+                    </button>
                   )}
                 </button>
               )
