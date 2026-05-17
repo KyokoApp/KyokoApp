@@ -4033,7 +4033,6 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
         {/* ── MAIN (TABS) ── */}
         {step === 'main' && (
           <div key={navContentKey} className={`gc-bloom-enter-${navTransDir}`} style={{display:'contents'}}>
-          <>
             {/* ── VOICE ROOM TAB ── */}
             {activeTab === 'voice' && (
               <div className="zzz-voice-room">
@@ -5008,7 +5007,6 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
               </div>
             )}
 
-          </>
           </div>{/* bloom wrapper */}
         )}
 
