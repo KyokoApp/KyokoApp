@@ -1144,6 +1144,11 @@ export default function KyoNovelPanel({ isAdmin, userId }: Props) {
           <div style={{ height: 60 }} />
         </div>
       </div>
+      {/* Hidden render target untuk html2canvas */}
+      <div
+        ref={htmlRenderRef}
+        style={{ position: 'fixed', top: -99999, left: -99999, visibility: 'hidden', pointerEvents: 'none', zIndex: -1 }}
+      />
     )
   }
 
