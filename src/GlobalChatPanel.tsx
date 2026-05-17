@@ -5804,6 +5804,7 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
            ZZZ DISCORD LAYOUT — FULL WIDTH (no sidebar)
         ══════════════════════════════════════════════════════════ */
         .zzz-discord-layout { display:flex !important; flex-direction:row !important; width:100%; max-width:100vw; height:100dvh; border-radius:0; overflow:hidden; border:none; box-shadow:none; }
+        .zzz-main-content { flex:1; display:flex; flex-direction:column; overflow:hidden; min-height:0; position:relative; min-width:0; }
 
         /* ── Quarter Circle Trigger ── */
         .qc-trigger-wrap {
