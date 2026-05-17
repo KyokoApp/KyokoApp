@@ -266,10 +266,11 @@ function sanitizeHtml(raw: string): string {
   return html.trim()
 }
 
-// ── sanitize HTML tapi pertahankan <style> internal ──
+// ── sanitize HTML — buang semua <style> sumber, strip inline width/position ──
 function sanitizeHtmlFull(raw: string): string {
   let html = raw
     .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
     .replace(/<iframe[\s\S]*?<\/iframe>/gi, '')
     .replace(/<object[\s\S]*?<\/object>/gi, '')
     .replace(/<embed[^>]*>/gi, '')
@@ -279,16 +280,12 @@ function sanitizeHtmlFull(raw: string): string {
     .replace(/<meta[^>]*>/gi, '')
   html = html.replace(/\s+on\w+\s*=\s*["'][^"']*["']/gi, '')
   html = html.replace(/\s+on\w+\s*=\s*[^\s>]*/gi, '')
-  // strip semua inline style yang ada width/min-width/margin fixed
-  html = html.replace(/\s+style\s*=\s*["'][^"']*["']/gi, (m) => {
-    const cleaned = m.replace(/\b(width|min-width|max-width|margin-left|margin-right|padding-left|padding-right|position|left|right|float|transform)\s*:[^;'"]+;?/gi, '')
-    return cleaned
+  html = html.replace(/\s+style\s*=\s*["']([^"']*)["']/gi, (_m: string, s: string) => {
+    const cleaned = s.replace(/\b(width|min-width|max-width|margin-left|margin-right|padding-left|padding-right|position|left|right|float|transform)\s*:[^;]+;?/gi, '').trim()
+    return cleaned ? ` style="${cleaned}"` : ''
   })
   const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i)
-  // buang style dari source, kita inject reset kita sendiri
-  const bodyContent = bodyMatch ? bodyMatch[1] : html
-  const resetCss = `<style>*{max-width:100%!important;min-width:0!important;box-sizing:border-box!important;}body,.book-wrap,.container,.content,.chapter-content,.text-content,[class],[id]{width:auto!important;max-width:100%!important;min-width:0!important;margin-left:0!important;margin-right:0!important;padding-left:0!important;padding-right:0!important;float:none!important;position:static!important;transform:none!important;background:transparent!important;box-shadow:none!important;}img{max-width:100%!important;height:auto!important;}table{width:100%!important;table-layout:fixed!important;}pre,code{white-space:pre-wrap!important;}</style>`
-  return resetCss + '\n' + bodyContent
+  return bodyMatch ? bodyMatch[1] : html
 }
 
 function isHtmlContent(content: string): boolean {
