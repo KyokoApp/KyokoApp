@@ -655,20 +655,38 @@ export default function KyoNovelPanel({ isAdmin, userId }: Props) {
       const html = await res.text()
       const parser = new DOMParser()
       const dom = parser.parseFromString(html, 'text/html')
-      const rows = dom.querySelectorAll('#chapters tbody tr, .chapter-row')
-      const chaps: PublicChapter[] = []
-      rows.forEach((row, i) => {
-        const linkEl = row.querySelector('a') as HTMLAnchorElement
-        if (!linkEl) return
-        const href = linkEl.getAttribute('href') || ''
-        const title = linkEl.textContent?.trim() || `Chapter ${i + 1}`
-        const dateEl = row.querySelector('time, .text-muted')
-        const date = dateEl?.getAttribute('datetime') || dateEl?.textContent?.trim() || ''
-        const idMatch = href.match(/\/(\d+)\/chapter\/(\d+)/)
-        const chapId = idMatch ? `${idMatch[1]}_${idMatch[2]}` : `chap_${i}`
-        chaps.push({ id: chapId, title, date, order: i + 1 })
-      })
-      setPubChapters(chaps)
+
+      // Coba selector tabel chapter dulu
+      let rows = Array.from(dom.querySelectorAll('#chapters tbody tr, .chapter-row'))
+
+      if (rows.length > 0) {
+        // Ada tabel — proses normal, simpan href asli sebagai id
+        const chaps: PublicChapter[] = []
+        rows.forEach((row, i) => {
+          const linkEl = row.querySelector('a') as HTMLAnchorElement
+          if (!linkEl) return
+          const href = linkEl.getAttribute('href') || ''
+          if (!href.includes('/chapter/')) return
+          const title = linkEl.textContent?.trim() || `Chapter ${i + 1}`
+          const dateEl = row.querySelector('time, .text-muted')
+          const date = dateEl?.getAttribute('datetime') || dateEl?.textContent?.trim() || ''
+          chaps.push({ id: encodeURIComponent(href), title, date, order: i + 1 })
+        })
+        setPubChapters(chaps)
+      } else {
+        // Tabel kosong (JS-rendered) — fallback: cari semua <a> ber-pola chapter
+        const allLinks = Array.from(dom.querySelectorAll('a[href*="/chapter/"]')) as HTMLAnchorElement[]
+        const seen = new Set<string>()
+        const chaps: PublicChapter[] = []
+        allLinks.forEach((a, i) => {
+          const href = a.getAttribute('href') || ''
+          if (!href.includes('/chapter/') || seen.has(href)) return
+          seen.add(href)
+          const title = a.textContent?.trim() || `Chapter ${i + 1}`
+          chaps.push({ id: encodeURIComponent(href), title, date: '', order: chaps.length + 1 })
+        })
+        setPubChapters(chaps)
+      }
     } catch (e) {
       console.error('Gagal load chapter list:', e)
     }
@@ -681,19 +699,34 @@ export default function KyoNovelPanel({ isAdmin, userId }: Props) {
     setPubChapReadLoading(true)
     setPubView('read')
     try {
-      const parts = chap.id.split('_')
-      if (parts.length < 2) throw new Error('Invalid chapter id')
-      const chapUrl = `/fiction/${parts[0]}/chapter/${parts[1]}`
-      const res = await fetch(PROXY + encodeURIComponent(`https://www.royalroad.com${chapUrl}`))
+      // Decode href asli dari id — tidak perlu reconstruct lagi
+      const chapHref = decodeURIComponent(chap.id)
+      const fullUrl = chapHref.startsWith('http')
+        ? chapHref
+        : `https://www.royalroad.com${chapHref}`
+
+      const res = await fetch(PROXY + encodeURIComponent(fullUrl))
       const html = await res.text()
       const parser = new DOMParser()
       const dom = parser.parseFromString(html, 'text/html')
-      const content = dom.querySelector('.chapter-content')
+
+      // Coba beberapa selector konten chapter Royal Road
+      const content =
+        dom.querySelector('.chapter-content') ||
+        dom.querySelector('[class*="chapter-content"]') ||
+        dom.querySelector('.fiction-body') ||
+        dom.querySelector('article') ||
+        dom.querySelector('.portlet-body')
+
       if (content) {
-        setChapterText(stripHtml(content.innerHTML))
         setPubChapText(stripHtml(content.innerHTML))
       } else {
-        setPubChapText('❌ Gagal mengambil konten chapter ini.')
+        // Fallback: kumpulkan semua <p> panjang (bukan nav/footer)
+        const paragraphs = Array.from(dom.querySelectorAll('p'))
+          .map(p => p.textContent?.trim() || '')
+          .filter(t => t.length > 50)
+          .join('\n\n')
+        setPubChapText(paragraphs || '❌ Gagal mengambil konten chapter ini.')
       }
     } catch (e: any) {
       setPubChapText('❌ Error: ' + e.message)
