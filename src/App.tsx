@@ -23,7 +23,18 @@ function invalidateCache(key: string) {
 }
 import { signInWithRedirect, signInWithPopup, getRedirectResult, signOut, onAuthStateChanged, User } from 'firebase/auth'
 
+import BottomNav from './BottomNav'
+import MangaStreamPanel from './MangaStreamPanel'
+import KyoNovelPanel from './KyoNovelPanel'
+import AnimeStreamPanel from './AnimeStreamPanel'
+import GameRpg from './GameRpg'
+import './redesign-patch.css'
+
 function App() {
+  const groupCategories = useMemo(
+    () => ['Anime', 'Game', 'Bot WhatsApp', 'Jual Beli', 'Cari Teman', 'Teknologi', 'Musik', 'Belajar', 'Daerah', 'Random'],
+    [],
+  )
   const gameData = useMemo(
     () => ({
       RPG: [
@@ -56,6 +67,17 @@ function App() {
   const [ratingFilter, setRatingFilter] = useState<number | null>(null)
   const [ratingBubbleOpen, setRatingBubbleOpen] = useState(false)
 
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [groups, setGroups] = useState<Record<string, { name: string; link: string; desc: string; createdAt: number }[]>>({})
+  const [groupForm, setGroupForm] = useState({ name: '', link: '', category: groupCategories[0], desc: '' })
+  const [groupErrors, setGroupErrors] = useState({ link: '' })
+  const [activeGroupIndex, setActiveGroupIndex] = useState(0)
+  const [groupSlideDirection, setGroupSlideDirection] = useState<'left' | 'right'>('right')
+  const [groupBgText, setGroupBgText] = useState(0) // index
+  const [groupBgDir, setGroupBgDir] = useState<'left'|'right'>('right')
+  const [groupBgKey, setGroupBgKey] = useState(0) // force re-animate
+  const [groupSearch, setGroupSearch] = useState('')
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({})
   const [activeGenre, setActiveGenre] = useState<'RPG' | 'MOBA' | 'FPS'>('RPG')
   const [feedback, setFeedback] = useState({ name: '', category: 'Saran', message: '' })
   const [feedbackStatus, setFeedbackStatus] = useState<{ type: 'idle' | 'success' | 'error'; message: string }>({
@@ -154,6 +176,10 @@ function App() {
   }
   const [aiUnread, setAiUnread] = useState(false)
   const [fabOpen, setFabOpen] = useState(false)
+  const [mangaOpen, setMangaOpen] = useState(false)
+  const [novelOpen, setNovelOpen] = useState(false)
+  const [animeOpen, setAnimeOpen] = useState(false)
+  const [rpgOpen, setRpgOpen] = useState(false)
 
   // Max 2 RPG toast notifications
   const [rpgToasts, setRpgToasts] = useState<{id:number;msg:string}[]>([])
@@ -424,136 +450,7 @@ function App() {
     [],
   )
 
-  // ── ANIME DATA (Jikan API / MyAnimeList) ─────────────────────────────────
-  const [animeSeasonNow, setAnimeSeasonNow] = useState<{mal_id:number;title:string;images:{jpg:{image_url:string}};episodes:number|null;score:number|null;genres:{name:string}[];synopsis:string;url:string;status:string}[]>([])
-  const [animeTopChart, setAnimeTopChart] = useState<typeof animeSeasonNow>([])
-  const [animeSchedule, setAnimeSchedule] = useState<Record<string, typeof animeSeasonNow>>({})
-  const [animeRec, setAnimeRec] = useState<typeof animeSeasonNow>([])
-  const [animeLoading, setAnimeLoading] = useState(true)
-  const [animeSeasonFilter, setAnimeSeasonFilter] = useState<string>('Semua')
-  const [animeTopPage, setAnimeTopPage] = useState(1)
-  const [animeRecGenre, setAnimeRecGenre] = useState<string>('Action')
-  const [animeScheduleDay, setAnimeScheduleDay] = useState<string>('monday')
-  const [animeSearchQuery, setAnimeSearchQuery] = useState('')
-  const [animeSearchResults, setAnimeSearchResults] = useState<typeof animeSeasonNow>([])
-  const [animeSearchLoading, setAnimeSearchLoading] = useState(false)
-  const [animeEpisodeInfo, setAnimeEpisodeInfo] = useState<{mal_id:number;title:string;episode:string;aired:string;url:string}[]>([])
-  const [animeEpisodeMalId, setAnimeEpisodeMalId] = useState<number|null>(null)
-  const [animeEpisodeTitle, setAnimeEpisodeTitle] = useState('')
-  const [animeActiveSection, setAnimeActiveSection] = useState<'season'|'top'|'schedule'|'episode'|'rec'>('season')
-  const animeGenres = ['Action', 'Romance', 'Comedy', 'Fantasy', 'Horror', 'Slice of Life', 'Shounen', 'Isekai']
-  const animeGenreIds: Record<string,number> = { Action:1, Romance:22, Comedy:4, Fantasy:10, Horror:14, 'Slice of Life':36, Shounen:27, Isekai:62 }
-  const scheduleDays = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday']
-  const dayLabels: Record<string,string> = { monday:'Sen', tuesday:'Sel', wednesday:'Rab', thursday:'Kam', friday:'Jum', saturday:'Sab', sunday:'Min' }
-
-  const fetchAnimeSeasonNow = React.useCallback(async () => {
-    const cacheKey = 'jikan_season_now_v2'
-    const cached = getCache<typeof animeSeasonNow>(cacheKey)
-    if (cached) { setAnimeSeasonNow(cached); return }
-    try {
-      const res = await fetch('https://api.jikan.moe/v4/seasons/now?limit=24')
-      const data = await res.json()
-      const items = (data.data || []).slice(0, 24)
-      setAnimeSeasonNow(items)
-      setCache(cacheKey, items)
-    } catch {}
-  }, [])
-
-  const fetchAnimeTop = React.useCallback(async (page=1) => {
-    const cacheKey = `jikan_top_v2_${page}`
-    const cached = getCache<typeof animeTopChart>(cacheKey)
-    if (cached) { setAnimeTopChart(cached); return }
-    try {
-      const res = await fetch(`https://api.jikan.moe/v4/top/anime?page=${page}&limit=20`)
-      const data = await res.json()
-      const items = data.data || []
-      setAnimeTopChart(items)
-      setCache(cacheKey, items)
-    } catch {}
-  }, [])
-
-  const fetchAnimeSchedule = React.useCallback(async (day: string) => {
-    const cacheKey = `jikan_schedule_${day}_v2`
-    const cached = getCache<typeof animeSeasonNow>(cacheKey)
-    if (cached) { setAnimeSchedule(prev => ({...prev, [day]: cached})); return }
-    try {
-      const res = await fetch(`https://api.jikan.moe/v4/schedules?filter=${day}&limit=20`)
-      const data = await res.json()
-      const items = data.data || []
-      setAnimeSchedule(prev => ({...prev, [day]: items}))
-      setCache(cacheKey, items)
-    } catch {}
-  }, [])
-
-  const fetchAnimeRec = React.useCallback(async (genre: string) => {
-    const genreId = animeGenreIds[genre] || 1
-    const cacheKey = `jikan_rec_${genreId}_v2`
-    const cached = getCache<typeof animeSeasonNow>(cacheKey)
-    if (cached) { setAnimeRec(cached); return }
-    try {
-      const res = await fetch(`https://api.jikan.moe/v4/anime?genres=${genreId}&order_by=score&sort=desc&limit=20&min_score=7`)
-      const data = await res.json()
-      const items = data.data || []
-      setAnimeRec(items)
-      setCache(cacheKey, items)
-    } catch {}
-  }, [])
-
-  const fetchAnimeEpisodes = React.useCallback(async (malId: number) => {
-    const cacheKey = `jikan_eps_${malId}`
-    const cached = getCache<typeof animeEpisodeInfo>(cacheKey)
-    if (cached) { setAnimeEpisodeInfo(cached); return }
-    try {
-      const res = await fetch(`https://api.jikan.moe/v4/anime/${malId}/episodes?page=1`)
-      const data = await res.json()
-      const items = (data.data || []).slice(0, 20)
-      setAnimeEpisodeInfo(items)
-      setCache(cacheKey, items)
-    } catch {}
-  }, [])
-
-  const handleAnimeSearch = async () => {
-    if (!animeSearchQuery.trim()) return
-    setAnimeSearchLoading(true)
-    try {
-      const res = await fetch(`https://api.jikan.moe/v4/anime?q=${encodeURIComponent(animeSearchQuery)}&limit=20&sfw=true`)
-      const data = await res.json()
-      setAnimeSearchResults(data.data || [])
-    } catch {}
-    setAnimeSearchLoading(false)
-  }
-
-  useEffect(() => {
-    const init = async () => {
-      setAnimeLoading(true)
-      await fetchAnimeSeasonNow()
-      await new Promise(r => setTimeout(r, 400))
-      await fetchAnimeTop(1)
-      await new Promise(r => setTimeout(r, 400))
-      await fetchAnimeSchedule('monday')
-      await new Promise(r => setTimeout(r, 400))
-      await fetchAnimeRec('Action')
-      setAnimeLoading(false)
-    }
-    init()
-  }, [fetchAnimeSeasonNow, fetchAnimeTop, fetchAnimeSchedule, fetchAnimeRec])
-
-  useEffect(() => { fetchAnimeTop(animeTopPage) }, [animeTopPage, fetchAnimeTop])
-  useEffect(() => { fetchAnimeSchedule(animeScheduleDay) }, [animeScheduleDay, fetchAnimeSchedule])
-  useEffect(() => { fetchAnimeRec(animeRecGenre) }, [animeRecGenre, fetchAnimeRec])
-  useEffect(() => { if (animeEpisodeMalId) fetchAnimeEpisodes(animeEpisodeMalId) }, [animeEpisodeMalId, fetchAnimeEpisodes])
-
-  const animeSeasonGenres = React.useMemo(() => {
-    const all = new Set<string>(['Semua'])
-    animeSeasonNow.forEach(a => a.genres?.forEach(g => all.add(g.name)))
-    return Array.from(all).slice(0, 8)
-  }, [animeSeasonNow])
-
-  const filteredSeasonAnime = React.useMemo(() => {
-    if (animeSeasonFilter === 'Semua') return animeSeasonNow
-    return animeSeasonNow.filter(a => a.genres?.some(g => g.name === animeSeasonFilter))
-  }, [animeSeasonNow, animeSeasonFilter])
-
+  const activeCategory = groupCategories[activeGroupIndex]
 
   useEffect(() => {
     const elements = document.querySelectorAll('.fade-section')
@@ -611,6 +508,38 @@ function App() {
   }, [])
 
   useEffect(() => { loadRatings() }, [loadRatings])
+
+  // ── Firebase: Load groups (getDocs + cache 5 menit) ──────────────────────
+  const loadGroups = React.useCallback(async (forceRefresh = false) => {
+    const expiryMs = 2592000000
+    const initialGroups = groupCategories.reduce(
+      (acc, category) => { acc[category] = []; return acc },
+      {} as Record<string, { name: string; link: string; desc: string; createdAt: number }[]>,
+    )
+    if (!forceRefresh) {
+      const cached = getCache<typeof groups>('kyoko_groups')
+      if (cached) { setGroups(cached); return }
+    }
+    try {
+      const snapshot = await getDocs(collection(dbCommunity, 'groups'))
+      const loaded: Record<string, { name: string; link: string; desc: string; createdAt: number }[]> = { ...initialGroups }
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data() as { category: string; name: string; link: string; desc: string; createdAt: number }
+        if (!data.category || !groupCategories.includes(data.category)) return
+        const createdAt = typeof data.createdAt === 'number' ? data.createdAt : Date.now()
+        if (Date.now() - createdAt > expiryMs) return
+        if (!loaded[data.category]) loaded[data.category] = []
+        loaded[data.category].push({ name: data.name, link: data.link, desc: data.desc, createdAt })
+      })
+      Object.keys(loaded).forEach((cat) => {
+        loaded[cat].sort((a, b) => b.createdAt - a.createdAt)
+      })
+      setGroups(loaded)
+      setCache('kyoko_groups', loaded)
+    } catch (e) { console.error('loadGroups error:', e) }
+  }, [groupCategories])
+
+  useEffect(() => { loadGroups() }, [loadGroups])
 
   // ── Firebase: Load jual beli & MM list (getDocs + cache 5 menit) ────────
   const loadJualBeli = React.useCallback(async (forceRefresh = false) => {
@@ -721,6 +650,87 @@ function App() {
     return () => cancelAnimationFrame(rafId)
   }, [])
 
+
+  const handleGroupSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!groupForm.name || !groupForm.link || !groupForm.desc) {
+      return
+    }
+    const normalizedLink = groupForm.link.trim()
+    const normalizedLower = normalizedLink.toLowerCase()
+    const isWhatsAppLink =
+      normalizedLower.includes('chat.whatsapp.com') || normalizedLower.includes('whatsapp.com/channel')
+    if (!isWhatsAppLink) {
+      setGroupErrors({ link: 'Masukkan link WhatsApp yang valid!' })
+      return
+    }
+    const existingLinks = Object.values(groups)
+      .flat()
+      .map((group) => group.link.trim().toLowerCase())
+    if (existingLinks.includes(normalizedLower)) {
+      setGroupErrors({ link: 'Link grup ini sudah terdaftar!' })
+      return
+    }
+    setGroupErrors({ link: '' })
+    const newGroup = { category: groupForm.category, name: groupForm.name, link: normalizedLink, desc: groupForm.desc, createdAt: Date.now() }
+    const docId = `${groupForm.category}-${Date.now()}`
+    setDoc(doc(dbCommunity, 'groups', docId), newGroup).catch(console.error)
+    // Optimistic update + invalidate cache
+    setGroups(prev => {
+      const updated = { ...prev }
+      updated[groupForm.category] = [newGroup, ...(updated[groupForm.category] || [])]
+      return updated
+    })
+    invalidateCache('kyoko_groups')
+    setGroupForm({ name: '', link: '', category: groupCategories[0], desc: '' })
+    setIsModalOpen(false)
+  }
+
+  const handleGroupNav = (direction: 'left' | 'right') => {
+    setGroupSlideDirection(direction)
+    setGroupBgDir(direction)
+    setGroupBgKey(k => k + 1)
+    setActiveGroupIndex((prev) => {
+      const next = direction === 'left'
+        ? (prev === 0 ? groupCategories.length - 1 : prev - 1)
+        : (prev === groupCategories.length - 1 ? 0 : prev + 1)
+      setGroupBgText(next)
+      return next
+    })
+  }
+
+  const filteredGroups = useMemo(() => {
+    const query = groupSearch.trim().toLowerCase()
+    if (!query) return [] as { category: string; name: string; link: string; desc: string; createdAt: number }[]
+    return groupCategories.flatMap((category) =>
+      (groups[category] || [])
+        .filter((group) => [group.name, group.desc, category].some((field) => field.toLowerCase().includes(query)))
+        .map((group) => ({ ...group, category })),
+    )
+  }, [groupCategories, groupSearch, groups])
+
+  const expiryMs = 2592000000
+  const getDaysLeft = (createdAt: number) => Math.max(0, Math.ceil((createdAt + expiryMs - Date.now()) / 86400000))
+
+  const handleRenewGroup = (link: string) => {
+    const normalized = link.trim().toLowerCase()
+    setGroups((prev) => {
+      const updated = { ...prev }
+      Object.keys(updated).forEach((category) => {
+        updated[category] = updated[category].map((group) =>
+          group.link.trim().toLowerCase() === normalized ? { ...group, createdAt: Date.now() } : group,
+        )
+      })
+      return updated
+    })
+    window.alert('Grup berhasil diperbarui! Aktif 30 hari lagi.')
+  }
+
+  const visibleGroups = useMemo(() => {
+    const items = groups[activeCategory] || []
+    if (expandedCategories[activeCategory]) return items
+    return items.slice(0, 5)
+  }, [activeCategory, expandedCategories, groups])
 
   const handleFeedbackSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -1436,256 +1446,111 @@ function App() {
 
         <div className="film-divider" aria-hidden="true" />
 
-        {/* ── ANIME NAVIGATION TABS ──────────────────────────────────── */}
-        <div className="anime-nav-tabs">
-          {([
-            { key: 'season', label: '🌸 Season' },
-            { key: 'top', label: '🏆 Top Chart' },
-            { key: 'schedule', label: '📅 Jadwal' },
-            { key: 'episode', label: '🎬 Episode' },
-            { key: 'rec', label: '⭐ Rekomendasi' },
-          ] as const).map(tab => (
+        <section className="section fade-section" id="direktori-grup">
+          <div className="section-number">05</div>
+          <div
+            key={groupBgKey}
+            className={`section-bg-text section-bg-text-anim section-bg-text-${groupBgDir}`}
+          >
+            {groupCategories[groupBgText].toUpperCase()}
+          </div>
+          <div className="section-header">
+            <h2>Direktori Grup</h2>
+            <p>Temukan grup komunitas sesuai minat. Tambahkan grup milikmu untuk terhubung dengan lebih banyak teman.</p>
+          </div>
+          <div className="group-actions">
             <button
-              key={tab.key}
-              className={`anime-nav-tab ${animeActiveSection === tab.key ? 'active' : ''}`}
+              className="btn btn-primary"
               onClick={() => {
-                triggerZzz(tab.label.split(' ').slice(1).join(' ').toUpperCase(), () => setAnimeActiveSection(tab.key))
+                setGroupForm((prev) => ({ ...prev, category: activeCategory }))
+                setIsModalOpen(true)
               }}
-              type="button"
-            >{tab.label}</button>
-          ))}
-        </div>
-
-        {/* ─── SECTION A: ANIME SEASON TERBARU ─────────────────────── */}
-        {animeActiveSection === 'season' && (
-        <section className="section fade-section" id="anime-season">
-          <div className="section-number">04</div>
-          <div className="section-bg-text">SEASON</div>
-          <div className="section-header">
-            <h2>Anime Season Terbaru</h2>
-            <p>Anime yang sedang tayang season ini — data langsung dari MyAnimeList.</p>
-          </div>
-          {/* Genre filter */}
-          <div className="genre-tabs" style={{flexWrap:'wrap'}}>
-            {animeSeasonGenres.map(g => (
-              <button key={g} className={`genre-btn ${animeSeasonFilter===g?'active':''}`} onClick={() => setAnimeSeasonFilter(g)} type="button">{g}</button>
-            ))}
-          </div>
-          {animeLoading ? (
-            <div className="anime-loading"><div className="anime-loading-bar" /><span>Memuat data anime...</span></div>
-          ) : (
-            <div className="anime-grid">
-              {filteredSeasonAnime.map(a => (
-                <a key={a.mal_id} className="anime-card" href={a.url} target="_blank" rel="noreferrer">
-                  <div className="anime-card-img-wrap">
-                    <img src={a.images.jpg.image_url} alt={a.title} className="anime-card-img" loading="lazy" onError={e=>{(e.currentTarget as HTMLImageElement).src='https://placehold.co/225x320/111/c8f500?text=NO+IMG'}} />
-                    {a.score && <div className="anime-score-badge">★ {a.score}</div>}
-                    <div className="anime-status-badge">{a.status === 'Currently Airing' ? '🔴 Airing' : a.status}</div>
-                  </div>
-                  <div className="anime-card-body">
-                    <div className="anime-card-title">{a.title}</div>
-                    <div className="anime-card-genres">{(a.genres||[]).slice(0,3).map(g=>g.name).join(' · ')}</div>
-                    <div className="anime-card-eps">{a.episodes ? `${a.episodes} eps` : 'Ongoing'}</div>
-                  </div>
-                </a>
-              ))}
-              {filteredSeasonAnime.length === 0 && <div className="group-empty">Tidak ada anime untuk genre ini.</div>}
-            </div>
-          )}
-        </section>
-        )}
-
-        {/* ─── SECTION B: TOP ANIME CHART ───────────────────────────── */}
-        {animeActiveSection === 'top' && (
-        <section className="section fade-section" id="anime-top">
-          <div className="section-number">04</div>
-          <div className="section-bg-text">RANKING</div>
-          <div className="section-header">
-            <h2>Top Anime Chart</h2>
-            <p>Ranking anime terbaik sepanjang masa berdasarkan skor MAL.</p>
-          </div>
-          {animeLoading ? (
-            <div className="anime-loading"><div className="anime-loading-bar" /><span>Memuat ranking...</span></div>
-          ) : (
-            <>
-              <div className="anime-rank-list">
-                {animeTopChart.map((a, idx) => (
-                  <a key={a.mal_id} className="anime-rank-row" href={a.url} target="_blank" rel="noreferrer">
-                    <div className={`anime-rank-num ${idx < 3 ? 'top3' : ''}`}>#{(animeTopPage-1)*20+idx+1}</div>
-                    <img src={a.images.jpg.image_url} alt={a.title} className="anime-rank-thumb" loading="lazy" onError={e=>{(e.currentTarget as HTMLImageElement).src='https://placehold.co/60x80/111/c8f500?text=K'}} />
-                    <div className="anime-rank-info">
-                      <div className="anime-rank-title">{a.title}</div>
-                      <div className="anime-rank-meta">
-                        <span className="anime-rank-score">★ {a.score ?? '—'}</span>
-                        <span>{(a.genres||[]).slice(0,2).map(g=>g.name).join(', ')}</span>
-                      </div>
-                    </div>
-                    <div className="anime-rank-eps">{a.episodes ? `${a.episodes} eps` : '?'}</div>
-                  </a>
-                ))}
-              </div>
-              <div className="anime-pagination">
-                <button className="btn btn-secondary" onClick={() => setAnimeTopPage(p=>Math.max(1,p-1))} disabled={animeTopPage===1} type="button">← Prev</button>
-                <span>Halaman {animeTopPage}</span>
-                <button className="btn btn-secondary" onClick={() => setAnimeTopPage(p=>p+1)} type="button">Next →</button>
-              </div>
-            </>
-          )}
-        </section>
-        )}
-
-        {/* ─── SECTION C: JADWAL TAYANG MINGGUAN ───────────────────── */}
-        {animeActiveSection === 'schedule' && (
-        <section className="section fade-section" id="anime-schedule">
-          <div className="section-number">04</div>
-          <div className="section-bg-text">JADWAL</div>
-          <div className="section-header">
-            <h2>Jadwal Tayang Mingguan</h2>
-            <p>Cek anime yang tayang hari ini dan minggu ini.</p>
-          </div>
-          <div className="genre-tabs">
-            {scheduleDays.map(d => (
-              <button key={d} className={`genre-btn ${animeScheduleDay===d?'active':''}`} onClick={() => setAnimeScheduleDay(d)} type="button">{dayLabels[d]}</button>
-            ))}
-          </div>
-          {!(animeSchedule[animeScheduleDay]?.length) ? (
-            <div className="anime-loading"><div className="anime-loading-bar" /><span>Memuat jadwal...</span></div>
-          ) : (
-            <div className="anime-grid">
-              {(animeSchedule[animeScheduleDay]||[]).map(a => (
-                <a key={a.mal_id} className="anime-card" href={a.url} target="_blank" rel="noreferrer">
-                  <div className="anime-card-img-wrap">
-                    <img src={a.images.jpg.image_url} alt={a.title} className="anime-card-img" loading="lazy" onError={e=>{(e.currentTarget as HTMLImageElement).src='https://placehold.co/225x320/111/c8f500?text=K'}} />
-                    {a.score && <div className="anime-score-badge">★ {a.score}</div>}
-                  </div>
-                  <div className="anime-card-body">
-                    <div className="anime-card-title">{a.title}</div>
-                    <div className="anime-card-genres">{(a.genres||[]).slice(0,3).map(g=>g.name).join(' · ')}</div>
-                    <div className="anime-card-eps">{a.episodes ? `${a.episodes} eps` : 'Ongoing'}</div>
-                  </div>
-                </a>
-              ))}
-            </div>
-          )}
-        </section>
-        )}
-
-        {/* ─── SECTION D: INFO EPISODE TERBARU ─────────────────────── */}
-        {animeActiveSection === 'episode' && (
-        <section className="section fade-section" id="anime-episode">
-          <div className="section-number">04</div>
-          <div className="section-bg-text">EPISODE</div>
-          <div className="section-header">
-            <h2>Info Episode Terbaru</h2>
-            <p>Cari anime dan lihat daftar episode terbarunya.</p>
-          </div>
-          {/* Search bar */}
-          <div className="anime-search-wrap">
-            <input
-              className="anime-search-input"
-              type="text"
-              placeholder="Cari judul anime..."
-              value={animeSearchQuery}
-              onChange={e => setAnimeSearchQuery(e.target.value)}
-              onKeyDown={e => e.key==='Enter' && handleAnimeSearch()}
-            />
-            <button className="btn btn-primary" onClick={handleAnimeSearch} type="button" disabled={animeSearchLoading}>
-              {animeSearchLoading ? '...' : 'Cari'}
+            >
+              Tambah Grup
             </button>
-          </div>
-          {/* Search results */}
-          {animeSearchResults.length > 0 && !animeEpisodeMalId && (
-            <div className="anime-search-results">
-              {animeSearchResults.map(a => (
-                <button
-                  key={a.mal_id}
-                  className="anime-search-result-item"
-                  onClick={() => { setAnimeEpisodeMalId(a.mal_id); setAnimeEpisodeTitle(a.title); setAnimeEpisodeInfo([]) }}
-                  type="button"
-                >
-                  <img src={a.images.jpg.image_url} alt={a.title} className="anime-search-thumb" onError={e=>{(e.currentTarget as HTMLImageElement).src='https://placehold.co/50x70/111/c8f500?text=K'}} />
-                  <div>
-                    <div className="anime-search-title">{a.title}</div>
-                    <div className="anime-search-meta">★ {a.score ?? '—'} · {(a.genres||[]).slice(0,2).map(g=>g.name).join(', ')}</div>
-                  </div>
-                </button>
-              ))}
+            <div className="group-nav">
+              <button className="group-nav-btn" onClick={() => handleGroupNav('left')} aria-label="Sebelumnya">
+                ←
+              </button>
+              <button className="group-nav-btn" onClick={() => handleGroupNav('right')} aria-label="Berikutnya">
+                →
+              </button>
             </div>
-          )}
-          {/* Episode list */}
-          {animeEpisodeMalId && (
-            <div className="anime-episode-wrap">
-              <div className="anime-episode-header">
-                <button className="btn btn-secondary" onClick={() => { setAnimeEpisodeMalId(null); setAnimeEpisodeInfo([]) }} type="button">← Kembali</button>
-                <span className="anime-episode-anime-title">{animeEpisodeTitle}</span>
-              </div>
-              {animeEpisodeInfo.length === 0 ? (
-                <div className="anime-loading"><div className="anime-loading-bar" /><span>Memuat episode...</span></div>
+          </div>
+          <div className="group-search">
+            <input
+              type="search"
+              placeholder="Cari grup berdasarkan nama atau kategori..."
+              value={groupSearch}
+              onChange={(event) => setGroupSearch(event.target.value)}
+            />
+          </div>
+          {groupSearch.trim() ? (
+            <div className="group-results">
+              {filteredGroups.length ? (
+                filteredGroups.map((group, index) => (
+                  <a className="group-card" key={`${group.name}-${index}`} href={group.link} target="_blank" rel="noreferrer">
+                    <div className="card-title">{group.name}</div>
+                    <div className="card-desc">{group.desc}</div>
+                    <div className="group-tag">{group.category}</div>
+                    <div className={`group-expire ${getDaysLeft(group.createdAt) <= 7 ? 'warn' : ''}`}>
+                      Kedaluwarsa dalam {getDaysLeft(group.createdAt)} hari
+                    </div>
+                    <button
+                      className="group-renew"
+                      type="button"
+                      onClick={(event) => {
+                        event.preventDefault()
+                        handleRenewGroup(group.link)
+                      }}
+                    >
+                      Perbarui
+                    </button>
+                  </a>
+                ))
               ) : (
-                <div className="anime-episode-list">
-                  {animeEpisodeInfo.map(ep => (
-                    <a key={ep.mal_id} className="anime-episode-row" href={ep.url} target="_blank" rel="noreferrer">
-                      <div className="anime-episode-num">EP {ep.mal_id}</div>
-                      <div className="anime-episode-info">
-                        <div className="anime-episode-title">{ep.title || `Episode ${ep.mal_id}`}</div>
-                        {ep.aired && <div className="anime-episode-date">{ep.aired.split('T')[0]}</div>}
-                      </div>
-                      <span className="anime-episode-arrow">→</span>
-                    </a>
-                  ))}
-                </div>
+                <div className="group-empty">Grup tidak ditemukan</div>
               )}
             </div>
-          )}
-          {animeSearchResults.length === 0 && !animeEpisodeMalId && (
-            <div className="anime-episode-placeholder">
-              <div style={{fontSize:48,marginBottom:12}}>🎬</div>
-              <div>Ketik judul anime lalu tekan <b>Cari</b></div>
-            </div>
-          )}
-        </section>
-        )}
-
-        {/* ─── SECTION E: REKOMENDASI ANIME ─────────────────────────── */}
-        {animeActiveSection === 'rec' && (
-        <section className="section fade-section" id="anime-rec">
-          <div className="section-number">04</div>
-          <div className="section-bg-text">REKOMEN</div>
-          <div className="section-header">
-            <h2>Rekomendasi Anime</h2>
-            <p>Pilihan anime terbaik berdasarkan genre, diurutkan berdasarkan skor MAL.</p>
-          </div>
-          <div className="genre-tabs" style={{flexWrap:'wrap'}}>
-            {animeGenres.map(g => (
-              <button key={g} className={`genre-btn ${animeRecGenre===g?'active':''}`} onClick={() => setAnimeRecGenre(g)} type="button">{g}</button>
-            ))}
-          </div>
-          {animeRec.length === 0 ? (
-            <div className="anime-loading"><div className="anime-loading-bar" /><span>Memuat rekomendasi...</span></div>
           ) : (
-            <div className="anime-grid">
-              {animeRec.map(a => (
-                <a key={a.mal_id} className="anime-card" href={a.url} target="_blank" rel="noreferrer">
-                  <div className="anime-card-img-wrap">
-                    <img src={a.images.jpg.image_url} alt={a.title} className="anime-card-img" loading="lazy" onError={e=>{(e.currentTarget as HTMLImageElement).src='https://placehold.co/225x320/111/c8f500?text=K'}} />
-                    {a.score && <div className="anime-score-badge">★ {a.score}</div>}
-                  </div>
-                  <div className="anime-card-body">
-                    <div className="anime-card-title">{a.title}</div>
-                    <div className="anime-card-genres">{(a.genres||[]).slice(0,3).map(g=>g.name).join(' · ')}</div>
-                    <div className="anime-card-eps">{a.episodes ? `${a.episodes} eps` : '?'}</div>
-                  </div>
-                </a>
-              ))}
+            <div className={`group-carousel ${groupSlideDirection}`}>
+              <div className="group-category">
+                <div className="group-title active">{activeCategory}</div>
+                <div className="group-list group-list-scroll">
+                  {(groups[activeCategory] || []).length ? (
+                    (groups[activeCategory] || []).map((group, index) => (
+                      <a className="group-card" key={`${group.name}-${index}`} href={group.link} target="_blank" rel="noreferrer">
+                        <div className="card-title">{group.name}</div>
+                        <div className="card-desc">{group.desc}</div>
+                        <div className={`group-expire ${getDaysLeft(group.createdAt) <= 7 ? 'warn' : ''}`}>
+                          Kedaluwarsa dalam {getDaysLeft(group.createdAt)} hari
+                        </div>
+                        <button
+                          className="group-renew"
+                          type="button"
+                          onClick={(event) => {
+                            event.preventDefault()
+                            handleRenewGroup(group.link)
+                          }}
+                        >
+                          Perbarui
+                        </button>
+                      </a>
+                    ))
+                  ) : (
+                    <div className="group-empty">Belum ada grup di kategori ini.</div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
+          <div className="group-indicator">
+            {activeCategory.toUpperCase()} ({activeGroupIndex + 1}/{groupCategories.length})
+          </div>
         </section>
-        )}
-
-        <div className="film-divider" aria-hidden="true" />
 
         <section className="section fade-section" id="jual-beli-akun">
-          <div className="section-number">05</div>
+          <div className="section-number">06</div>
           <div className="section-bg-text">MARKET</div>
           <div className="section-header">
             <h2>Jual Beli Akun</h2>
@@ -1817,7 +1682,7 @@ function App() {
         </section>
 
         <section className="section fade-section" id="rekomendasi-game">
-          <div className="section-number">06</div>
+          <div className="section-number">07</div>
           <div className="section-bg-text">GAMES</div>
           <div className="section-header">
             <h2>Rekomendasi Game</h2>
@@ -1845,7 +1710,7 @@ function App() {
         <div className="film-divider" aria-hidden="true" />
 
         <section className="section fade-section" id="berita-game">
-          <div className="section-number">07</div>
+          <div className="section-number">08</div>
           <div className="section-bg-text">NEWS</div>
           <div className="section-header">
             <h2>BERITA GAME</h2>
@@ -1915,7 +1780,7 @@ function App() {
         </section>
 
         <section className="section fade-section" id="apk-mod">
-          <div className="section-number">08</div>
+          <div className="section-number">09</div>
           <div key={apkBgKey} className={`section-bg-text section-bg-text-anim section-bg-text-${apkBgDir}`}>
             {apkBgLabels[apkTab] || 'APKMOD'}
           </div>
@@ -2110,7 +1975,7 @@ function App() {
         </section>
 
         <section className="section fade-section" id="kirim-masukan">
-          <div className="section-number">09</div>
+          <div className="section-number">10</div>
           <div className="section-bg-text">RATING</div>
           <div className="section-header">
             <h2>Rating & Ulasan</h2>
@@ -2332,7 +2197,7 @@ function App() {
 
       {/* ── RPG Toast notifications (max 2) ──────────────────────── */}
       {rpgToasts.length > 0 && (
-        <div style={{ position:'fixed', bottom:100, right:16, zIndex:9998, display:'flex', flexDirection:'column', gap:8, pointerEvents:'none' }}>
+        <div style={{ position:'fixed', bottom:'calc(var(--bottom-nav-h, 70px) + 16px)', right:16, zIndex:9998, display:'flex', flexDirection:'column', gap:8, pointerEvents:'none' }}>
           {rpgToasts.map(t => (
             <div key={t.id} style={{ background:'rgba(8,8,8,0.95)', border:'1px solid rgba(200,245,0,0.3)', borderRadius:12, padding:'8px 14px', fontSize:12, color:'#c8f500', fontWeight:700, boxShadow:'0 4px 20px rgba(0,0,0,0.6)', animation:'rpgToastIn .3s cubic-bezier(.34,1.56,.64,1)' }}>
               {t.msg}
@@ -2341,82 +2206,28 @@ function App() {
         </div>
       )}
 
-      {/* ── Unified FAB ──────────────────────────────────────────── */}
-      {fabOpen && <div className="fab-backdrop" onClick={() => setFabOpen(false)} />}
-      <div className="fab-group">
-        {/* Sub: Global Chat */}
-        <div className={`fab-sub ${fabOpen ? 'fab-sub-visible' : ''}`} style={{ '--fab-delay': '0.05s' } as React.CSSProperties}>
-          <span className="fab-sub-label">Global Chat</span>
-          <button
-            className="fab-sub-btn fab-sub-chat"
-            onClick={() => { 
-              setFabOpen(false)
-              setGcUnread(false); setGcOpen(true) 
-            }}
-            aria-label="Global Chat"
-            style={{ position: 'relative' }}
-          >
-            {gcUnread && <span className="fab-unread-badge">!</span>}
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-            </svg>
-          </button>
-        </div>
-        {/* Sub: KyokoAI */}
-        <div className={`fab-sub ${fabOpen ? 'fab-sub-visible' : ''}`} style={{ '--fab-delay': '0.12s' } as React.CSSProperties}>
-          <span className="fab-sub-label">KyokoAI</span>
-          <button
-            className="fab-sub-btn fab-sub-ai"
-            onClick={() => { setFabOpen(false); setAiUnread(false); setChatOpen(true) }}
-            aria-label="KyokoAI"
-            style={{ position: 'relative' }}
-          >
-            {aiUnread && <span className="fab-unread-badge">!</span>}
-            <svg viewBox="0 0 32 32" width="20" height="20" fill="none">
-              <path d="M8 11.5C8 10.12 9.12 9 10.5 9h11C22.88 9 24 10.12 24 11.5v6c0 1.38-1.12 2.5-2.5 2.5H19l-3 3.5-3-3.5h-2.5C9.12 20 8 18.88 8 17.5v-6Z" fill="currentColor" fillOpacity="0.2" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
-              <circle cx="12" cy="14.5" r="1.5" fill="currentColor"/>
-              <circle cx="16" cy="14.5" r="1.5" fill="currentColor"/>
-              <circle cx="20" cy="14.5" r="1.5" fill="currentColor"/>
-            </svg>
-          </button>
-        </div>
-        {/* Main toggle — 3D Phone style icon */}
-        <button
-          className={`fab-main ${fabOpen ? 'fab-main-open' : ''}`}
-          onClick={() => setFabOpen(p => !p)}
-          aria-label="Menu"
-          style={{ position: 'relative' }}
-        >
-          {/* Badge di FAB utama saat ada notif dan panel tertutup */}
-          {!fabOpen && (gcUnread || aiUnread) && (
-            <span className="fab-unread-badge" style={{
-              top: -4, right: -4, width: 18, height: 18, fontSize: 11,
-              background: '#ff3b3b', border: '2px solid #0a0a0a',
-              boxShadow: '0 0 8px rgba(255,59,59,0.6)'
-            }}>!</span>
-          )}
-          <span className="fab-main-icon">
-            {/* 3D Phone icon when closed */}
-            <svg className="fab-icon-chat" width="22" height="22" viewBox="0 0 24 24" fill="none">
-              {/* Phone body with 3D depth */}
-              <rect x="5" y="2" width="14" height="20" rx="3" ry="3" fill="currentColor" fillOpacity="0.15" stroke="currentColor" strokeWidth="1.8"/>
-              <rect x="6.5" y="3.5" width="11" height="14" rx="1" fill="currentColor" fillOpacity="0.25"/>
-              {/* Screen glare */}
-              <rect x="7" y="4" width="4" height="2" rx="0.5" fill="currentColor" fillOpacity="0.4"/>
-              {/* Home button */}
-              <circle cx="12" cy="20" r="1" fill="currentColor" fillOpacity="0.7"/>
-              {/* Notch */}
-              <rect x="10" y="2.5" width="4" height="1" rx="0.5" fill="currentColor" fillOpacity="0.5"/>
-              {/* 3D side accent */}
-              <line x1="19" y1="4" x2="19" y2="20" stroke="currentColor" strokeOpacity="0.2" strokeWidth="1"/>
-            </svg>
-            <svg className="fab-icon-close" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          </span>
-          <span className="fab-main-pulse" aria-hidden="true"/>
-        </button>
-      </div>
+      {/* ── BottomNav (replaces old FAB) ────────────────────────── */}
+      <BottomNav
+        onOpenGlobalChat={() => { setGcUnread(false); setGcOpen(true) }}
+        onOpenAI={() => { setAiUnread(false); setChatOpen(true) }}
+        onOpenManga={() => setMangaOpen(true)}
+        onOpenNovel={() => setNovelOpen(true)}
+        onOpenAnime={() => setAnimeOpen(true)}
+        onOpenRpg={() => setRpgOpen(true)}
+        onScrollTo={(id) => {
+          triggerZzz('NAVIGATING', () => {
+            document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          })
+        }}
+        gcUnread={gcUnread}
+        aiUnread={aiUnread}
+      />
+
+      {/* ── Panels opened via BottomNav FAB ──────────────────────── */}
+      {mangaOpen && <MangaStreamPanel onClose={() => setMangaOpen(false)} />}
+      {novelOpen && <KyoNovelPanel onClose={() => setNovelOpen(false)} />}
+      {animeOpen && <AnimeStreamPanel onClose={() => setAnimeOpen(false)} />}
+      {rpgOpen && <GameRpg onClose={() => setRpgOpen(false)} onToast={showRpgToast} authUser={authUser} />}
 
       <div className={`chat-widget ${chatOpen ? 'open' : ''}`}>
         <div className="chat-header">
@@ -2460,6 +2271,72 @@ function App() {
         </div>
       </div>
 
+      {isModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
+          <div className="modal" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-header">
+              <div>
+                <div className="modal-title">Tambah Grup</div>
+                <div className="modal-sub">Masukkan detail grup WhatsApp kamu.</div>
+              </div>
+              <button className="chat-close" onClick={() => setIsModalOpen(false)}>
+                ×
+              </button>
+            </div>
+            <form className="modal-form" onSubmit={handleGroupSubmit}>
+              <label>
+                <span>Nama Grup</span>
+                <input
+                  type="text"
+                  value={groupForm.name}
+                  onChange={(event) => setGroupForm((prev) => ({ ...prev, name: event.target.value }))}
+                  required
+                />
+              </label>
+              <label>
+                <span>Link WhatsApp</span>
+                <input
+                  type="url"
+                  value={groupForm.link}
+                  onChange={(event) => {
+                    setGroupForm((prev) => ({ ...prev, link: event.target.value }))
+                    setGroupErrors((prev) => ({ ...prev, link: '' }))
+                  }}
+                  required
+                />
+                {groupErrors.link && <span className="input-error">{groupErrors.link}</span>}
+              </label>
+              <label>
+                <span>Kategori</span>
+                <select
+                  value={groupForm.category}
+                  onChange={(event) => setGroupForm((prev) => ({ ...prev, category: event.target.value }))}
+                >
+                  {groupCategories.map((category) => (
+                    <option key={category}>{category}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Deskripsi Singkat</span>
+                <textarea
+                  value={groupForm.desc}
+                  onChange={(event) => setGroupForm((prev) => ({ ...prev, desc: event.target.value }))}
+                  required
+                />
+              </label>
+              <div className="form-actions">
+                <button className="btn btn-primary" type="submit">
+                  Simpan
+                </button>
+                <button className="btn btn-secondary" type="button" onClick={() => setIsModalOpen(false)}>
+                  Batal
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
       {adminModalOpen && (
         <div className="modal-overlay" onClick={() => setAdminModalOpen(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
@@ -2622,15 +2499,12 @@ function App() {
           <nav className="menu-items">
             {[
               { label: 'Beranda', id: 'beranda' },
-              { label: 'Official Links', id: 'info-berita' },
-              { label: 'Sosial Media', id: 'karakter' },
-              { label: '🌸 Anime Season', id: 'anime-season' },
-              { label: '🏆 Top Chart', id: 'anime-top' },
-              { label: '📅 Jadwal Tayang', id: 'anime-schedule' },
-              { label: '🎬 Info Episode', id: 'anime-episode' },
-              { label: '⭐ Rekomendasi', id: 'anime-rec' },
+              { label: 'Karakter', id: 'karakter' },
+              { label: 'Info & Berita', id: 'info-berita' },
+              { label: 'Latar Belakang', id: 'latar-belakang' },
+              { label: 'Direktori Grup', id: 'direktori-grup' },
               { label: 'Jual Beli Akun', id: 'jual-beli-akun' },
-              { label: 'Berita Game', id: 'berita-game' },
+              { label: 'Rekomendasi Game', id: 'rekomendasi-game' },
               { label: 'Rating', id: 'kirim-masukan' },
             ].map((item, index) => (
               <button
