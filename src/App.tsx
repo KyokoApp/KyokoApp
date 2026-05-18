@@ -1369,75 +1369,6 @@ function App() {
 
         <div className="film-divider" aria-hidden="true" />
 
-        <section className="section fade-section" id="info-berita">
-          <div className="section-number">02</div>
-          <div className="section-bg-text">LINKS</div>
-          <div className="section-header">
-            <h2>Official Links</h2>
-            <p>Selalu terhubung dengan jalur resmi KyokoMd.</p>
-          </div>
-          <div className="card-grid">
-            <a className="link-card" href="https://chat.whatsapp.com/BbLtlR1EbviEHDnaUSvGYz" target="_blank" rel="noreferrer">
-              <div className="card-title">Official Group WhatsApp</div>
-              <div className="card-desc">Highlight utama untuk bergabung dan berdiskusi.</div>
-            </a>
-            <a className="link-card" href="https://whatsapp.com/channel/0029Vb5avimI1rcisKNii32A" target="_blank" rel="noreferrer">
-              <div className="card-title">Official Channel WhatsApp</div>
-              <div className="card-desc">Update terbaru dan info fitur bot.</div>
-            </a>
-            <a className="link-card" href="https://t.me/kyokomd" target="_blank" rel="noreferrer">
-              <div className="card-title">Telegram Hub</div>
-              <div className="card-desc">Komunitas tambahan untuk diskusi dan support.</div>
-            </a>
-          </div>
-        </section>
-
-        <div className="film-divider reverse" aria-hidden="true" />
-
-        <section className="section fade-section" id="karakter">
-          <div className="section-number">03</div>
-          <div className="section-bg-text">SOCIAL</div>
-          <div className="section-header">
-            <h2>Sosial Media</h2>
-            <p>Ikuti semua kanal konten resmi dan aktivitas komunitas.</p>
-          </div>
-          <div className="card-grid">
-            <a className="link-card" href="https://youtube.com/@ryuukikojo" target="_blank" rel="noreferrer">
-              <div className="card-title">YouTube</div>
-              <div className="card-desc">Video showcase dan tutorial fitur bot.</div>
-            </a>
-            <a className="link-card" href="https://www.instagram.com/yusha_desuwa" target="_blank" rel="noreferrer">
-              <div className="card-title">Instagram</div>
-              <div className="card-desc">Konten visual terbaru dan highlight komunitas.</div>
-            </a>
-            <a className="link-card" href="https://www.facebook.com/share/1BFS6ndTdF/" target="_blank" rel="noreferrer">
-              <div className="card-title">Facebook</div>
-              <div className="card-desc">Berita dan pengumuman resmi.</div>
-            </a>
-          </div>
-        </section>
-
-        <section className="diagonal-band">
-          <div className="band-text">JOIN THE SIGNAL · POWERED FOR THE COMMUNITY · KYOKOMD READY</div>
-        </section>
-
-        <section className="section fade-section" id="latar-belakang">
-          <div className="section-number">04</div>
-          <div className="section-bg-text">FEATURES</div>
-          <div className="section-header">
-            <h2>Fitur Utama</h2>
-            <p>Arsitektur bot modern dengan fokus pada fleksibilitas dan komunitas.</p>
-          </div>
-          <div className="feature-list">
-            <div className="feature-item">Multi-Command untuk berbagai kebutuhan chat.</div>
-            <div className="feature-item">Plugin System modular dan mudah diperluas.</div>
-            <div className="feature-item">Aktif & Diperbarui secara berkala.</div>
-            <div className="feature-item">Komunitas aktif untuk dukungan dan sharing.</div>
-          </div>
-        </section>
-
-        <div className="film-divider" aria-hidden="true" />
-
         <section className="section fade-section" id="direktori-grup">
           <div className="section-number">05</div>
           <div
@@ -2485,12 +2416,11 @@ function App() {
           <nav className="menu-items">
             {[
               { label: 'Beranda', id: 'beranda' },
-              { label: 'Karakter', id: 'karakter' },
-              { label: 'Info & Berita', id: 'info-berita' },
-              { label: 'Latar Belakang', id: 'latar-belakang' },
+              { label: 'Rekomendasi Game', id: 'rekomendasi-game' },
+              { label: 'Berita Game', id: 'berita-game' },
               { label: 'Direktori Grup', id: 'direktori-grup' },
               { label: 'Jual Beli Akun', id: 'jual-beli-akun' },
-              { label: 'Rekomendasi Game', id: 'rekomendasi-game' },
+              { label: 'APK & ScBot', id: 'apk-mod' },
               { label: 'Rating', id: 'kirim-masukan' },
             ].map((item, index) => (
               <button
