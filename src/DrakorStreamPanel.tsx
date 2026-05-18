@@ -27,11 +27,18 @@ type Country = 'KR' | 'JP' | 'CN' | 'TH' | 'ALL'
 // ═══════════════════════════════════════════════════════════════
 // VIDSRC — same domains as AnimeStreamPanel
 // ═══════════════════════════════════════════════════════════════
+// S1-S2: vidsrc (kadang default dub) | S3: 2embed (original audio) | S4: embedsu
 const VIDSRC_DOMAINS = [
   'vidsrc-embed.ru',
   'vidsrc-embed.su',
   'vidsrcme.su',
   'vsrc.su',
+]
+// Server alternatif dengan original audio
+const ALT_DOMAINS = [
+  { name: '2embed',    tv: (id:number,s:number,e:number) => `https://www.2embed.cc/embedtv/${id}&s=${s}&e=${e}`,      movie: (id:number) => `https://www.2embed.cc/embed/${id}` },
+  { name: 'embedsu',   tv: (id:number,s:number,e:number) => `https://embed.su/embed/tv/${id}/${s}/${e}`,             movie: (id:number) => `https://embed.su/embed/movie/${id}` },
+  { name: 'autoembed', tv: (id:number,s:number,e:number) => `https://player.autoembed.cc/embed/tv/${id}/${s}/${e}`,  movie: (id:number) => `https://player.autoembed.cc/embed/movie/${id}` },
 ]
 
 function buildVidsrcUrl(
@@ -41,7 +48,12 @@ function buildVidsrcUrl(
   season = 1,
   domainIndex = 0
 ): string {
-  const domain = VIDSRC_DOMAINS[domainIndex % VIDSRC_DOMAINS.length]
+  // Index 0-3: vidsrc domains | Index 4-6: alt domains (original audio)
+  if (domainIndex >= VIDSRC_DOMAINS.length) {
+    const alt = ALT_DOMAINS[(domainIndex - VIDSRC_DOMAINS.length) % ALT_DOMAINS.length]
+    return type === 'movie' ? alt.movie(tmdbId) : alt.tv(tmdbId, season, episode)
+  }
+  const domain = VIDSRC_DOMAINS[domainIndex]
   if (type === 'movie') {
     return `https://${domain}/embed/movie?tmdb=${tmdbId}&autoplay=1`
   }
@@ -684,13 +696,16 @@ export default function DrakorStreamPanel({ isAdmin, userId }: Props) {
                 {/* Server selector */}
                 <div className="dk-domain-row">
                   <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', marginRight: 2 }}>Server:</span>
-                  {VIDSRC_DOMAINS.map((_, i) => (
+                  {[...VIDSRC_DOMAINS.map((_, i) => ({ label: `S${i+1}`, i })),
+                    ...ALT_DOMAINS.map((a, i) => ({ label: a.name, i: i + VIDSRC_DOMAINS.length }))
+                  ].map(({ label, i }) => (
                     <button key={i}
                       className={`dk-domain-btn${domainIndex === i ? ' active' : ''}`}
                       onClick={() => { setDomainIndex(i); setIframeLoading(true) }}>
-                      S{i + 1}
+                      {label}
                     </button>
                   ))}
+                  <span style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginLeft:4}}>2embed/embedsu = audio asli</span>
                 </div>
 
                 {/* Player */}
@@ -739,7 +754,7 @@ export default function DrakorStreamPanel({ isAdmin, userId }: Props) {
                 </div>
 
                 <div className="dk-warn-box">
-                  💡 Player tidak muncul? Coba ganti server S1–S4. Subtitle otomatis mengikuti bahasa yang tersedia.
+                  💡 Audio Inggris? Coba server <strong>2embed</strong> atau <strong>embedsu</strong> — default audio asli (Jepang/Korea). S1–S4 = VidSrc.
                 </div>
               </>
             )}
