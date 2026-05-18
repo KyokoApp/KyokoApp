@@ -24,7 +24,6 @@ function invalidateCache(key: string) {
 import { signInWithRedirect, signInWithPopup, getRedirectResult, signOut, onAuthStateChanged, User } from 'firebase/auth'
 
 import BottomNav from './BottomNav'
-import './redesign-patch.css'
 
 function App() {
   const groupCategories = useMemo(
