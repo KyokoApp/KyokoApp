@@ -34,12 +34,7 @@ const VIDSRC_DOMAINS = [
   'vidsrcme.su',
   'vsrc.su',
 ]
-// Server alternatif — original audio, allow iframe
-const ALT_DOMAINS = [
-  { name: 'multiembed', tv: (id:number,s:number,e:number) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}`, movie: (id:number) => `https://multiembed.mov/?video_id=${id}&tmdb=1` },
-  { name: 'smashystream', tv: (id:number,s:number,e:number) => `https://embed.smashystream.com/playere.php?tmdb=${id}&season=${s}&episode=${e}`, movie: (id:number) => `https://embed.smashystream.com/playere.php?tmdb=${id}` },
-  { name: 'superembed', tv: (id:number,s:number,e:number) => `https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1&s=${s}&e=${e}`, movie: (id:number) => `https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1` },
-]
+
 
 function buildVidsrcUrl(
   tmdbId: number,
@@ -48,12 +43,7 @@ function buildVidsrcUrl(
   season = 1,
   domainIndex = 0
 ): string {
-  // Index 0-3: vidsrc domains | Index 4-6: alt domains (original audio)
-  if (domainIndex >= VIDSRC_DOMAINS.length) {
-    const alt = ALT_DOMAINS[(domainIndex - VIDSRC_DOMAINS.length) % ALT_DOMAINS.length]
-    return type === 'movie' ? alt.movie(tmdbId) : alt.tv(tmdbId, season, episode)
-  }
-  const domain = VIDSRC_DOMAINS[domainIndex]
+  const domain = VIDSRC_DOMAINS[domainIndex % VIDSRC_DOMAINS.length]
   if (type === 'movie') {
     return `https://${domain}/embed/movie?tmdb=${tmdbId}&autoplay=1`
   }
@@ -427,24 +417,29 @@ export default function DrakorStreamPanel({ isAdmin, userId }: Props) {
   const toggleFullscreen = useCallback(async () => {
     const el = playerRef.current
     if (!el) return
+    const iframeEl = el.querySelector('iframe') as HTMLElement | null
+
     if (!isFullscreen) {
-      const req = (el as any).requestFullscreen || (el as any).webkitRequestFullscreen
-      if (req) {
-        try {
-          await req.call(el)
-          setIsFullscreen(true)
-          await lockLandscape()
-        } catch {
-          // Native fullscreen failed, fallback CSS fullscreen
-          setIsFullscreen(true)
-        }
-      } else {
+      // Try fullscreen on iframe first (better on mobile), fallback to container
+      const target = iframeEl || el
+      const req = (target as any).requestFullscreen
+        || (target as any).webkitRequestFullscreen
+        || (target as any).mozRequestFullScreen
+        || (target as any).msRequestFullscreen
+      try {
+        if (req) await req.call(target)
+        else setIsFullscreen(true) // CSS fallback
+      } catch {
         setIsFullscreen(true)
       }
+      await lockLandscape()
     } else {
       unlockOrientation()
-      const exit = (document as any).exitFullscreen || (document as any).webkitExitFullscreen
-      if (exit) { try { await exit.call(document) } catch {} }
+      const exit = (document as any).exitFullscreen
+        || (document as any).webkitExitFullscreen
+        || (document as any).mozCancelFullScreen
+        || (document as any).msExitFullscreen
+      try { if (exit) await exit.call(document) } catch {}
       setIsFullscreen(false)
     }
   }, [isFullscreen, lockLandscape, unlockOrientation])
@@ -452,7 +447,12 @@ export default function DrakorStreamPanel({ isAdmin, userId }: Props) {
   useEffect(() => {
     const onFsChange = () => {
       const fsEl = (document as any).fullscreenElement || (document as any).webkitFullscreenElement
-      if (!fsEl) { setIsFullscreen(false); try { if ((screen.orientation as any)?.unlock) (screen.orientation as any).unlock() } catch {} }
+      if (fsEl) {
+        setIsFullscreen(true)
+      } else {
+        setIsFullscreen(false)
+        try { if ((screen.orientation as any)?.unlock) (screen.orientation as any).unlock() } catch {}
+      }
     }
     document.addEventListener('fullscreenchange', onFsChange)
     document.addEventListener('webkitfullscreenchange', onFsChange)
@@ -724,16 +724,13 @@ export default function DrakorStreamPanel({ isAdmin, userId }: Props) {
                 {/* Server selector */}
                 <div className="dk-domain-row">
                   <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', marginRight: 2 }}>Server:</span>
-                  {[...VIDSRC_DOMAINS.map((_, i) => ({ label: `S${i+1}`, i })),
-                    ...ALT_DOMAINS.map((a, i) => ({ label: a.name, i: i + VIDSRC_DOMAINS.length }))
-                  ].map(({ label, i }) => (
+                  {VIDSRC_DOMAINS.map((_, i) => (
                     <button key={i}
                       className={`dk-domain-btn${domainIndex === i ? ' active' : ''}`}
                       onClick={() => { setDomainIndex(i); setIframeLoading(true) }}>
-                      {label}
+                      S{i + 1}
                     </button>
                   ))}
-                  <span style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginLeft:4}}>multiembed/smashy = audio asli</span>
                 </div>
 
                 {/* Player */}
@@ -788,7 +785,7 @@ export default function DrakorStreamPanel({ isAdmin, userId }: Props) {
                 </div>
 
                 <div className="dk-warn-box">
-                  💡 Audio Inggris? Coba <strong>multiembed</strong> atau <strong>smashystream</strong> — audio asli. S1–S4 = VidSrc (ada dub).
+                  💡 Server tidak jalan? Coba ganti S1–S4. Audio Korea otomatis mengikuti sumber aslinya.
                 </div>
               </>
             )}
