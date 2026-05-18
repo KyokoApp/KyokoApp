@@ -34,11 +34,11 @@ const VIDSRC_DOMAINS = [
   'vidsrcme.su',
   'vsrc.su',
 ]
-// Server alternatif dengan original audio
+// Server alternatif — original audio, allow iframe
 const ALT_DOMAINS = [
-  { name: '2embed',    tv: (id:number,s:number,e:number) => `https://www.2embed.cc/embedtv/${id}&s=${s}&e=${e}`,      movie: (id:number) => `https://www.2embed.cc/embed/${id}` },
-  { name: 'embedsu',   tv: (id:number,s:number,e:number) => `https://embed.su/embed/tv/${id}/${s}/${e}`,             movie: (id:number) => `https://embed.su/embed/movie/${id}` },
-  { name: 'autoembed', tv: (id:number,s:number,e:number) => `https://player.autoembed.cc/embed/tv/${id}/${s}/${e}`,  movie: (id:number) => `https://player.autoembed.cc/embed/movie/${id}` },
+  { name: 'multiembed', tv: (id:number,s:number,e:number) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}`, movie: (id:number) => `https://multiembed.mov/?video_id=${id}&tmdb=1` },
+  { name: 'smashystream', tv: (id:number,s:number,e:number) => `https://embed.smashystream.com/playere.php?tmdb=${id}&season=${s}&episode=${e}`, movie: (id:number) => `https://embed.smashystream.com/playere.php?tmdb=${id}` },
+  { name: 'superembed', tv: (id:number,s:number,e:number) => `https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1&s=${s}&e=${e}`, movie: (id:number) => `https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1` },
 ]
 
 function buildVidsrcUrl(
@@ -705,7 +705,7 @@ export default function DrakorStreamPanel({ isAdmin, userId }: Props) {
                       {label}
                     </button>
                   ))}
-                  <span style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginLeft:4}}>2embed/embedsu = audio asli</span>
+                  <span style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginLeft:4}}>multiembed/smashy = audio asli</span>
                 </div>
 
                 {/* Player */}
@@ -720,7 +720,7 @@ export default function DrakorStreamPanel({ isAdmin, userId }: Props) {
                     key={`${domainIndex}-${selected.tmdbId}-${selectedSeason}-${selectedEp}`}
                     src={embedUrl}
                     allowFullScreen
-                    allow="autoplay; fullscreen *; picture-in-picture"
+                    allow="autoplay; fullscreen; picture-in-picture; encrypted-media; gyroscope; accelerometer" allowpaymentrequest referrerPolicy="no-referrer"
                     onLoad={() => setIframeLoading(false)}
                     style={{ opacity: iframeLoading ? 0 : 1, transition: 'opacity .3s' }}
                   />
@@ -754,7 +754,7 @@ export default function DrakorStreamPanel({ isAdmin, userId }: Props) {
                 </div>
 
                 <div className="dk-warn-box">
-                  💡 Audio Inggris? Coba server <strong>2embed</strong> atau <strong>embedsu</strong> — default audio asli (Jepang/Korea). S1–S4 = VidSrc.
+                  💡 Audio Inggris? Coba <strong>multiembed</strong> atau <strong>smashystream</strong> — audio asli. S1–S4 = VidSrc (ada dub).
                 </div>
               </>
             )}
