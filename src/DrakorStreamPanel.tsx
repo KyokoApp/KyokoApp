@@ -27,18 +27,11 @@ type Country = 'KR' | 'JP' | 'CN' | 'TH' | 'ALL'
 // ═══════════════════════════════════════════════════════════════
 // VIDSRC — same domains as AnimeStreamPanel
 // ═══════════════════════════════════════════════════════════════
-// S1-S2: vidsrc (kadang default dub) | S3: 2embed (original audio) | S4: embedsu
 const VIDSRC_DOMAINS = [
   'vidsrc-embed.ru',
   'vidsrc-embed.su',
   'vidsrcme.su',
   'vsrc.su',
-]
-// Server alternatif — original audio, allow iframe
-const ALT_DOMAINS = [
-  { name: 'multiembed', tv: (id:number,s:number,e:number) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}`, movie: (id:number) => `https://multiembed.mov/?video_id=${id}&tmdb=1` },
-  { name: 'smashystream', tv: (id:number,s:number,e:number) => `https://embed.smashystream.com/playere.php?tmdb=${id}&season=${s}&episode=${e}`, movie: (id:number) => `https://embed.smashystream.com/playere.php?tmdb=${id}` },
-  { name: 'superembed', tv: (id:number,s:number,e:number) => `https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1&s=${s}&e=${e}`, movie: (id:number) => `https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1` },
 ]
 
 function buildVidsrcUrl(
@@ -48,12 +41,7 @@ function buildVidsrcUrl(
   season = 1,
   domainIndex = 0
 ): string {
-  // Index 0-3: vidsrc domains | Index 4-6: alt domains (original audio)
-  if (domainIndex >= VIDSRC_DOMAINS.length) {
-    const alt = ALT_DOMAINS[(domainIndex - VIDSRC_DOMAINS.length) % ALT_DOMAINS.length]
-    return type === 'movie' ? alt.movie(tmdbId) : alt.tv(tmdbId, season, episode)
-  }
-  const domain = VIDSRC_DOMAINS[domainIndex]
+  const domain = VIDSRC_DOMAINS[domainIndex % VIDSRC_DOMAINS.length]
   if (type === 'movie') {
     return `https://${domain}/embed/movie?tmdb=${tmdbId}&autoplay=1`
   }
@@ -696,16 +684,13 @@ export default function DrakorStreamPanel({ isAdmin, userId }: Props) {
                 {/* Server selector */}
                 <div className="dk-domain-row">
                   <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', marginRight: 2 }}>Server:</span>
-                  {[...VIDSRC_DOMAINS.map((_, i) => ({ label: `S${i+1}`, i })),
-                    ...ALT_DOMAINS.map((a, i) => ({ label: a.name, i: i + VIDSRC_DOMAINS.length }))
-                  ].map(({ label, i }) => (
+                  {VIDSRC_DOMAINS.map((_, i) => (
                     <button key={i}
                       className={`dk-domain-btn${domainIndex === i ? ' active' : ''}`}
                       onClick={() => { setDomainIndex(i); setIframeLoading(true) }}>
-                      {label}
+                      S{i + 1}
                     </button>
                   ))}
-                  <span style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginLeft:4}}>multiembed/smashy = audio asli</span>
                 </div>
 
                 {/* Player */}
@@ -720,7 +705,7 @@ export default function DrakorStreamPanel({ isAdmin, userId }: Props) {
                     key={`${domainIndex}-${selected.tmdbId}-${selectedSeason}-${selectedEp}`}
                     src={embedUrl}
                     allowFullScreen
-                    allow="autoplay; fullscreen; picture-in-picture; encrypted-media; gyroscope; accelerometer"
+                    allow="autoplay; fullscreen *; picture-in-picture"
                     onLoad={() => setIframeLoading(false)}
                     style={{ opacity: iframeLoading ? 0 : 1, transition: 'opacity .3s' }}
                   />
@@ -754,7 +739,7 @@ export default function DrakorStreamPanel({ isAdmin, userId }: Props) {
                 </div>
 
                 <div className="dk-warn-box">
-                  💡 Audio Inggris? Coba <strong>multiembed</strong> atau <strong>smashystream</strong> — audio asli. S1–S4 = VidSrc (ada dub).
+                  💡 Player tidak muncul? Coba ganti server S1–S4. Subtitle otomatis mengikuti bahasa yang tersedia.
                 </div>
               </>
             )}
