@@ -720,7 +720,7 @@ export default function DrakorStreamPanel({ isAdmin, userId }: Props) {
                     key={`${domainIndex}-${selected.tmdbId}-${selectedSeason}-${selectedEp}`}
                     src={embedUrl}
                     allowFullScreen
-                    allow="autoplay; fullscreen; picture-in-picture; encrypted-media; gyroscope; accelerometer" allowpaymentrequest referrerPolicy="no-referrer"
+                    allow="autoplay; fullscreen; picture-in-picture; encrypted-media; gyroscope; accelerometer"
                     onLoad={() => setIframeLoading(false)}
                     style={{ opacity: iframeLoading ? 0 : 1, transition: 'opacity .3s' }}
                   />
