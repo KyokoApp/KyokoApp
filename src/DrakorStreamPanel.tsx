@@ -27,11 +27,18 @@ type Country = 'KR' | 'JP' | 'CN' | 'TH' | 'ALL'
 // ═══════════════════════════════════════════════════════════════
 // VIDSRC — same domains as AnimeStreamPanel
 // ═══════════════════════════════════════════════════════════════
+// S1-S2: vidsrc (kadang default dub) | S3: 2embed (original audio) | S4: embedsu
 const VIDSRC_DOMAINS = [
   'vidsrc-embed.ru',
   'vidsrc-embed.su',
   'vidsrcme.su',
   'vsrc.su',
+]
+// Server alternatif — original audio, allow iframe
+const ALT_DOMAINS = [
+  { name: 'multiembed', tv: (id:number,s:number,e:number) => `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${s}&e=${e}`, movie: (id:number) => `https://multiembed.mov/?video_id=${id}&tmdb=1` },
+  { name: 'smashystream', tv: (id:number,s:number,e:number) => `https://embed.smashystream.com/playere.php?tmdb=${id}&season=${s}&episode=${e}`, movie: (id:number) => `https://embed.smashystream.com/playere.php?tmdb=${id}` },
+  { name: 'superembed', tv: (id:number,s:number,e:number) => `https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1&s=${s}&e=${e}`, movie: (id:number) => `https://multiembed.mov/directstream.php?video_id=${id}&tmdb=1` },
 ]
 
 function buildVidsrcUrl(
@@ -41,7 +48,12 @@ function buildVidsrcUrl(
   season = 1,
   domainIndex = 0
 ): string {
-  const domain = VIDSRC_DOMAINS[domainIndex % VIDSRC_DOMAINS.length]
+  // Index 0-3: vidsrc domains | Index 4-6: alt domains (original audio)
+  if (domainIndex >= VIDSRC_DOMAINS.length) {
+    const alt = ALT_DOMAINS[(domainIndex - VIDSRC_DOMAINS.length) % ALT_DOMAINS.length]
+    return type === 'movie' ? alt.movie(tmdbId) : alt.tv(tmdbId, season, episode)
+  }
+  const domain = VIDSRC_DOMAINS[domainIndex]
   if (type === 'movie') {
     return `https://${domain}/embed/movie?tmdb=${tmdbId}&autoplay=1`
   }
@@ -258,14 +270,10 @@ const S = `
 /* Player */
 .dk-player-box { width:100%; aspect-ratio:16/9; background:#000; position:relative; flex-shrink:0; overflow:hidden; }
 .dk-player-box.dk-fullscreen-active { position:fixed; inset:0; width:100vw; height:100vh; aspect-ratio:unset; z-index:9999; background:#000; }
-@media (orientation: portrait) {
-  .dk-player-box.dk-fullscreen-active {
-    width:100vh; height:100vw;
-    top:50%; left:50%;
-    transform:translate(-50%,-50%) rotate(90deg);
-    transform-origin:center center;
-  }
-}
+.dk-player-box:-webkit-full-screen { width:100vw !important; height:100vh !important; }
+.dk-player-box:fullscreen { width:100vw !important; height:100vh !important; }
+.dk-player-box:-webkit-full-screen iframe { width:100% !important; height:100% !important; }
+.dk-player-box:fullscreen iframe { width:100% !important; height:100% !important; }
 .dk-player-box iframe { width:100%; height:100%; border:none; display:block; }
 .dk-player-loading { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; background:#0d0d0d; z-index:2; pointer-events:none; }
 .dk-player-controls { display:flex; gap:6px; padding:10px 14px; flex-shrink:0; border-bottom:1px solid rgba(255,255,255,0.06); align-items:center; flex-wrap:wrap; }
@@ -278,6 +286,28 @@ const S = `
 .dk-now-playing { font-size:11px; color:rgba(255,255,255,0.35); padding:6px 14px; flex-shrink:0; display:flex; align-items:center; gap:6px; }
 .dk-now-dot { width:6px; height:6px; border-radius:50%; flex-shrink:0; background:#ff5252; animation:dk-pulse 1.4s ease infinite; }
 @keyframes dk-pulse { 0%,100%{opacity:.5;transform:scale(1)} 50%{opacity:1;transform:scale(1.3)} }
+
+/* Zone blocker — blokir pojok iklan, biarkan tengah tembus */
+.dk-zone-block {
+  position:absolute; z-index:8;
+  background:transparent;
+  -webkit-tap-highlight-color:transparent;
+  pointer-events:all;
+}
+/* pojok kanan atas — iklan close/skip button */
+.dk-zone-tr { top:0; right:0; width:22%; height:22%; }
+/* pojok kiri atas */
+.dk-zone-tl { top:0; left:0; width:22%; height:22%; }
+/* pojok kanan bawah — iklan overlay */
+.dk-zone-br { bottom:0; right:0; width:22%; height:18%; }
+/* pojok kiri bawah */
+.dk-zone-bl { bottom:0; left:0; width:22%; height:18%; }
+/* area tengah — TEMBUS ke player, pointer-events:none */
+.dk-zone-center {
+  position:absolute; z-index:7;
+  top:22%; left:22%; right:22%; bottom:18%;
+  pointer-events:none;
+}
 .dk-fs-btn { position:absolute; bottom:8px; right:8px; z-index:10; background:rgba(0,0,0,0.6); border:1px solid rgba(255,255,255,0.2); border-radius:8px; color:#fff; font-size:14px; width:32px; height:32px; display:flex; align-items:center; justify-content:center; cursor:pointer; backdrop-filter:blur(4px); transition:background .15s; }
 .dk-fs-btn:hover { background:rgba(255,82,82,0.4); border-color:#ff5252; }
 .dk-fs-close { position:fixed; top:12px; right:12px; z-index:10000; background:rgba(0,0,0,0.7); border:1px solid rgba(255,255,255,0.25); border-radius:50%; color:#fff; font-size:16px; width:36px; height:36px; display:flex; align-items:center; justify-content:center; cursor:pointer; }
@@ -318,6 +348,7 @@ export default function DrakorStreamPanel({ isAdmin, userId }: Props) {
   const [domainIndex, setDomainIndex] = useState(0)
   const [iframeLoading, setIframeLoading] = useState(true)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const playerRef = useRef<HTMLDivElement>(null)
 
   // Load trending on mount + when filter changes
@@ -398,13 +429,22 @@ export default function DrakorStreamPanel({ isAdmin, userId }: Props) {
     if (!el) return
     if (!isFullscreen) {
       const req = (el as any).requestFullscreen || (el as any).webkitRequestFullscreen
-      if (req) { try { await req.call(el) } catch { setIsFullscreen(true) } }
-      else setIsFullscreen(true)
-      await lockLandscape()
+      if (req) {
+        try {
+          await req.call(el)
+          setIsFullscreen(true)
+          await lockLandscape()
+        } catch {
+          // Native fullscreen failed, fallback CSS fullscreen
+          setIsFullscreen(true)
+        }
+      } else {
+        setIsFullscreen(true)
+      }
     } else {
       unlockOrientation()
       const exit = (document as any).exitFullscreen || (document as any).webkitExitFullscreen
-      if (exit) exit.call(document).catch(() => {})
+      if (exit) { try { await exit.call(document) } catch {} }
       setIsFullscreen(false)
     }
   }, [isFullscreen, lockLandscape, unlockOrientation])
@@ -684,13 +724,16 @@ export default function DrakorStreamPanel({ isAdmin, userId }: Props) {
                 {/* Server selector */}
                 <div className="dk-domain-row">
                   <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', marginRight: 2 }}>Server:</span>
-                  {VIDSRC_DOMAINS.map((_, i) => (
+                  {[...VIDSRC_DOMAINS.map((_, i) => ({ label: `S${i+1}`, i })),
+                    ...ALT_DOMAINS.map((a, i) => ({ label: a.name, i: i + VIDSRC_DOMAINS.length }))
+                  ].map(({ label, i }) => (
                     <button key={i}
                       className={`dk-domain-btn${domainIndex === i ? ' active' : ''}`}
                       onClick={() => { setDomainIndex(i); setIframeLoading(true) }}>
-                      S{i + 1}
+                      {label}
                     </button>
                   ))}
+                  <span style={{fontSize:9,color:'rgba(255,255,255,0.2)',marginLeft:4}}>multiembed/smashy = audio asli</span>
                 </div>
 
                 {/* Player */}
@@ -705,10 +748,16 @@ export default function DrakorStreamPanel({ isAdmin, userId }: Props) {
                     key={`${domainIndex}-${selected.tmdbId}-${selectedSeason}-${selectedEp}`}
                     src={embedUrl}
                     allowFullScreen
-                    allow="autoplay; fullscreen *; picture-in-picture"
+                    allow="autoplay; fullscreen; picture-in-picture; encrypted-media; gyroscope; accelerometer"
                     onLoad={() => setIframeLoading(false)}
                     style={{ opacity: iframeLoading ? 0 : 1, transition: 'opacity .3s' }}
                   />
+                  {/* Zone blocker — blokir pojok iklan */}
+                  <div className="dk-zone-block dk-zone-tr" title="Area terlindungi"/>
+                  <div className="dk-zone-block dk-zone-tl" title="Area terlindungi"/>
+                  <div className="dk-zone-block dk-zone-br" title="Area terlindungi"/>
+                  <div className="dk-zone-block dk-zone-bl" title="Area terlindungi"/>
+                  <div className="dk-zone-center"/>
                   <button className="dk-fs-btn" onClick={toggleFullscreen}>{isFullscreen ? '✕' : '⛶'}</button>
                   {isFullscreen && <button className="dk-fs-close" onClick={toggleFullscreen}>✕</button>}
                 </div>
@@ -739,7 +788,7 @@ export default function DrakorStreamPanel({ isAdmin, userId }: Props) {
                 </div>
 
                 <div className="dk-warn-box">
-                  💡 Player tidak muncul? Coba ganti server S1–S4. Subtitle otomatis mengikuti bahasa yang tersedia.
+                  💡 Audio Inggris? Coba <strong>multiembed</strong> atau <strong>smashystream</strong> — audio asli. S1–S4 = VidSrc (ada dub).
                 </div>
               </>
             )}
