@@ -810,10 +810,11 @@ const VideoAvatar = ({ src }: { src: string }) => {
   return <video ref={ref} src={src} loop muted playsInline style={{width:'100%',height:'100%',objectFit:'cover',borderRadius:'10px'}}/>
 }
 
-export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
+export default function GlobalChatPanel({ onClose, onUnread, onMusicChange, initialTab }: {
   onClose: () => void
   onUnread?: () => void
   onMusicChange?: (info: { playing: boolean; title: string; audioRef: React.RefObject<HTMLAudioElement | null> } | null) => void
+  initialTab?: 'chat'|'rpg'|'fishing'|'anime'|'manga'|'novel'
 }) {
   const [user, setUser] = useState<User | null>(null)
   const [username, setUsername] = useState('')
@@ -825,7 +826,7 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange }: {
   const [showUpdateBanner, setShowUpdateBanner] = useState(false)
   const appVersionRef = useRef<string | null>(null) // versi yang sedang dipakai user
 
-  const [activeTab, setActiveTab] = useState<'chat'|'rpg'|'fishing'|'voice'|'music'|'anime'>('chat')
+  const [activeTab, setActiveTab] = useState<'chat'|'rpg'|'fishing'|'voice'|'music'|'anime'>((initialTab as any) || 'chat')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true)
   const [navOpen, setNavOpen] = useState(false)
   const [navTransDir, setNavTransDir] = useState<'up'|'down'>('up')

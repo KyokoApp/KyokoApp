@@ -24,10 +24,6 @@ function invalidateCache(key: string) {
 import { signInWithRedirect, signInWithPopup, getRedirectResult, signOut, onAuthStateChanged, User } from 'firebase/auth'
 
 import BottomNav from './BottomNav'
-import MangaStreamPanel from './MangaStreamPanel'
-import KyoNovelPanel from './KyoNovelPanel'
-import AnimeStreamPanel from './AnimeStreamPanel'
-import GameRpg from './GameRpg'
 import './redesign-patch.css'
 
 function App() {
@@ -176,10 +172,7 @@ function App() {
   }
   const [aiUnread, setAiUnread] = useState(false)
   const [fabOpen, setFabOpen] = useState(false)
-  const [mangaOpen, setMangaOpen] = useState(false)
-  const [novelOpen, setNovelOpen] = useState(false)
-  const [animeOpen, setAnimeOpen] = useState(false)
-  const [rpgOpen, setRpgOpen] = useState(false)
+  const [gcInitialTab, setGcInitialTab] = useState<'chat'|'rpg'|'fishing'|'anime'|'manga'|'novel'>('chat')
 
   // Max 2 RPG toast notifications
   const [rpgToasts, setRpgToasts] = useState<{id:number;msg:string}[]>([])
@@ -2153,7 +2146,7 @@ function App() {
             <div style={{color:'#a3e635',fontSize:14}}>Memuat...</div>
           </div>
         }>
-          <GlobalChatPanel onClose={() => setGcOpen(false)} onUnread={() => setGcUnread(true)} onMusicChange={setGcMiniPlayer} />
+          <GlobalChatPanel onClose={() => { setGcOpen(false); setGcInitialTab('chat') }} onUnread={() => setGcUnread(true)} onMusicChange={setGcMiniPlayer} initialTab={gcInitialTab} />
         </React.Suspense>
       )}
 
@@ -2208,12 +2201,12 @@ function App() {
 
       {/* ── BottomNav (replaces old FAB) ────────────────────────── */}
       <BottomNav
-        onOpenGlobalChat={() => { setGcUnread(false); setGcOpen(true) }}
+        onOpenGlobalChat={() => { setGcInitialTab('chat'); setGcUnread(false); setGcOpen(true) }}
         onOpenAI={() => { setAiUnread(false); setChatOpen(true) }}
-        onOpenManga={() => setMangaOpen(true)}
-        onOpenNovel={() => setNovelOpen(true)}
-        onOpenAnime={() => setAnimeOpen(true)}
-        onOpenRpg={() => setRpgOpen(true)}
+        onOpenManga={() => { setGcInitialTab('manga'); setGcOpen(true) }}
+        onOpenNovel={() => { setGcInitialTab('novel'); setGcOpen(true) }}
+        onOpenAnime={() => { setGcInitialTab('anime'); setGcOpen(true) }}
+        onOpenRpg={() => { setGcInitialTab('rpg'); setGcOpen(true) }}
         onScrollTo={(id) => {
           triggerZzz('NAVIGATING', () => {
             document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -2222,12 +2215,6 @@ function App() {
         gcUnread={gcUnread}
         aiUnread={aiUnread}
       />
-
-      {/* ── Panels opened via BottomNav FAB ──────────────────────── */}
-      {mangaOpen && <MangaStreamPanel onClose={() => setMangaOpen(false)} />}
-      {novelOpen && <KyoNovelPanel onClose={() => setNovelOpen(false)} />}
-      {animeOpen && <AnimeStreamPanel onClose={() => setAnimeOpen(false)} />}
-      {rpgOpen && <GameRpg onClose={() => setRpgOpen(false)} onToast={showRpgToast} authUser={authUser} />}
 
       <div className={`chat-widget ${chatOpen ? 'open' : ''}`}>
         <div className="chat-header">
