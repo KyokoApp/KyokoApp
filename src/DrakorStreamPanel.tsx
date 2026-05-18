@@ -260,10 +260,16 @@ const S = `
 /* Player */
 .dk-player-box { width:100%; aspect-ratio:16/9; background:#000; position:relative; flex-shrink:0; overflow:hidden; }
 .dk-player-box.dk-fullscreen-active { position:fixed; inset:0; width:100vw; height:100vh; aspect-ratio:unset; z-index:9999; background:#000; }
-.dk-player-box:-webkit-full-screen { width:100vw !important; height:100vh !important; }
-.dk-player-box:fullscreen { width:100vw !important; height:100vh !important; }
-.dk-player-box:-webkit-full-screen iframe { width:100% !important; height:100% !important; }
-.dk-player-box:fullscreen iframe { width:100% !important; height:100% !important; }
+@media (orientation: portrait) {
+  .dk-player-box.dk-fullscreen-active {
+    width:100vh;
+    height:100vw;
+    top:50%;
+    left:50%;
+    transform:translate(-50%,-50%) rotate(90deg);
+    transform-origin:center center;
+  }
+}
 .dk-player-box iframe { width:100%; height:100%; border:none; display:block; }
 .dk-player-loading { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; background:#0d0d0d; z-index:2; pointer-events:none; }
 .dk-player-controls { display:flex; gap:6px; padding:10px 14px; flex-shrink:0; border-bottom:1px solid rgba(255,255,255,0.06); align-items:center; flex-wrap:wrap; }
@@ -417,19 +423,19 @@ export default function DrakorStreamPanel({ isAdmin, userId }: Props) {
   const toggleFullscreen = useCallback(async () => {
     const el = playerRef.current
     if (!el) return
-    const iframeEl = el.querySelector('iframe') as HTMLElement | null
 
     if (!isFullscreen) {
-      // Try fullscreen on iframe first (better on mobile), fallback to container
-      const target = iframeEl || el
-      const req = (target as any).requestFullscreen
-        || (target as any).webkitRequestFullscreen
-        || (target as any).mozRequestFullScreen
-        || (target as any).msRequestFullscreen
-      try {
-        if (req) await req.call(target)
-        else setIsFullscreen(true) // CSS fallback
-      } catch {
+      const req = (el as any).requestFullscreen
+        || (el as any).webkitRequestFullscreen
+        || (el as any).mozRequestFullScreen
+        || (el as any).msRequestFullscreen
+      if (req) {
+        try {
+          await req.call(el)
+        } catch {
+          setIsFullscreen(true)
+        }
+      } else {
         setIsFullscreen(true)
       }
       await lockLandscape()
@@ -439,17 +445,17 @@ export default function DrakorStreamPanel({ isAdmin, userId }: Props) {
         || (document as any).webkitExitFullscreen
         || (document as any).mozCancelFullScreen
         || (document as any).msExitFullscreen
-      try { if (exit) await exit.call(document) } catch {}
+      if (exit) exit.call(document).catch(() => {})
       setIsFullscreen(false)
     }
   }, [isFullscreen, lockLandscape, unlockOrientation])
 
   useEffect(() => {
     const onFsChange = () => {
-      const fsEl = (document as any).fullscreenElement || (document as any).webkitFullscreenElement
-      if (fsEl) {
-        setIsFullscreen(true)
-      } else {
+      const fsEl = (document as any).fullscreenElement
+        || (document as any).webkitFullscreenElement
+        || (document as any).mozFullScreenElement
+      if (!fsEl) {
         setIsFullscreen(false)
         try { if ((screen.orientation as any)?.unlock) (screen.orientation as any).unlock() } catch {}
       }
