@@ -48,15 +48,154 @@ interface AnimeItem {
   url?: string
 }
 
+// ── Anime Carousel (2 cards per page, fade transition) ────────────────────────
+function AnimeCarousel({ list, loading, activeId }: { list: AnimeItem[]; loading: boolean; activeId: string }) {
+  const CARDS_PER_PAGE = 2
+  const [page, setPage] = useState(0)
+  const [visible, setVisible] = useState(true)
+  const autoRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const totalPages = Math.ceil(list.length / CARDS_PER_PAGE)
+
+  const goTo = (next: number) => {
+    setVisible(false)
+    setTimeout(() => { setPage(next); setVisible(true) }, 320)
+  }
+
+  // reset page when category changes
+  useEffect(() => { setPage(0); setVisible(true) }, [activeId])
+
+  // auto-advance every 4s
+  useEffect(() => {
+    if (loading || list.length === 0) return
+    autoRef.current = setInterval(() => {
+      setVisible(false)
+      setTimeout(() => {
+        setPage(p => (p + 1) % Math.ceil(list.length / CARDS_PER_PAGE))
+        setVisible(true)
+      }, 320)
+    }, 4000)
+    return () => { if (autoRef.current) clearInterval(autoRef.current) }
+  }, [loading, list.length])
+
+  const cards = list.slice(page * CARDS_PER_PAGE, page * CARDS_PER_PAGE + CARDS_PER_PAGE)
+
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8, overflow: 'hidden', position: 'relative' }}>
+      {/* Loading overlay */}
+      {loading && (
+        <div style={{
+          position: 'absolute', inset: 0, zIndex: 10,
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8,
+          background: 'rgba(10,10,10,0.92)', borderRadius: 10,
+        }}>
+          <div style={{
+            width: 28, height: 28,
+            border: '3px solid #1a2200', borderTopColor: '#c8ff00',
+            borderRadius: '50%', animation: 'spin 0.7s linear infinite',
+          }} />
+          <span style={{ fontFamily: 'monospace', fontSize: 8, color: '#c8ff00', letterSpacing: 2 }}>FETCHING</span>
+        </div>
+      )}
+
+      {/* Cards */}
+      <div style={{ display: 'flex', gap: 8, flex: 1, minHeight: 0 }}>
+        {cards.map(anime => {
+          const title = anime.title_english || anime.title || 'Unknown'
+          const score = anime.score ? `★ ${anime.score.toFixed(1)}` : '★ –'
+          const eps   = anime.episodes ? `${anime.episodes} eps` : anime.type || ''
+          const img   = anime.images?.jpg?.image_url || ''
+          const st    = anime.status
+          const badgeColor  = st === 'Currently Airing' ? '#c8ff00' : st === 'Not yet aired' ? '#00c8ff' : '#333'
+          const badgeTxtCol = st === 'Currently Airing' ? '#000' : '#fff'
+          const badgeTxt    = st === 'Currently Airing' ? 'LIVE' : st === 'Not yet aired' ? 'SOON' : 'END'
+          return (
+            <div
+              key={anime.mal_id}
+              onClick={() => anime.url && window.open(anime.url, '_blank')}
+              style={{
+                flex: 1, minWidth: 0, position: 'relative', borderRadius: 10,
+                overflow: 'hidden', cursor: 'pointer',
+                background: '#111', border: '1px solid #1e2a00',
+                transition: 'opacity 0.32s ease, transform 0.32s ease',
+                opacity: visible ? 1 : 0,
+                transform: visible ? 'scale(1)' : 'scale(0.96)',
+              }}
+            >
+              <img src={img} alt={title} loading="lazy"
+                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', background: '#1a1a1a' }} />
+              <div style={{
+                position: 'absolute', inset: 0,
+                background: 'linear-gradient(to top, rgba(0,0,0,0.93) 45%, transparent 78%)',
+                display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', padding: 9,
+              }}>
+                <div style={{ fontFamily: 'monospace', fontSize: 9, color: '#c8ff00', fontWeight: 700, marginBottom: 2 }}>{score}</div>
+                <div style={{
+                  fontSize: 10, fontWeight: 800, color: '#fff', lineHeight: 1.3,
+                  display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                }}>{title}</div>
+                <div style={{ fontSize: 8, color: '#777', marginTop: 2 }}>{eps}</div>
+              </div>
+              <div style={{
+                position: 'absolute', top: 6, right: 6,
+                background: badgeColor, color: badgeTxtCol,
+                fontFamily: 'monospace', fontSize: 6, letterSpacing: 1,
+                padding: '2px 5px', borderRadius: 3, fontWeight: 700,
+              }}>{badgeTxt}</div>
+            </div>
+          )
+        })}
+        {cards.length === 1 && <div style={{ flex: 1 }} />}
+      </div>
+
+      {/* Nav controls */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <button
+          onClick={() => goTo((page - 1 + totalPages) % totalPages)}
+          style={{
+            background: '#161f00', border: '1px solid #2a3a00', borderRadius: 6,
+            color: '#c8ff00', fontSize: 16, padding: '3px 10px', cursor: 'pointer',
+            fontFamily: 'monospace', lineHeight: 1, flexShrink: 0,
+          }}
+        >‹</button>
+        <div style={{ display: 'flex', gap: 4, flex: 1, justifyContent: 'center' }}>
+          {Array.from({ length: totalPages }).map((_, i) => (
+            <div key={i} onClick={() => goTo(i)} style={{
+              width: i === page ? 14 : 5, height: 5, borderRadius: 3,
+              background: i === page ? '#c8ff00' : '#2a3a00',
+              cursor: 'pointer', transition: 'all 0.3s ease',
+            }} />
+          ))}
+        </div>
+        <button
+          onClick={() => goTo((page + 1) % totalPages)}
+          style={{
+            background: '#161f00', border: '1px solid #2a3a00', borderRadius: 6,
+            color: '#c8ff00', fontSize: 16, padding: '3px 10px', cursor: 'pointer',
+            fontFamily: 'monospace', lineHeight: 1, flexShrink: 0,
+          }}
+        >›</button>
+      </div>
+    </div>
+  )
+}
+
 function AnimeHubSection() {
   const [activeId, setActiveId] = useState('airing')
   const [animeList, setAnimeList] = useState<AnimeItem[]>([])
   const [loading, setLoading] = useState(true)
-  const cacheRef = useRef<Record<string, AnimeItem[]>>({})
-  const trackRef = useRef<HTMLDivElement>(null)
-  const animRef = useRef<Animation | null>(null)
+  const cacheRef    = useRef<Record<string, AnimeItem[]>>({})
+  const trackRef    = useRef<HTMLDivElement>(null)
+  const animRef     = useRef<Animation | null>(null)
+  const resumeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Scroll loop via Web Animations API
+  // pause sidebar scroll, resume after 3s of no interaction
+  const pauseAndScheduleResume = () => {
+    animRef.current?.pause()
+    if (resumeTimer.current) clearTimeout(resumeTimer.current)
+    resumeTimer.current = setTimeout(() => animRef.current?.play(), 3000)
+  }
+
+  // Sidebar scroll loop
   useEffect(() => {
     const track = trackRef.current
     if (!track) return
@@ -64,23 +203,27 @@ function AnimeHubSection() {
     animRef.current?.cancel()
     animRef.current = track.animate(
       [{ transform: 'translateY(0)' }, { transform: `translateY(-${totalH}px)` }],
-      { duration: 14000, iterations: Infinity, easing: 'linear' }
+      { duration: 16000, iterations: Infinity, easing: 'linear' }
     )
-    const pause = () => animRef.current?.pause()
-    const play  = () => animRef.current?.play()
-    track.addEventListener('mouseenter', pause)
-    track.addEventListener('mouseleave', play)
+    track.addEventListener('mouseenter',  pauseAndScheduleResume)
+    track.addEventListener('mouseleave',  pauseAndScheduleResume)
+    track.addEventListener('touchstart',  pauseAndScheduleResume, { passive: true })
+    track.addEventListener('touchend',    pauseAndScheduleResume, { passive: true })
     return () => {
-      track.removeEventListener('mouseenter', pause)
-      track.removeEventListener('mouseleave', play)
+      track.removeEventListener('mouseenter', pauseAndScheduleResume)
+      track.removeEventListener('mouseleave', pauseAndScheduleResume)
+      track.removeEventListener('touchstart', pauseAndScheduleResume)
+      track.removeEventListener('touchend',   pauseAndScheduleResume)
       animRef.current?.cancel()
+      if (resumeTimer.current) clearTimeout(resumeTimer.current)
     }
   }, [])
 
+  // Fetch anime list
   useEffect(() => {
     const cat = ANIME_CATS.find(c => c.id === activeId)
     if (!cat) return
-    if (cacheRef.current[activeId]) { setAnimeList(cacheRef.current[activeId]); return }
+    if (cacheRef.current[activeId]) { setAnimeList(cacheRef.current[activeId]); setLoading(false); return }
     setLoading(true)
     fetch(cat.url)
       .then(r => r.json())
@@ -93,39 +236,34 @@ function AnimeHubSection() {
       .finally(() => setLoading(false))
   }, [activeId])
 
-  const catItems = [...ANIME_CATS, ...ANIME_CATS] // doubled for loop
+  const catItems = [...ANIME_CATS, ...ANIME_CATS]
 
   return (
-    <div style={{ display: 'flex', gap: 12, height: 400, position: 'relative' }}>
+    <div style={{ display: 'flex', gap: 12, height: 380, position: 'relative' }}>
       {/* SIDEBAR */}
       <div style={{
         width: 80, flexShrink: 0, overflow: 'hidden', position: 'relative',
-        WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 12%, black 88%, transparent 100%)',
-        maskImage: 'linear-gradient(to bottom, transparent 0%, black 12%, black 88%, transparent 100%)',
+        WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 10%, black 90%, transparent 100%)',
+        maskImage: 'linear-gradient(to bottom, transparent 0%, black 10%, black 90%, transparent 100%)',
       }}>
         <div ref={trackRef} style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
           {catItems.map((cat, i) => (
             <div
               key={cat.id + i}
-              onClick={() => setActiveId(cat.id)}
+              onClick={() => { setActiveId(cat.id); pauseAndScheduleResume() }}
               style={{
                 background: activeId === cat.id ? '#161f00' : '#111',
                 border: `1px solid ${activeId === cat.id ? 'var(--accent, #c8ff00)' : '#1e2a00'}`,
                 borderLeft: `3px solid ${activeId === cat.id ? 'var(--accent, #c8ff00)' : 'transparent'}`,
-                borderRadius: 6,
-                padding: '8px 6px',
-                cursor: 'pointer',
-                textAlign: 'center',
-                transition: 'all 0.2s',
+                borderRadius: 6, padding: '8px 6px', cursor: 'pointer',
+                textAlign: 'center', transition: 'all 0.2s',
                 boxShadow: activeId === cat.id ? '0 0 8px rgba(200,255,0,0.15)' : 'none',
                 userSelect: 'none',
               }}
             >
               <div style={{ fontSize: 16, marginBottom: 3 }}>{cat.icon}</div>
               <div style={{
-                fontFamily: 'monospace',
-                fontSize: 7,
-                letterSpacing: 1,
+                fontFamily: 'monospace', fontSize: 7, letterSpacing: 1,
                 textTransform: 'uppercase',
                 color: activeId === cat.id ? '#c8ff00' : '#aaa',
                 lineHeight: 1.3,
@@ -135,103 +273,11 @@ function AnimeHubSection() {
         </div>
       </div>
 
-      {/* CARD AREA */}
-      <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-        {loading && (
-          <div style={{
-            position: 'absolute', inset: 0, display: 'flex', alignItems: 'center',
-            justifyContent: 'center', flexDirection: 'column', gap: 8,
-            background: 'var(--bg, #0a0a0a)', zIndex: 10,
-          }}>
-            <div style={{
-              width: 32, height: 32,
-              border: '3px solid #1a2200',
-              borderTopColor: '#c8ff00',
-              borderRadius: '50%',
-              animation: 'spin 0.7s linear infinite',
-            }} />
-            <span style={{ fontFamily: 'monospace', fontSize: 9, color: '#c8ff00', letterSpacing: 2 }}>FETCHING</span>
-          </div>
-        )}
-        <div
-          key={activeId}
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(2, 1fr)',
-            gap: 8,
-            height: '100%',
-            overflowY: 'auto',
-            overflowX: 'hidden',
-            paddingRight: 2,
-            scrollbarWidth: 'thin',
-            scrollbarColor: '#c8ff00 transparent',
-            animation: 'animeCardFade 0.3s ease',
-          }}
-        >
-          {animeList.slice(0, 12).map(anime => {
-            const title = anime.title_english || anime.title || 'Unknown'
-            const score = anime.score ? `★ ${anime.score.toFixed(1)}` : '★ –'
-            const eps   = anime.episodes ? `${anime.episodes} eps` : anime.type || ''
-            const img   = anime.images?.jpg?.image_url || ''
-            const st    = anime.status
-            const badgeColor  = st === 'Currently Airing' ? '#c8ff00' : st === 'Not yet aired' ? '#00c8ff' : '#444'
-            const badgeTxtCol = st === 'Currently Airing' ? '#000' : '#fff'
-            const badgeTxt    = st === 'Currently Airing' ? 'LIVE' : st === 'Not yet aired' ? 'SOON' : 'END'
-            return (
-              <div
-                key={anime.mal_id}
-                onClick={() => anime.url && window.open(anime.url, '_blank')}
-                style={{
-                  background: '#111',
-                  border: '1px solid #1e2a00',
-                  borderRadius: 8,
-                  overflow: 'hidden',
-                  cursor: 'pointer',
-                  position: 'relative',
-                  transition: 'transform 0.2s, border-color 0.2s',
-                }}
-                onMouseEnter={e => {
-                  (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-3px)'
-                  ;(e.currentTarget as HTMLDivElement).style.borderColor = '#a0e000'
-                }}
-                onMouseLeave={e => {
-                  (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)'
-                  ;(e.currentTarget as HTMLDivElement).style.borderColor = '#1e2a00'
-                }}
-              >
-                <img
-                  src={img} alt={title}
-                  loading="lazy"
-                  style={{ width: '100%', aspectRatio: '2/3', objectFit: 'cover', display: 'block', background: '#1a1a1a' }}
-                />
-                <div style={{
-                  position: 'absolute', inset: 0,
-                  background: 'linear-gradient(to top, rgba(0,0,0,0.92) 40%, transparent 75%)',
-                  display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', padding: 7,
-                }}>
-                  <div style={{ fontFamily: 'monospace', fontSize: 9, color: '#c8ff00', fontWeight: 700, marginBottom: 2 }}>{score}</div>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: '#fff', lineHeight: 1.3,
-                    display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{title}</div>
-                  <div style={{ fontSize: 8, color: '#666', marginTop: 2 }}>{eps}</div>
-                </div>
-                <div style={{
-                  position: 'absolute', top: 5, right: 5,
-                  background: badgeColor, color: badgeTxtCol,
-                  fontFamily: 'monospace', fontSize: 6, letterSpacing: 1,
-                  padding: '2px 4px', borderRadius: 3,
-                }}>{badgeTxt}</div>
-              </div>
-            )
-          })}
-        </div>
-      </div>
+      {/* CAROUSEL */}
+      <AnimeCarousel list={animeList} loading={loading} activeId={activeId} />
 
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
-        @keyframes animeCardFade {
-          from { opacity: 0; transform: translateY(8px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
       `}</style>
     </div>
   )
