@@ -4,6 +4,10 @@ import { collection, doc, setDoc, deleteDoc, onSnapshot, orderBy, query, getDoc,
 
 // Lazy load GlobalChatPanel - hemat memory saat tidak dibuka
 const GlobalChatPanel = React.lazy(() => import('./GlobalChatPanel'))
+// Lazy load panel-panel fitur lainnya
+const AnimeStreamPanel = React.lazy(() => import('./AnimeStreamPanel'))
+const MangaStreamPanel = React.lazy(() => import('./MangaStreamPanel'))
+const KyoNovelPanel    = React.lazy(() => import('./KyoNovelPanel'))
 
 // ── Cache helper (localStorage dengan TTL) ────────────────────
 const CACHE_TTL = 5 * 60 * 1000 // 5 menit
@@ -106,6 +110,10 @@ function App() {
   const [visitorCount, setVisitorCount] = useState(0)
   const [newsFilter, setNewsFilter] = useState('Semua')
   const [gcOpen, setGcOpen] = useState(false)
+  // ── Panel dedicated per fitur ────────────────────────────────────────────
+  const [animeOpen, setAnimeOpen] = useState(false)
+  const [mangaOpen, setMangaOpen] = useState(false)
+  const [novelOpen, setNovelOpen] = useState(false)
   // ── Lainnya full-page tab ────────────────────────────────────────────────
   const [lainnyaOpen, setLainnyaOpen] = useState(false)
   // sectionWrapVisible: tetap true saat navigasi dari Komunitas ke section
@@ -2076,6 +2084,81 @@ function App() {
         </React.Suspense>
       )}
 
+      {/* ── AnimeStream Panel (dedicated fullscreen) ──────────────── */}
+      {animeOpen && (
+        <div style={{ position:'fixed', inset:0, zIndex:9000, display:'flex', flexDirection:'column', background:'#080810' }}>
+          <React.Suspense fallback={
+            <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <div style={{ color:'#a78bfa', fontSize:14 }}>Memuat AnimeStream...</div>
+            </div>
+          }>
+            <AnimeStreamPanel isAdmin={isAdmin} userId={authUser?.uid || ''} />
+          </React.Suspense>
+          <button
+            onClick={() => setAnimeOpen(false)}
+            style={{
+              position:'absolute', top:12, right:14, zIndex:9999,
+              width:34, height:34, borderRadius:'50%',
+              background:'rgba(10,10,20,0.85)', border:'1px solid rgba(167,139,250,0.3)',
+              color:'rgba(255,255,255,0.7)', fontSize:16, cursor:'pointer',
+              display:'flex', alignItems:'center', justifyContent:'center',
+              backdropFilter:'blur(6px)',
+            }}
+            aria-label="Tutup"
+          >✕</button>
+        </div>
+      )}
+
+      {/* ── MangaStream Panel (dedicated fullscreen) ──────────────── */}
+      {mangaOpen && (
+        <div style={{ position:'fixed', inset:0, zIndex:9000, display:'flex', flexDirection:'column', background:'#09090f' }}>
+          <React.Suspense fallback={
+            <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <div style={{ color:'#c8f500', fontSize:14 }}>Memuat MangaStream...</div>
+            </div>
+          }>
+            <MangaStreamPanel isAdmin={isAdmin} userId={authUser?.uid || ''} />
+          </React.Suspense>
+          <button
+            onClick={() => setMangaOpen(false)}
+            style={{
+              position:'absolute', top:12, right:14, zIndex:9999,
+              width:34, height:34, borderRadius:'50%',
+              background:'rgba(10,10,20,0.85)', border:'1px solid rgba(200,245,0,0.25)',
+              color:'rgba(255,255,255,0.7)', fontSize:16, cursor:'pointer',
+              display:'flex', alignItems:'center', justifyContent:'center',
+              backdropFilter:'blur(6px)',
+            }}
+            aria-label="Tutup"
+          >✕</button>
+        </div>
+      )}
+
+      {/* ── KyoNovel Panel (dedicated fullscreen) ─────────────────── */}
+      {novelOpen && (
+        <div style={{ position:'fixed', inset:0, zIndex:9000, display:'flex', flexDirection:'column', background:'#080810' }}>
+          <React.Suspense fallback={
+            <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center' }}>
+              <div style={{ color:'#fb923c', fontSize:14 }}>Memuat KyoNovel...</div>
+            </div>
+          }>
+            <KyoNovelPanel isAdmin={isAdmin} userId={authUser?.uid || ''} />
+          </React.Suspense>
+          <button
+            onClick={() => setNovelOpen(false)}
+            style={{
+              position:'absolute', top:12, right:14, zIndex:9999,
+              width:34, height:34, borderRadius:'50%',
+              background:'rgba(10,10,20,0.85)', border:'1px solid rgba(251,146,60,0.25)',
+              color:'rgba(255,255,255,0.7)', fontSize:16, cursor:'pointer',
+              display:'flex', alignItems:'center', justifyContent:'center',
+              backdropFilter:'blur(6px)',
+            }}
+            aria-label="Tutup"
+          >✕</button>
+        </div>
+      )}
+
 
       {/* ── GC Mini Music Player floating ────────────────────────── */}
       {gcMiniPlayer && !gcOpen && (
@@ -2129,9 +2212,9 @@ function App() {
       <BottomNav
         onOpenGlobalChat={() => { setGcInitialTab('chat'); setGcUnread(false); setGcOpen(true) }}
         onOpenAI={() => { setAiUnread(false); setChatOpen(true) }}
-        onOpenManga={() => { setGcInitialTab('manga'); setGcOpen(true) }}
-        onOpenNovel={() => { setGcInitialTab('novel'); setGcOpen(true) }}
-        onOpenAnime={() => { setGcInitialTab('anime'); setGcOpen(true) }}
+        onOpenManga={() => { setMangaOpen(true) }}
+        onOpenNovel={() => { setNovelOpen(true) }}
+        onOpenAnime={() => { setAnimeOpen(true) }}
         onOpenRpg={() => { setGcInitialTab('rpg'); setGcOpen(true) }}
         onScrollTo={(id) => {
           triggerZzz('NAVIGATING', () => {
