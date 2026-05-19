@@ -1,13 +1,7 @@
+import GlobalChatPanel from './GlobalChatPanel'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { auth, googleProvider, dbChat, dbCommunity, dbAdmin, dbBonus } from './firebase'
-import { collection, doc, setDoc, deleteDoc, onSnapshot, orderBy, query, getDoc, getDocs, limit, updateDoc, increment } from 'firebase/firestore'
-
-// Lazy load GlobalChatPanel - hemat memory saat tidak dibuka
-const GlobalChatPanel = React.lazy(() => import('./GlobalChatPanel'))
-// Lazy load panel-panel fitur lainnya
-const AnimeStreamPanel = React.lazy(() => import('./AnimeStreamPanel'))
-const MangaStreamPanel = React.lazy(() => import('./MangaStreamPanel'))
-const KyoNovelPanel    = React.lazy(() => import('./KyoNovelPanel'))
+import { collection, doc, setDoc, deleteDoc, onSnapshot, addDoc, orderBy, query, serverTimestamp, getDoc, getDocs, limit, updateDoc, increment } from 'firebase/firestore'
 
 // ── Cache helper (localStorage dengan TTL) ────────────────────
 const CACHE_TTL = 5 * 60 * 1000 // 5 menit
@@ -28,73 +22,30 @@ function invalidateCache(key: string) {
 }
 import { signInWithRedirect, signInWithPopup, getRedirectResult, signOut, onAuthStateChanged, User } from 'firebase/auth'
 
-// Lazy load komponen pendukung — tidak dibutuhkan saat splash/first paint
-const BottomNav        = React.lazy(() => import('./BottomNav'))
-const AnimeHeroSection = React.lazy(() => import('./AnimeHeroSection'))
-const MangaInfoSection = React.lazy(() => import('./MangaInfoSection'))
-
-// ── Data statis — definisikan di luar komponen supaya tidak re-create tiap render ──
-const GROUP_CATEGORIES = ['Anime', 'Game', 'Bot WhatsApp', 'Jual Beli', 'Cari Teman', 'Teknologi', 'Musik', 'Belajar', 'Daerah', 'Random']
-
-const GAME_DATA = {
-  RPG: [
-    { name: 'Genshin Impact', link: 'https://play.google.com/store/apps/details?id=com.miHoYo.GenshinImpact' },
-    { name: 'Wuthering Waves', link: 'https://play.google.com/store/apps/details?id=com.kurogame.wutheringwaves.global' },
-    { name: 'Neverness To Everness', link: 'https://play.google.com/store/apps/details?id=com.hottagames.nte' },
-  ],
-  MOBA: [
-    { name: 'Honor of Kings', link: 'https://play.google.com/store/apps/details?id=com.levelinfinite.sgameGlobal' },
-    { name: 'Mobile Legends', link: 'https://play.google.com/store/apps/details?id=com.mobile.legends' },
-  ],
-  FPS: [
-    { name: 'Delta Force', link: 'https://play.google.com/store/apps/details?id=com.garena.game.df' },
-    { name: 'Free Fire', link: 'https://play.google.com/store/apps/details?id=com.dts.freefireth' },
-    { name: 'Blood Strike', link: 'https://play.google.com/store/apps/details?id=com.netease.newspike' },
-  ],
-}
-
-// EDIT BERITA DI SINI - tambah objek baru untuk berita terbaru
-const GAME_NEWS = [
-  {
-    game: 'genshin',
-    title: 'Genshin Impact Version 5.5 Brings New Characters',
-    description: 'Update terbaru Genshin Impact menghadirkan karakter baru dan area eksplorasi yang lebih luas.',
-    url: 'https://genshin.hoyoverse.com',
-    image: 'https://c.termai.cc/a168/fWL8x6q.jpg',
-    date: '2026-05-09',
-    source: 'HoYoverse Official',
-  },
-  {
-    game: 'mobile-legends',
-    title: 'Mobile Legends Season Update: Meta Baru dan Balance Patch',
-    description: 'Patch terbaru Mobile Legends membawa perubahan meta dan penyesuaian hero utama.',
-    url: 'https://m.mobilelegends.com',
-    image: 'https://c.termai.cc/a167/OZkTk.jpg',
-    date: '2026-05-10',
-    source: 'Moonton News',
-  },
-  {
-    game: 'wuthering-waves',
-    title: 'Wuthering Waves Update: Eksplorasi dan Event Musim Baru',
-    description: 'Event terbaru membuka area baru dan reward eksklusif untuk pemain aktif.',
-    url: 'https://wutheringwaves.kurogame.com',
-    image: 'https://c.termai.cc/a109/QJM.jpg',
-    date: '2026-05-11',
-    source: 'Kuro Games',
-  },
-  {
-    game: 'free-fire',
-    title: 'Free Fire menghadirkan mode baru dan kolaborasi spesial',
-    description: 'Mode terbatas dan bundle kolaborasi baru tersedia di update terbaru Free Fire.',
-    url: 'https://ff.garena.com',
-    image: 'https://c.termai.cc/a184/MPYWRSy.jpg',
-    date: '2026-05-12',
-    source: 'Garena',
-  },
-]
-
 function App() {
-  // groupCategories & gameData pakai konstanta modul (di atas)
+  const groupCategories = useMemo(
+    () => ['Anime', 'Game', 'Bot WhatsApp', 'Jual Beli', 'Cari Teman', 'Teknologi', 'Musik', 'Belajar', 'Daerah', 'Random'],
+    [],
+  )
+  const gameData = useMemo(
+    () => ({
+      RPG: [
+        { name: 'Genshin Impact', link: 'https://play.google.com/store/apps/details?id=com.miHoYo.GenshinImpact' },
+        { name: 'Wuthering Waves', link: 'https://play.google.com/store/apps/details?id=com.kurogame.wutheringwaves.global' },
+        { name: 'Neverness To Everness', link: 'https://play.google.com/store/apps/details?id=com.hottagames.nte' },
+      ],
+      MOBA: [
+        { name: 'Honor of Kings', link: 'https://play.google.com/store/apps/details?id=com.levelinfinite.sgameGlobal' },
+        { name: 'Mobile Legends', link: 'https://play.google.com/store/apps/details?id=com.mobile.legends' },
+      ],
+      FPS: [
+        { name: 'Delta Force', link: 'https://play.google.com/store/apps/details?id=com.garena.game.df' },
+        { name: 'Free Fire', link: 'https://play.google.com/store/apps/details?id=com.dts.freefireth' },
+        { name: 'Blood Strike', link: 'https://play.google.com/store/apps/details?id=com.netease.newspike' },
+      ],
+    }),
+    [],
+  )
 
   // ── Splash screen ─────────────────────────────────────────────────────────
   const [splashDone, setSplashDone] = useState(false)
@@ -110,7 +61,7 @@ function App() {
 
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [groups, setGroups] = useState<Record<string, { name: string; link: string; desc: string; createdAt: number }[]>>({})
-  const [groupForm, setGroupForm] = useState({ name: '', link: '', category: GROUP_CATEGORIES[0], desc: '' })
+  const [groupForm, setGroupForm] = useState({ name: '', link: '', category: groupCategories[0], desc: '' })
   const [groupErrors, setGroupErrors] = useState({ link: '' })
   const [activeGroupIndex, setActiveGroupIndex] = useState(0)
   const [groupSlideDirection, setGroupSlideDirection] = useState<'left' | 'right'>('right')
@@ -149,16 +100,6 @@ function App() {
   const [visitorCount, setVisitorCount] = useState(0)
   const [newsFilter, setNewsFilter] = useState('Semua')
   const [gcOpen, setGcOpen] = useState(false)
-  // ── Panel dedicated per fitur ────────────────────────────────────────────
-  const [animeOpen, setAnimeOpen] = useState(false)
-  const [mangaOpen, setMangaOpen] = useState(false)
-  const [novelOpen, setNovelOpen] = useState(false)
-  // ── Lainnya full-page tab ────────────────────────────────────────────────
-  const [lainnyaOpen, setLainnyaOpen] = useState(false)
-  // sectionWrapVisible: tetap true saat navigasi dari Komunitas ke section
-  const [sectionWrapVisible, setSectionWrapVisible] = useState(false)
-  // lainnyaSection: buka section tertentu sebagai fullscreen panel
-  const [lainnyaSection, setLainnyaSection] = useState<string|null>(null)
   const [gcUnread, setGcUnread] = useState(false)
   const [authUser, setAuthUser] = useState<User | null>(null)
   const [showLoginTutorial, setShowLoginTutorial] = useState(false)
@@ -177,57 +118,16 @@ function App() {
     return () => unsub()
   }, [showLoginTutorial])
 
-  // ── OTA Update Checker ────────────────────────────────────────────────────
-  React.useEffect(() => {
-    const CURRENT_VERSION = '1.0.0'
-    const VERSION_URL = 'https://kyokoapp.vercel.app/version.json'
-    const CHECK_INTERVAL = 5 * 60 * 1000 // cek tiap 5 menit
-
-    const checkUpdate = async () => {
-      try {
-        const res = await fetch(VERSION_URL + '?t=' + Date.now(), { cache: 'no-store' })
-        if (!res.ok) return
-        const data = await res.json()
-        const isNative = !!(window as any).Capacitor?.isNativePlatform?.()
-        if (!isNative) return // OTA hanya untuk APK, web auto update sendiri
-        if (data.forceReload || data.version !== CURRENT_VERSION) {
-          // Reload WebView untuk ambil versi terbaru dari Vercel
-          window.location.reload()
-        }
-      } catch { /* silent fail */ }
-    }
-
-    checkUpdate() // cek saat pertama buka
-    const interval = setInterval(checkUpdate, CHECK_INTERVAL)
-    return () => clearInterval(interval)
-  }, [])
-
   const handleLoginClick = async () => {
     try {
-      const isCapacitor = !!(window as any).Capacitor?.isNativePlatform?.()
-      if (isCapacitor) {
-        // Di APK: pakai plugin native Google Auth (tidak lewat WebView)
-        const { GoogleAuth } = await import('@codetrix-studio/capacitor-google-auth')
-        await GoogleAuth.initialize()
-        const googleUser = await GoogleAuth.signIn()
-        const credential = (await import('firebase/auth')).GoogleAuthProvider.credential(
-          googleUser.authentication.idToken
-        )
-        const { signInWithCredential } = await import('firebase/auth')
-        await signInWithCredential(auth, credential)
-        setShowLoginTutorial(true)
-      } else {
-        // Di browser: pakai popup seperti biasa
-        await signInWithPopup(auth, googleProvider)
-        setShowLoginTutorial(true)
-      }
-    } catch (err) {
-      console.error('Login error:', err)
+      await signInWithPopup(auth, googleProvider)
+      setShowLoginTutorial(true)
+    } catch {
+      signInWithRedirect(auth, googleProvider)
     }
   }
   const [aiUnread, setAiUnread] = useState(false)
-  const [gcInitialTab, setGcInitialTab] = useState<'chat'|'rpg'|'fishing'|'anime'|'manga'|'novel'>('chat')
-
+  const [fabOpen, setFabOpen] = useState(false)
   // Max 2 RPG toast notifications
   const [rpgToasts, setRpgToasts] = useState<{id:number;msg:string}[]>([])
   const rpgToastIdRef = React.useRef(0)
@@ -350,6 +250,7 @@ function App() {
   const [announcementPosition, setAnnouncementPosition] = useState<'top'|'side'>('top')
   const [announcementActive, setAnnouncementActive] = useState(false)
   const [announcementVisible, setAnnouncementVisible] = useState(false)
+  const annCooldownRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const audioRef = React.useRef<HTMLAudioElement | null>(null)
 
   // ── Unread badge: watch globalChat untuk notif saat panel tertutup ──
@@ -453,9 +354,50 @@ function App() {
       audio.play().then(() => setMusicPlaying(true)).catch(() => {})
     }
   }
-  // gameNews dipakai di bawah (didefinisikan sebagai konstanta modul di luar komponen)
+  // EDIT BERITA DI SINI - tambah objek baru untuk berita terbaru
+  const gameNews = useMemo(
+    () => [
+      {
+        game: 'genshin',
+        title: 'Genshin Impact Version 5.5 Brings New Characters',
+        description: 'Update terbaru Genshin Impact menghadirkan karakter baru dan area eksplorasi yang lebih luas.',
+        url: 'https://genshin.hoyoverse.com',
+        image: 'https://c.termai.cc/a168/fWL8x6q.jpg',
+        date: '2026-05-09',
+        source: 'HoYoverse Official',
+      },
+      {
+        game: 'mobile-legends',
+        title: 'Mobile Legends Season Update: Meta Baru dan Balance Patch',
+        description: 'Patch terbaru Mobile Legends membawa perubahan meta dan penyesuaian hero utama.',
+        url: 'https://m.mobilelegends.com',
+        image: 'https://c.termai.cc/a167/OZkTk.jpg',
+        date: '2026-05-10',
+        source: 'Moonton News',
+      },
+      {
+        game: 'wuthering-waves',
+        title: 'Wuthering Waves Update: Eksplorasi dan Event Musim Baru',
+        description: 'Event terbaru membuka area baru dan reward eksklusif untuk pemain aktif.',
+        url: 'https://wutheringwaves.kurogame.com',
+        image: 'https://c.termai.cc/a109/QJM.jpg',
+        date: '2026-05-11',
+        source: 'Kuro Games',
+      },
+      {
+        game: 'free-fire',
+        title: 'Free Fire menghadirkan mode baru dan kolaborasi spesial',
+        description: 'Mode terbatas dan bundle kolaborasi baru tersedia di update terbaru Free Fire.',
+        url: 'https://ff.garena.com',
+        image: 'https://c.termai.cc/a184/MPYWRSy.jpg',
+        date: '2026-05-12',
+        source: 'Garena',
+      },
+    ],
+    [],
+  )
 
-  const activeCategory = GROUP_CATEGORIES[activeGroupIndex]
+  const activeCategory = groupCategories[activeGroupIndex]
 
   useEffect(() => {
     const elements = document.querySelectorAll('.fade-section')
@@ -512,13 +454,12 @@ function App() {
     } catch (e) { console.error('loadRatings error:', e) }
   }, [])
 
-  // ── Defer semua data loading sampai splash selesai (hemat CPU & network saat cold start) ──
-  useEffect(() => { if (splashDone) loadRatings() }, [loadRatings, splashDone])
+  useEffect(() => { loadRatings() }, [loadRatings])
 
   // ── Firebase: Load groups (getDocs + cache 5 menit) ──────────────────────
   const loadGroups = React.useCallback(async (forceRefresh = false) => {
     const expiryMs = 2592000000
-    const initialGroups = GROUP_CATEGORIES.reduce(
+    const initialGroups = groupCategories.reduce(
       (acc, category) => { acc[category] = []; return acc },
       {} as Record<string, { name: string; link: string; desc: string; createdAt: number }[]>,
     )
@@ -531,7 +472,7 @@ function App() {
       const loaded: Record<string, { name: string; link: string; desc: string; createdAt: number }[]> = { ...initialGroups }
       snapshot.forEach((docSnap) => {
         const data = docSnap.data() as { category: string; name: string; link: string; desc: string; createdAt: number }
-        if (!data.category || !GROUP_CATEGORIES.includes(data.category)) return
+        if (!data.category || !groupCategories.includes(data.category)) return
         const createdAt = typeof data.createdAt === 'number' ? data.createdAt : Date.now()
         if (Date.now() - createdAt > expiryMs) return
         if (!loaded[data.category]) loaded[data.category] = []
@@ -543,9 +484,9 @@ function App() {
       setGroups(loaded)
       setCache('kyoko_groups', loaded)
     } catch (e) { console.error('loadGroups error:', e) }
-  }, [])
+  }, [groupCategories])
 
-  useEffect(() => { if (splashDone) loadGroups() }, [loadGroups, splashDone])
+  useEffect(() => { loadGroups() }, [loadGroups])
 
   // ── Firebase: Load jual beli & MM list (getDocs + cache 5 menit) ────────
   const loadJualBeli = React.useCallback(async (forceRefresh = false) => {
@@ -569,7 +510,7 @@ function App() {
     } catch (e) { console.error('loadJualBeli error:', e) }
   }, [])
 
-  useEffect(() => { if (splashDone) loadJualBeli() }, [loadJualBeli, splashDone])
+  useEffect(() => { loadJualBeli() }, [loadJualBeli])
 
   // ── Firebase: Load APK / SC lists (getDocs + cache 5 menit) ─────────────
   const loadApkLists = React.useCallback(async (forceRefresh = false) => {
@@ -593,7 +534,7 @@ function App() {
     } catch (e) { console.error('loadApkLists error:', e) }
   }, [])
 
-  useEffect(() => { if (splashDone) loadApkLists() }, [loadApkLists, splashDone])
+  useEffect(() => { loadApkLists() }, [loadApkLists])
 
   useEffect(() => {
     const storedTheme = localStorage.getItem('theme')
@@ -638,7 +579,8 @@ function App() {
       rafId = requestAnimationFrame(animate)
     }
     // Increment count
-    getDoc(visitorDocRef).then(snap => {
+    import('firebase/firestore').then(({ increment, updateDoc, getDoc, setDoc }) => {
+      getDoc(visitorDocRef).then(snap => {
         if (!snap.exists()) {
           setDoc(visitorDocRef, { count: 1280 }).then(() => {
             runAnimation(1280, 0)
@@ -651,6 +593,7 @@ function App() {
       }).catch(() => {
         runAnimation(1280, 1270)
       })
+    })
     return () => cancelAnimationFrame(rafId)
   }, [])
 
@@ -686,7 +629,7 @@ function App() {
       return updated
     })
     invalidateCache('kyoko_groups')
-    setGroupForm({ name: '', link: '', category: GROUP_CATEGORIES[0], desc: '' })
+    setGroupForm({ name: '', link: '', category: groupCategories[0], desc: '' })
     setIsModalOpen(false)
   }
 
@@ -696,8 +639,8 @@ function App() {
     setGroupBgKey(k => k + 1)
     setActiveGroupIndex((prev) => {
       const next = direction === 'left'
-        ? (prev === 0 ? GROUP_CATEGORIES.length - 1 : prev - 1)
-        : (prev === GROUP_CATEGORIES.length - 1 ? 0 : prev + 1)
+        ? (prev === 0 ? groupCategories.length - 1 : prev - 1)
+        : (prev === groupCategories.length - 1 ? 0 : prev + 1)
       setGroupBgText(next)
       return next
     })
@@ -706,27 +649,12 @@ function App() {
   const filteredGroups = useMemo(() => {
     const query = groupSearch.trim().toLowerCase()
     if (!query) return [] as { category: string; name: string; link: string; desc: string; createdAt: number }[]
-    return GROUP_CATEGORIES.flatMap((category) =>
+    return groupCategories.flatMap((category) =>
       (groups[category] || [])
         .filter((group) => [group.name, group.desc, category].some((field) => field.toLowerCase().includes(query)))
         .map((group) => ({ ...group, category })),
     )
-  }, [groupSearch, groups])
-
-  // Pindahkan filter rating ke useMemo — mencegah re-compute tiap render
-  const filteredRatings = useMemo(() =>
-    ratingFilter ? ratings.filter(r => r.star === ratingFilter) : ratings
-  , [ratings, ratingFilter])
-
-  const ratingStarCounts = useMemo(() => {
-    const counts: Record<number, number> = {}
-    for (let s = 1; s <= 5; s++) counts[s] = ratings.filter(r => r.star === s).length
-    return counts
-  }, [ratings])
-
-  const ratingAverage = useMemo(() =>
-    ratings.length ? ratings.reduce((s, r) => s + r.star, 0) / ratings.length : 0
-  , [ratings])
+  }, [groupCategories, groupSearch, groups])
 
   const expiryMs = 2592000000
   const getDaysLeft = (createdAt: number) => Math.max(0, Math.ceil((createdAt + expiryMs - Date.now()) / 86400000))
@@ -744,6 +672,12 @@ function App() {
     })
     window.alert('Grup berhasil diperbarui! Aktif 30 hari lagi.')
   }
+
+  const visibleGroups = useMemo(() => {
+    const items = groups[activeCategory] || []
+    if (expandedCategories[activeCategory]) return items
+    return items.slice(0, 5)
+  }, [activeCategory, expandedCategories, groups])
 
   const handleFeedbackSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -1000,7 +934,9 @@ function App() {
   }
 
   const handleJualBeliApprove = (id: string) => {
-    updateDoc(doc(dbCommunity, 'jualBeliAkun', id), { status: 'approved' }).catch(console.error)
+    import('firebase/firestore').then(({ updateDoc }) => {
+      updateDoc(doc(dbCommunity, 'jualBeliAkun', id), { status: 'approved' }).catch(console.error)
+    })
   }
   const handleJualBeliReject = (id: string) => {
     if (!window.confirm('Tolak & hapus listing ini?')) return
@@ -1040,7 +976,9 @@ function App() {
       setJbSoldErr('Nomor tidak cocok dengan nomor penjual listing ini.')
       return
     }
-    updateDoc(doc(dbCommunity, 'jualBeliAkun', jbSoldItem.id), { status: 'sold' }).catch(console.error)
+    import('firebase/firestore').then(({ updateDoc }) => {
+      updateDoc(doc(dbCommunity, 'jualBeliAkun', jbSoldItem.id), { status: 'sold' }).catch(console.error)
+    })
     setJbSoldModalOpen(false)
     setJbSoldInput('')
     setJbSoldErr('')
@@ -1048,7 +986,9 @@ function App() {
   }
 
   const handleJbAdminMarkSold = (id: string) => {
-    updateDoc(doc(dbCommunity, 'jualBeliAkun', id), { status: 'sold' }).catch(console.error)
+    import('firebase/firestore').then(({ updateDoc }) => {
+      updateDoc(doc(dbCommunity, 'jualBeliAkun', id), { status: 'sold' }).catch(console.error)
+    })
   }
 
   const formatDate = (dateStr: string) => {
@@ -1058,7 +998,7 @@ function App() {
   }
 
   const filteredNews = useMemo(() => {
-    if (newsFilter === 'Semua') return GAME_NEWS
+    if (newsFilter === 'Semua') return gameNews
     const map: Record<string, string> = {
       Genshin: 'genshin',
       'Mobile Legends': 'mobile-legends',
@@ -1066,8 +1006,8 @@ function App() {
       'Wuthering Waves': 'wuthering-waves',
     }
     const target = map[newsFilter]
-    return GAME_NEWS.filter((item) => item.game === target)
-  }, [newsFilter])
+    return gameNews.filter((item) => item.game === target)
+  }, [gameNews, newsFilter])
 
   const gameEmoji: Record<string, string> = {
     genshin: '✨',
@@ -1205,19 +1145,25 @@ function App() {
         </div>
       </header>
 
-      <main className={lainnyaOpen ? 'lainnya-mode' : ''}>
+      <main>
         <section className="hero section" id="beranda">
-          <div className="section-bg-text">ANIME</div>
+          <div className="section-bg-text">KYOKO</div>
           <div className="hero-content fade-section">
-            <div className="tagline">Anime · Manga · Novel · Game</div>
+            <div className="tagline">WhatsApp Bot · Official</div>
             <h1>
               KYOKO <span>/</span> MD
             </h1>
-            <p className="subtitle">Streaming · Community · Bot WhatsApp</p>
+            <p className="subtitle">By Ryuuki Kojo · Powered for the Community</p>
             <p className="description">
-              Nonton anime, baca manga & novel, main RPG, dan terhubung dengan komunitas. Semua dalam satu aplikasi.
+              Bot WhatsApp multifungsi dengan fitur lengkap. Gabung komunitas dan rasakan pengalaman chat yang lebih seru!
             </p>
             <div className="hero-actions">
+              <a className="btn btn-primary" href="https://chat.whatsapp.com/BbLtlR1EbviEHDnaUSvGYz" target="_blank" rel="noreferrer">
+                Official Group
+              </a>
+              <a className="btn btn-secondary" href="https://whatsapp.com/channel/0029Vb5avimI1rcisKNii32A" target="_blank" rel="noreferrer">
+                Official Channel
+              </a>
               {!pwaInstalled && deferredPrompt && (
                 <button className="btn btn-install" onClick={handleInstall}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{marginRight:6}}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -1304,7 +1250,7 @@ function App() {
                   </div>
                 </div>
                 <button
-                  onClick={() => { setGcUnread(false); setGcOpen(true) }}
+                  onClick={() => { setFabOpen(false); setGcUnread(false); setGcOpen(true) }}
                   style={{
                     padding: '10px 18px',
                     borderRadius: 999,
@@ -1323,20 +1269,6 @@ function App() {
             )}
           </div>
         </section>
-
-        {/* ── Anime Info Section ── */}
-        <div style={{ padding: '0 4vw 16px' }}>
-          <React.Suspense fallback={<div style={{height:120}}/>}>
-            <AnimeHeroSection />
-          </React.Suspense>
-        </div>
-
-        {/* ── Manga Info Section ── */}
-        <div style={{ padding: '0 4vw 16px' }}>
-          <React.Suspense fallback={<div style={{height:100}}/>}>
-            <MangaInfoSection />
-          </React.Suspense>
-        </div>
 
         {/* ── Tutorial Modal setelah login ── */}
         {showLoginTutorial && (
@@ -1382,68 +1314,89 @@ function App() {
 
         <div className="ticker" aria-hidden="true">
           <div className="ticker-track">
-            <span>ANIME STREAM · MANGA READ · LIGHT NOVEL · RPG BATTLE · GACHA · FISHING · GLOBAL CHAT · TOP ANIME · </span>
-            <span>ANIME STREAM · MANGA READ · LIGHT NOVEL · RPG BATTLE · GACHA · FISHING · GLOBAL CHAT · TOP ANIME · </span>
+            <span>KYOKOMD · COMMUNITY READY · MULTI COMMAND · PLUGIN SYSTEM · ALWAYS ONLINE · </span>
+            <span>KYOKOMD · COMMUNITY READY · MULTI COMMAND · PLUGIN SYSTEM · ALWAYS ONLINE · </span>
           </div>
         </div>
 
+        <div className="film-divider" aria-hidden="true" />
 
+        <section className="section fade-section" id="info-berita">
+          <div className="section-number">02</div>
+          <div className="section-bg-text">LINKS</div>
+          <div className="section-header">
+            <h2>Official Links</h2>
+            <p>Selalu terhubung dengan jalur resmi KyokoMd.</p>
+          </div>
+          <div className="card-grid">
+            <a className="link-card" href="https://chat.whatsapp.com/BbLtlR1EbviEHDnaUSvGYz" target="_blank" rel="noreferrer">
+              <div className="card-title">Official Group WhatsApp</div>
+              <div className="card-desc">Highlight utama untuk bergabung dan berdiskusi.</div>
+            </a>
+            <a className="link-card" href="https://whatsapp.com/channel/0029Vb5avimI1rcisKNii32A" target="_blank" rel="noreferrer">
+              <div className="card-title">Official Channel WhatsApp</div>
+              <div className="card-desc">Update terbaru dan info fitur bot.</div>
+            </a>
+            <a className="link-card" href="https://t.me/kyokomd" target="_blank" rel="noreferrer">
+              <div className="card-title">Telegram Hub</div>
+              <div className="card-desc">Komunitas tambahan untuk diskusi dan support.</div>
+            </a>
+          </div>
+        </section>
 
-        {/* ── Community sections (lainnya-mode only / fullscreen panel) ── */}
-        <div
-          className={`lainnya-sections-wrap ${(lainnyaOpen || sectionWrapVisible) ? 'lainnya-sections-visible' : 'lainnya-sections-hidden'}`}
-          style={lainnyaSection ? {
-            position: 'fixed', inset: 0, zIndex: 9050,
-            background: '#080808', overflowY: 'auto',
-            display: 'flex', flexDirection: 'column',
-          } : {}}
-        >
-        {/* Header panel saat mode fullscreen section */}
-        {lainnyaSection && (() => {
-          const labels: Record<string,{label:string;color:string}> = {
-            'direktori-grup': { label: 'Direktori Grup', color: '#a3e635' },
-            'jual-beli-akun': { label: 'Market Akun', color: '#f472b6' },
-            'apk-mod': { label: 'APK & ScBot', color: '#fb923c' },
-            'kirim-masukan': { label: 'Rating & Ulasan', color: '#facc15' },
-          }
-          const meta = labels[lainnyaSection] ?? { label: 'Komunitas', color: '#c8f500' }
-          return (
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 14,
-              padding: '52px 20px 16px',
-              borderBottom: `1px solid ${meta.color}18`,
-              background: `linear-gradient(180deg, color-mix(in srgb, ${meta.color} 6%, #080808) 0%, #080808 100%)`,
-              flexShrink: 0, position: 'sticky', top: 0, zIndex: 10,
-            }}>
-              <button
-                onClick={() => { setLainnyaSection(null); setLainnyaOpen(true) }}
-                style={{
-                  width: 42, height: 42, borderRadius: 13,
-                  border: `1px solid ${meta.color}30`,
-                  background: `color-mix(in srgb, ${meta.color} 8%, transparent)`,
-                  color: meta.color, display: 'flex', alignItems: 'center',
-                  justifyContent: 'center', cursor: 'pointer', flexShrink: 0,
-                }}
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                  <polyline points="15 18 9 12 15 6"/>
-                </svg>
-              </button>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 2, color: meta.color, textTransform: 'uppercase', marginBottom: 3 }}>KOMUNITAS</div>
-                <div style={{ fontSize: 20, fontWeight: 900, color: '#fff', letterSpacing: -0.3 }}>{meta.label}</div>
-              </div>
-            </div>
-          )
-        })()}
+        <div className="film-divider reverse" aria-hidden="true" />
 
-        <section className="section fade-section" id="direktori-grup" style={lainnyaSection && lainnyaSection !== 'direktori-grup' ? {display:'none'} : {}}>
+        <section className="section fade-section" id="karakter">
+          <div className="section-number">03</div>
+          <div className="section-bg-text">SOCIAL</div>
+          <div className="section-header">
+            <h2>Sosial Media</h2>
+            <p>Ikuti semua kanal konten resmi dan aktivitas komunitas.</p>
+          </div>
+          <div className="card-grid">
+            <a className="link-card" href="https://youtube.com/@ryuukikojo" target="_blank" rel="noreferrer">
+              <div className="card-title">YouTube</div>
+              <div className="card-desc">Video showcase dan tutorial fitur bot.</div>
+            </a>
+            <a className="link-card" href="https://www.instagram.com/yusha_desuwa" target="_blank" rel="noreferrer">
+              <div className="card-title">Instagram</div>
+              <div className="card-desc">Konten visual terbaru dan highlight komunitas.</div>
+            </a>
+            <a className="link-card" href="https://www.facebook.com/share/1BFS6ndTdF/" target="_blank" rel="noreferrer">
+              <div className="card-title">Facebook</div>
+              <div className="card-desc">Berita dan pengumuman resmi.</div>
+            </a>
+          </div>
+        </section>
+
+        <section className="diagonal-band">
+          <div className="band-text">JOIN THE SIGNAL · POWERED FOR THE COMMUNITY · KYOKOMD READY</div>
+        </section>
+
+        <section className="section fade-section" id="latar-belakang">
+          <div className="section-number">04</div>
+          <div className="section-bg-text">FEATURES</div>
+          <div className="section-header">
+            <h2>Fitur Utama</h2>
+            <p>Arsitektur bot modern dengan fokus pada fleksibilitas dan komunitas.</p>
+          </div>
+          <div className="feature-list">
+            <div className="feature-item">Multi-Command untuk berbagai kebutuhan chat.</div>
+            <div className="feature-item">Plugin System modular dan mudah diperluas.</div>
+            <div className="feature-item">Aktif & Diperbarui secara berkala.</div>
+            <div className="feature-item">Komunitas aktif untuk dukungan dan sharing.</div>
+          </div>
+        </section>
+
+        <div className="film-divider" aria-hidden="true" />
+
+        <section className="section fade-section" id="direktori-grup">
           <div className="section-number">05</div>
           <div
             key={groupBgKey}
             className={`section-bg-text section-bg-text-anim section-bg-text-${groupBgDir}`}
           >
-            {GROUP_CATEGORIES[groupBgText].toUpperCase()}
+            {groupCategories[groupBgText].toUpperCase()}
           </div>
           <div className="section-header">
             <h2>Direktori Grup</h2>
@@ -1536,11 +1489,11 @@ function App() {
             </div>
           )}
           <div className="group-indicator">
-            {activeCategory.toUpperCase()} ({activeGroupIndex + 1}/{GROUP_CATEGORIES.length})
+            {activeCategory.toUpperCase()} ({activeGroupIndex + 1}/{groupCategories.length})
           </div>
         </section>
 
-        <section className="section fade-section" id="jual-beli-akun" style={lainnyaSection && lainnyaSection !== 'jual-beli-akun' ? {display:'none'} : {}}>
+        <section className="section fade-section" id="jual-beli-akun">
           <div className="section-number">06</div>
           <div className="section-bg-text">MARKET</div>
           <div className="section-header">
@@ -1672,7 +1625,105 @@ function App() {
           })()}
         </section>
 
-        <section className="section fade-section" id="apk-mod" style={lainnyaSection && lainnyaSection !== 'apk-mod' ? {display:'none'} : {}}>
+        <section className="section fade-section" id="rekomendasi-game">
+          <div className="section-number">07</div>
+          <div className="section-bg-text">GAMES</div>
+          <div className="section-header">
+            <h2>Rekomendasi Game</h2>
+            <p>Pilihan game favorit komunitas. Pilih genre dan langsung menuju Play Store.</p>
+          </div>
+          <div className="genre-tabs">
+            {(['RPG', 'MOBA', 'FPS'] as const).map((genre) => (
+              <button key={genre} className={`genre-btn ${activeGenre === genre ? 'active' : ''}`} onClick={() => setActiveGenre(genre)}>
+                {genre}
+              </button>
+            ))}
+          </div>
+          <div className="card-grid">
+            {gameData[activeGenre].map((game) => (
+              <div className="game-card" key={game.name}>
+                <div className="card-title">{game.name}</div>
+                <a className="btn btn-secondary" href={game.link} target="_blank" rel="noreferrer">
+                  Download
+                </a>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <div className="film-divider" aria-hidden="true" />
+
+        <section className="section fade-section" id="berita-game">
+          <div className="section-number">08</div>
+          <div className="section-bg-text">NEWS</div>
+          <div className="section-header">
+            <h2>BERITA GAME</h2>
+            <p className="section-tag">Update Terbaru</p>
+            <p>Berita dan update terbaru seputar game favoritmu</p>
+          </div>
+          <div className="news-actions">
+            <div className="news-filters">
+              {['Semua', 'Genshin', 'Mobile Legends', 'Free Fire', 'Wuthering Waves'].map((filter) => (
+                <button
+                  key={filter}
+                  className={`news-filter ${newsFilter === filter ? 'active' : ''}`}
+                  onClick={() => setNewsFilter(filter)}
+                >
+                  {filter}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="news-track">
+            {filteredNews.length === 0 && <div className="news-empty">Berita tidak tersedia saat ini. Coba lagi nanti.</div>}
+            {filteredNews.length > 0 && (
+              <div className="news-scroll">
+                {filteredNews.map((item, index) => (
+                  <article key={`${item.title}-${index}`} className="news-card" style={{ animationDelay: `${0.1 * index}s` }}>
+                    <div className="news-thumb">
+                      {typeof item.image === 'string' && item.image.startsWith('http') ? (
+                        <img
+                          src={item.image}
+                          alt={item.title}
+                          onError={(event) => {
+                            const target = event.currentTarget
+                            target.style.display = 'none'
+                            const parent = target.parentElement
+                            if (parent && !parent.querySelector('.news-placeholder')) {
+                              const placeholder = document.createElement('div')
+                              placeholder.className = 'news-placeholder'
+                              const span = document.createElement('span')
+                              span.textContent = gameEmoji[item.game] || gameEmoji.default
+                              placeholder.appendChild(span)
+                              parent.appendChild(placeholder)
+                            }
+                          }}
+                        />
+                      ) : (
+                        <div className="news-placeholder">
+                          <span>{gameEmoji[item.game] || gameEmoji.default}</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="news-source">{item.source}</div>
+                    <div className="news-title">{item.title}</div>
+                    <div className="news-desc">
+                      {(item.description || '').slice(0, 60)}{(item.description || '').length > 60 ? '...' : ''}
+                    </div>
+                    <div className="news-footer">
+                      <span className="news-date">{formatDate(item.date)}</span>
+                      <a className="btn btn-secondary" href={item.url} target="_blank" rel="noreferrer">
+                        Baca
+                      </a>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="section fade-section" id="apk-mod">
           <div className="section-number">09</div>
           <div key={apkBgKey} className={`section-bg-text section-bg-text-anim section-bg-text-${apkBgDir}`}>
             {apkBgLabels[apkTab] || 'APKMOD'}
@@ -1867,7 +1918,7 @@ function App() {
           })()}
         </section>
 
-        <section className="section fade-section" id="kirim-masukan" style={lainnyaSection && lainnyaSection !== 'kirim-masukan' ? {display:'none'} : {}}>
+        <section className="section fade-section" id="kirim-masukan">
           <div className="section-number">10</div>
           <div className="section-bg-text">RATING</div>
           <div className="section-header">
@@ -1879,19 +1930,19 @@ function App() {
           {ratings.length > 0 && (
             <div className="rating-summary">
               <div className="rating-avg">
-                {ratingAverage.toFixed(1)}
+                {(ratings.reduce((s, r) => s + r.star, 0) / ratings.length).toFixed(1)}
               </div>
               <div className="rating-summary-right">
                 <div className="rating-stars-display">
                   {[1,2,3,4,5].map(s => (
-                    <span key={s} className={s <= Math.round(ratingAverage) ? 'star-filled' : 'star-empty'}>★</span>
+                    <span key={s} className={s <= Math.round(ratings.reduce((acc, r) => acc + r.star, 0) / ratings.length) ? 'star-filled' : 'star-empty'}>★</span>
                   ))}
                 </div>
                 <div className="rating-count">{ratings.length} ulasan</div>
                 {/* Bar chart per bintang */}
                 <div className="rating-bars">
                   {[5,4,3,2,1].map(s => {
-                    const count = ratingStarCounts[s] || 0
+                    const count = ratings.filter(r => r.star === s).length
                     const pct = ratings.length ? (count / ratings.length) * 100 : 0
                     return (
                       <div className="rating-bar-row" key={s}>
@@ -1943,7 +1994,7 @@ function App() {
 
           {/* List ulasan — 3 teratas + tombol filter kategori */}
           {(() => {
-            const filtered = filteredRatings
+            const filtered = ratingFilter ? ratings.filter(r => r.star === ratingFilter) : ratings
             const showFilterBtn = ratings.length > 3
             return (
               <>
@@ -1984,7 +2035,7 @@ function App() {
                       <div className="rating-bubble">
                         <button className={`rb-item ${!ratingFilter ? 'rb-active' : ''}`} onClick={() => { setRatingFilter(null); setRatingBubbleOpen(false) }} type="button">Semua ★</button>
                         {[5,4,3,2,1].map(s => (
-                          <button key={s} className={`rb-item ${ratingFilter === s ? 'rb-active' : ''}`} onClick={() => { setRatingFilter(s); setRatingBubbleOpen(false) }} type="button">{s} ★ ({ratingStarCounts[s] || 0})</button>
+                          <button key={s} className={`rb-item ${ratingFilter === s ? 'rb-active' : ''}`} onClick={() => { setRatingFilter(s); setRatingBubbleOpen(false) }} type="button">{s} ★ ({ratings.filter(r => r.star === s).length})</button>
                         ))}
                       </div>
                     )}
@@ -1994,105 +2045,6 @@ function App() {
             )
           })()}
         </section>
-
-        <section className="section fade-section" id="rekomendasi-game" style={lainnyaSection ? {display:'none'} : {}}>
-          <div className="section-number">07</div>
-          <div className="section-bg-text">GAMES</div>
-          <div className="section-header">
-            <h2>Rekomendasi Game</h2>
-            <p>Pilihan game favorit komunitas. Pilih genre dan langsung menuju Play Store.</p>
-          </div>
-          <div className="genre-tabs">
-            {(['RPG', 'MOBA', 'FPS'] as const).map((genre) => (
-              <button key={genre} className={`genre-btn ${activeGenre === genre ? 'active' : ''}`} onClick={() => setActiveGenre(genre)}>
-                {genre}
-              </button>
-            ))}
-          </div>
-          <div className="card-grid">
-            {GAME_DATA[activeGenre].map((game) => (
-              <div className="game-card" key={game.name}>
-                <div className="card-title">{game.name}</div>
-                <a className="btn btn-secondary" href={game.link} target="_blank" rel="noreferrer">
-                  Download
-                </a>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {!lainnyaSection && <div className="film-divider" aria-hidden="true" />}
-
-        <section className="section fade-section" id="berita-game" style={lainnyaSection ? {display:'none'} : {}}>
-          <div className="section-number">08</div>
-          <div className="section-bg-text">NEWS</div>
-          <div className="section-header">
-            <h2>BERITA GAME</h2>
-            <p className="section-tag">Update Terbaru</p>
-            <p>Berita dan update terbaru seputar game favoritmu</p>
-          </div>
-          <div className="news-actions">
-            <div className="news-filters">
-              {['Semua', 'Genshin', 'Mobile Legends', 'Free Fire', 'Wuthering Waves'].map((filter) => (
-                <button
-                  key={filter}
-                  className={`news-filter ${newsFilter === filter ? 'active' : ''}`}
-                  onClick={() => setNewsFilter(filter)}
-                >
-                  {filter}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="news-track">
-            {filteredNews.length === 0 && <div className="news-empty">Berita tidak tersedia saat ini. Coba lagi nanti.</div>}
-            {filteredNews.length > 0 && (
-              <div className="news-scroll">
-                {filteredNews.map((item, index) => (
-                  <article key={`${item.title}-${index}`} className="news-card" style={{ animationDelay: `${0.1 * index}s` }}>
-                    <div className="news-thumb">
-                      {typeof item.image === 'string' && item.image.startsWith('http') ? (
-                        <img
-                          src={item.image}
-                          alt={item.title}
-                          onError={(event) => {
-                            const target = event.currentTarget
-                            target.style.display = 'none'
-                            const parent = target.parentElement
-                            if (parent && !parent.querySelector('.news-placeholder')) {
-                              const placeholder = document.createElement('div')
-                              placeholder.className = 'news-placeholder'
-                              const span = document.createElement('span')
-                              span.textContent = gameEmoji[item.game] || gameEmoji.default
-                              placeholder.appendChild(span)
-                              parent.appendChild(placeholder)
-                            }
-                          }}
-                        />
-                      ) : (
-                        <div className="news-placeholder">
-                          <span>{gameEmoji[item.game] || gameEmoji.default}</span>
-                        </div>
-                      )}
-                    </div>
-                    <div className="news-source">{item.source}</div>
-                    <div className="news-title">{item.title}</div>
-                    <div className="news-desc">
-                      {(item.description || '').slice(0, 60)}{(item.description || '').length > 60 ? '...' : ''}
-                    </div>
-                    <div className="news-footer">
-                      <span className="news-date">{formatDate(item.date)}</span>
-                      <a className="btn btn-secondary" href={item.url} target="_blank" rel="noreferrer">
-                        Baca
-                      </a>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            )}
-          </div>
-        </section>
-        </div>{/* end lainnya-sections-wrap */}
       </main>
 
       <footer className="footer">
@@ -2139,91 +2091,7 @@ function App() {
 
 
       {/* ── Global Chat Inline ───────────────────────────────────── */}
-      {gcOpen && (
-        <React.Suspense fallback={
-          <div style={{position:'fixed',inset:0,background:'#080810',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center'}}>
-            <div style={{color:'#a3e635',fontSize:14}}>Memuat...</div>
-          </div>
-        }>
-          <GlobalChatPanel onClose={() => { setGcOpen(false); setGcInitialTab('chat') }} onUnread={() => setGcUnread(true)} onMusicChange={setGcMiniPlayer} initialTab={gcInitialTab} />
-        </React.Suspense>
-      )}
-
-      {/* ── AnimeStream Panel (dedicated fullscreen) ──────────────── */}
-      {animeOpen && (
-        <div style={{ position:'fixed', inset:0, zIndex:9000, display:'flex', flexDirection:'column', background:'#080810' }}>
-          <React.Suspense fallback={
-            <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center' }}>
-              <div style={{ color:'#a78bfa', fontSize:14 }}>Memuat AnimeStream...</div>
-            </div>
-          }>
-            <AnimeStreamPanel isAdmin={isAdmin} userId={authUser?.uid || ''} />
-          </React.Suspense>
-          <button
-            onClick={() => setAnimeOpen(false)}
-            style={{
-              position:'absolute', top:12, right:14, zIndex:9999,
-              width:34, height:34, borderRadius:'50%',
-              background:'rgba(10,10,20,0.85)', border:'1px solid rgba(167,139,250,0.3)',
-              color:'rgba(255,255,255,0.7)', fontSize:16, cursor:'pointer',
-              display:'flex', alignItems:'center', justifyContent:'center',
-              backdropFilter:'blur(6px)',
-            }}
-            aria-label="Tutup"
-          >✕</button>
-        </div>
-      )}
-
-      {/* ── MangaStream Panel (dedicated fullscreen) ──────────────── */}
-      {mangaOpen && (
-        <div style={{ position:'fixed', inset:0, zIndex:9000, display:'flex', flexDirection:'column', background:'#09090f' }}>
-          <React.Suspense fallback={
-            <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center' }}>
-              <div style={{ color:'#c8f500', fontSize:14 }}>Memuat MangaStream...</div>
-            </div>
-          }>
-            <MangaStreamPanel isAdmin={isAdmin} userId={authUser?.uid || ''} />
-          </React.Suspense>
-          <button
-            onClick={() => setMangaOpen(false)}
-            style={{
-              position:'absolute', top:12, right:14, zIndex:9999,
-              width:34, height:34, borderRadius:'50%',
-              background:'rgba(10,10,20,0.85)', border:'1px solid rgba(200,245,0,0.25)',
-              color:'rgba(255,255,255,0.7)', fontSize:16, cursor:'pointer',
-              display:'flex', alignItems:'center', justifyContent:'center',
-              backdropFilter:'blur(6px)',
-            }}
-            aria-label="Tutup"
-          >✕</button>
-        </div>
-      )}
-
-      {/* ── KyoNovel Panel (dedicated fullscreen) ─────────────────── */}
-      {novelOpen && (
-        <div style={{ position:'fixed', inset:0, zIndex:9000, display:'flex', flexDirection:'column', background:'#080810' }}>
-          <React.Suspense fallback={
-            <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center' }}>
-              <div style={{ color:'#fb923c', fontSize:14 }}>Memuat KyoNovel...</div>
-            </div>
-          }>
-            <KyoNovelPanel isAdmin={isAdmin} userId={authUser?.uid || ''} />
-          </React.Suspense>
-          <button
-            onClick={() => setNovelOpen(false)}
-            style={{
-              position:'absolute', top:12, right:14, zIndex:9999,
-              width:34, height:34, borderRadius:'50%',
-              background:'rgba(10,10,20,0.85)', border:'1px solid rgba(251,146,60,0.25)',
-              color:'rgba(255,255,255,0.7)', fontSize:16, cursor:'pointer',
-              display:'flex', alignItems:'center', justifyContent:'center',
-              backdropFilter:'blur(6px)',
-            }}
-            aria-label="Tutup"
-          >✕</button>
-        </div>
-      )}
-
+      {gcOpen && <GlobalChatPanel onClose={() => setGcOpen(false)} onUnread={() => setGcUnread(true)} onMusicChange={setGcMiniPlayer} />}
 
       {/* ── GC Mini Music Player floating ────────────────────────── */}
       {gcMiniPlayer && !gcOpen && (
@@ -2264,7 +2132,7 @@ function App() {
 
       {/* ── RPG Toast notifications (max 2) ──────────────────────── */}
       {rpgToasts.length > 0 && (
-        <div style={{ position:'fixed', bottom:'calc(var(--bottom-nav-h, 70px) + 16px)', right:16, zIndex:9998, display:'flex', flexDirection:'column', gap:8, pointerEvents:'none' }}>
+        <div style={{ position:'fixed', bottom:100, right:16, zIndex:9998, display:'flex', flexDirection:'column', gap:8, pointerEvents:'none' }}>
           {rpgToasts.map(t => (
             <div key={t.id} style={{ background:'rgba(8,8,8,0.95)', border:'1px solid rgba(200,245,0,0.3)', borderRadius:12, padding:'8px 14px', fontSize:12, color:'#c8f500', fontWeight:700, boxShadow:'0 4px 20px rgba(0,0,0,0.6)', animation:'rpgToastIn .3s cubic-bezier(.34,1.56,.64,1)' }}>
               {t.msg}
@@ -2273,32 +2141,79 @@ function App() {
         </div>
       )}
 
-      {/* ── BottomNav (replaces old FAB) ────────────────────────── */}
-      <React.Suspense fallback={null}>
-        <BottomNav
-          onOpenGlobalChat={() => { setGcInitialTab('chat'); setGcUnread(false); setGcOpen(true) }}
-          onOpenAI={() => { setAiUnread(false); setChatOpen(true) }}
-          onOpenManga={() => { setMangaOpen(true) }}
-          onOpenNovel={() => { setNovelOpen(true) }}
-          onOpenAnime={() => { setAnimeOpen(true) }}
-          onOpenRpg={() => { setGcInitialTab('rpg'); setGcOpen(true) }}
-          onScrollTo={(id) => {
-            triggerZzz('NAVIGATING', () => {
-              document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-            })
-          }}
-          onLainnyaOpen={() => { setLainnyaOpen(true); setSectionWrapVisible(true) }}
-          onLainnyaClose={() => setLainnyaOpen(false)}
-          onSectionNav={(id) => {
-            // Buka section sebagai fullscreen panel — tidak ke tampilan utama
-            setLainnyaSection(id)
-            setSectionWrapVisible(true)
-            setLainnyaOpen(false)
-          }}
-          gcUnread={gcUnread}
-          aiUnread={aiUnread}
-        />
-      </React.Suspense>
+      {/* ── Unified FAB ──────────────────────────────────────────── */}
+      {fabOpen && <div className="fab-backdrop" onClick={() => setFabOpen(false)} />}
+      <div className="fab-group">
+        {/* Sub: Global Chat */}
+        <div className={`fab-sub ${fabOpen ? 'fab-sub-visible' : ''}`} style={{ '--fab-delay': '0.05s' } as React.CSSProperties}>
+          <span className="fab-sub-label">Global Chat</span>
+          <button
+            className="fab-sub-btn fab-sub-chat"
+            onClick={() => { setFabOpen(false); setGcUnread(false); setGcOpen(true) }}
+            aria-label="Global Chat"
+            style={{ position: 'relative' }}
+          >
+            {gcUnread && <span className="fab-unread-badge">!</span>}
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+          </button>
+        </div>
+        {/* Sub: KyokoAI */}
+        <div className={`fab-sub ${fabOpen ? 'fab-sub-visible' : ''}`} style={{ '--fab-delay': '0.12s' } as React.CSSProperties}>
+          <span className="fab-sub-label">KyokoAI</span>
+          <button
+            className="fab-sub-btn fab-sub-ai"
+            onClick={() => { setFabOpen(false); setAiUnread(false); setChatOpen(true) }}
+            aria-label="KyokoAI"
+            style={{ position: 'relative' }}
+          >
+            {aiUnread && <span className="fab-unread-badge">!</span>}
+            <svg viewBox="0 0 32 32" width="20" height="20" fill="none">
+              <path d="M8 11.5C8 10.12 9.12 9 10.5 9h11C22.88 9 24 10.12 24 11.5v6c0 1.38-1.12 2.5-2.5 2.5H19l-3 3.5-3-3.5h-2.5C9.12 20 8 18.88 8 17.5v-6Z" fill="currentColor" fillOpacity="0.2" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
+              <circle cx="12" cy="14.5" r="1.5" fill="currentColor"/>
+              <circle cx="16" cy="14.5" r="1.5" fill="currentColor"/>
+              <circle cx="20" cy="14.5" r="1.5" fill="currentColor"/>
+            </svg>
+          </button>
+        </div>
+        {/* Main toggle — 3D Phone style icon */}
+        <button
+          className={`fab-main ${fabOpen ? 'fab-main-open' : ''}`}
+          onClick={() => setFabOpen(p => !p)}
+          aria-label="Menu"
+          style={{ position: 'relative' }}
+        >
+          {/* Badge di FAB utama saat ada notif dan panel tertutup */}
+          {!fabOpen && (gcUnread || aiUnread) && (
+            <span className="fab-unread-badge" style={{
+              top: -4, right: -4, width: 18, height: 18, fontSize: 11,
+              background: '#ff3b3b', border: '2px solid #0a0a0a',
+              boxShadow: '0 0 8px rgba(255,59,59,0.6)'
+            }}>!</span>
+          )}
+          <span className="fab-main-icon">
+            {/* 3D Phone icon when closed */}
+            <svg className="fab-icon-chat" width="22" height="22" viewBox="0 0 24 24" fill="none">
+              {/* Phone body with 3D depth */}
+              <rect x="5" y="2" width="14" height="20" rx="3" ry="3" fill="currentColor" fillOpacity="0.15" stroke="currentColor" strokeWidth="1.8"/>
+              <rect x="6.5" y="3.5" width="11" height="14" rx="1" fill="currentColor" fillOpacity="0.25"/>
+              {/* Screen glare */}
+              <rect x="7" y="4" width="4" height="2" rx="0.5" fill="currentColor" fillOpacity="0.4"/>
+              {/* Home button */}
+              <circle cx="12" cy="20" r="1" fill="currentColor" fillOpacity="0.7"/>
+              {/* Notch */}
+              <rect x="10" y="2.5" width="4" height="1" rx="0.5" fill="currentColor" fillOpacity="0.5"/>
+              {/* 3D side accent */}
+              <line x1="19" y1="4" x2="19" y2="20" stroke="currentColor" strokeOpacity="0.2" strokeWidth="1"/>
+            </svg>
+            <svg className="fab-icon-close" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </span>
+          <span className="fab-main-pulse" aria-hidden="true"/>
+        </button>
+      </div>
 
       <div className={`chat-widget ${chatOpen ? 'open' : ''}`}>
         <div className="chat-header">
@@ -2383,7 +2298,7 @@ function App() {
                   value={groupForm.category}
                   onChange={(event) => setGroupForm((prev) => ({ ...prev, category: event.target.value }))}
                 >
-                  {GROUP_CATEGORIES.map((category) => (
+                  {groupCategories.map((category) => (
                     <option key={category}>{category}</option>
                   ))}
                 </select>
@@ -2570,11 +2485,12 @@ function App() {
           <nav className="menu-items">
             {[
               { label: 'Beranda', id: 'beranda' },
-              { label: 'Rekomendasi Game', id: 'rekomendasi-game' },
-              { label: 'Berita Game', id: 'berita-game' },
+              { label: 'Karakter', id: 'karakter' },
+              { label: 'Info & Berita', id: 'info-berita' },
+              { label: 'Latar Belakang', id: 'latar-belakang' },
               { label: 'Direktori Grup', id: 'direktori-grup' },
               { label: 'Jual Beli Akun', id: 'jual-beli-akun' },
-              { label: 'APK & ScBot', id: 'apk-mod' },
+              { label: 'Rekomendasi Game', id: 'rekomendasi-game' },
               { label: 'Rating', id: 'kirim-masukan' },
             ].map((item, index) => (
               <button
