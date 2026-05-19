@@ -23,6 +23,258 @@ function invalidateCache(key: string) {
 import { signInWithRedirect, signInWithPopup, getRedirectResult, signOut, onAuthStateChanged, User } from 'firebase/auth'
 
 // ── Anime Hub Section ─────────────────────────────────────────────────────
+// ── Manga Hub Section ─────────────────────────────────────────────────────
+const MANGA_CATS = [
+  { id: 'popular',  name: 'POPULER',  icon: '🔥', url: 'https://api.jikan.moe/v4/top/manga?filter=bypopularity&limit=12' },
+  { id: 'manga',    name: 'MANGA',    icon: '📖', url: 'https://api.jikan.moe/v4/top/manga?type=manga&limit=12' },
+  { id: 'manhwa',   name: 'MANHWA',   icon: '🇰🇷', url: 'https://api.jikan.moe/v4/top/manga?type=manhwa&limit=12' },
+  { id: 'manhua',   name: 'MANHUA',   icon: '🇨🇳', url: 'https://api.jikan.moe/v4/top/manga?type=manhua&limit=12' },
+  { id: 'novel',    name: 'NOVEL',    icon: '📝', url: 'https://api.jikan.moe/v4/top/manga?type=lightnovel&limit=12' },
+  { id: 'action',   name: 'ACTION',   icon: '⚔️', url: 'https://api.jikan.moe/v4/manga?genres=1&order_by=score&sort=desc&limit=12' },
+  { id: 'romance',  name: 'ROMANCE',  icon: '💘', url: 'https://api.jikan.moe/v4/manga?genres=22&order_by=score&sort=desc&limit=12' },
+  { id: 'fantasy',  name: 'FANTASY',  icon: '🧙', url: 'https://api.jikan.moe/v4/manga?genres=10&order_by=score&sort=desc&limit=12' },
+  { id: 'horror',   name: 'HORROR',   icon: '👁️', url: 'https://api.jikan.moe/v4/manga?genres=14&order_by=score&sort=desc&limit=12' },
+  { id: 'comedy',   name: 'KOMEDI',   icon: '😂', url: 'https://api.jikan.moe/v4/manga?genres=4&order_by=score&sort=desc&limit=12' },
+]
+
+interface MangaItem {
+  mal_id: number
+  title: string
+  title_english?: string
+  images: { jpg: { image_url: string } }
+  score?: number
+  chapters?: number
+  volumes?: number
+  type?: string
+  status?: string
+  url?: string
+  publishing?: boolean
+}
+
+// ── Manga Carousel (3 cards per page, slide left/right transition) ────────────
+function MangaCarousel({ list, loading, activeId }: { list: MangaItem[]; loading: boolean; activeId: string }) {
+  const CARDS_PER_PAGE = 3
+  const [page, setPage] = useState(0)
+  const [slideDir, setSlideDir] = useState<'left' | 'right'>('left')
+  const [animKey, setAnimKey] = useState(0)
+  const autoRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const totalPages = Math.ceil(list.length / CARDS_PER_PAGE)
+
+  const goTo = (next: number, dir: 'left' | 'right' = 'left') => {
+    setSlideDir(dir)
+    setAnimKey(k => k + 1)
+    setPage(next)
+  }
+
+  useEffect(() => { setPage(0); setSlideDir('left'); setAnimKey(k => k + 1) }, [activeId])
+
+  useEffect(() => {
+    if (loading || list.length === 0) return
+    autoRef.current = setInterval(() => {
+      setSlideDir('left')
+      setAnimKey(k => k + 1)
+      setPage(p => (p + 1) % Math.ceil(list.length / CARDS_PER_PAGE))
+    }, 4000)
+    return () => { if (autoRef.current) clearInterval(autoRef.current) }
+  }, [loading, list.length])
+
+  const cards = list.slice(page * CARDS_PER_PAGE, page * CARDS_PER_PAGE + CARDS_PER_PAGE)
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, overflow: 'hidden', position: 'relative' }}>
+      <style>{`
+        @keyframes mgSlideLeft { from { transform: translateX(60px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes mgSlideRight { from { transform: translateX(-60px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+      `}</style>
+
+      {/* Loading overlay */}
+      {loading && (
+        <div style={{
+          position: 'absolute', inset: 0, zIndex: 10,
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8,
+          background: 'rgba(10,10,10,0.92)', borderRadius: 10,
+        }}>
+          <div style={{ width: 28, height: 28, border: '3px solid #1a2200', borderTopColor: '#c8ff00', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+          <span style={{ fontFamily: 'monospace', fontSize: 8, color: '#c8ff00', letterSpacing: 2 }}>FETCHING</span>
+        </div>
+      )}
+
+      {/* Cards */}
+      <div
+        key={animKey}
+        style={{
+          display: 'flex', gap: 7, height: 260,
+          animation: `${slideDir === 'left' ? 'mgSlideLeft' : 'mgSlideRight'} 0.35s cubic-bezier(0.22,1,0.36,1)`,
+        }}
+      >
+        {cards.map((manga, idx) => {
+          const title = manga.title_english || manga.title || 'Unknown'
+          const score = manga.score ? `★ ${manga.score.toFixed(1)}` : '★ –'
+          const info = manga.chapters ? `${manga.chapters} ch` : manga.volumes ? `${manga.volumes} vol` : manga.type || ''
+          const img = manga.images?.jpg?.image_url || ''
+          const isPublishing = manga.publishing || manga.status === 'Publishing'
+          const badgeColor = isPublishing ? '#c8ff00' : manga.status === 'Not yet published' ? '#00c8ff' : '#333'
+          const badgeTxtCol = isPublishing ? '#000' : '#fff'
+          const badgeTxt = isPublishing ? 'LIVE' : manga.status === 'Not yet published' ? 'SOON' : 'END'
+          return (
+            <div
+              key={manga.mal_id + '-' + idx}
+              onClick={() => manga.url && window.open(manga.url, '_blank')}
+              style={{
+                flex: 1, minWidth: 0, position: 'relative', borderRadius: 10,
+                overflow: 'hidden', cursor: 'pointer',
+                background: '#111', border: '1px solid #1e2a00',
+              }}
+            >
+              <img src={img} alt={title} loading="lazy"
+                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', background: '#1a1a1a' }} />
+              <div style={{
+                position: 'absolute', inset: 0,
+                background: 'linear-gradient(to top, rgba(0,0,0,0.93) 45%, transparent 78%)',
+                display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', padding: 8,
+              }}>
+                <div style={{ fontFamily: 'monospace', fontSize: 9, color: '#c8ff00', fontWeight: 700, marginBottom: 2 }}>{score}</div>
+                <div style={{ fontSize: 9, fontWeight: 800, color: '#fff', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{title}</div>
+                <div style={{ fontSize: 7, color: '#777', marginTop: 2 }}>{info}</div>
+              </div>
+              <div style={{
+                position: 'absolute', top: 6, right: 6,
+                background: badgeColor, color: badgeTxtCol,
+                fontFamily: 'monospace', fontSize: 6, letterSpacing: 1,
+                padding: '2px 5px', borderRadius: 3, fontWeight: 700,
+              }}>{badgeTxt}</div>
+            </div>
+          )
+        })}
+        {cards.length < CARDS_PER_PAGE && Array.from({ length: CARDS_PER_PAGE - cards.length }).map((_, i) => (
+          <div key={'empty-' + i} style={{ flex: 1, minWidth: 0 }} />
+        ))}
+      </div>
+
+      {/* Nav controls */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <button
+          onClick={() => goTo((page - 1 + totalPages) % totalPages, 'right')}
+          style={{ background: '#161f00', border: '1px solid #2a3a00', borderRadius: 6, color: '#c8ff00', fontSize: 16, padding: '3px 10px', cursor: 'pointer', fontFamily: 'monospace', lineHeight: 1, flexShrink: 0 }}
+        >‹</button>
+        <div style={{ display: 'flex', gap: 4, flex: 1, justifyContent: 'center' }}>
+          {Array.from({ length: totalPages }).map((_, i) => (
+            <div key={i} onClick={() => goTo(i, i > page ? 'left' : 'right')} style={{
+              width: i === page ? 14 : 5, height: 5, borderRadius: 3,
+              background: i === page ? '#c8ff00' : '#2a3a00',
+              cursor: 'pointer', transition: 'all 0.3s ease',
+            }} />
+          ))}
+        </div>
+        <button
+          onClick={() => goTo((page + 1) % totalPages, 'left')}
+          style={{ background: '#161f00', border: '1px solid #2a3a00', borderRadius: 6, color: '#c8ff00', fontSize: 16, padding: '3px 10px', cursor: 'pointer', fontFamily: 'monospace', lineHeight: 1, flexShrink: 0 }}
+        >›</button>
+      </div>
+    </div>
+  )
+}
+
+function MangaHubSection() {
+  const [activeId, setActiveId] = useState('popular')
+  const [mangaList, setMangaList] = useState<MangaItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const cacheRef = useRef<Record<string, MangaItem[]>>({})
+  const catTrackRef = useRef<HTMLDivElement>(null)
+  const catAnimRef = useRef<Animation | null>(null)
+  const catResumeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const pauseAndScheduleResume = () => {
+    catAnimRef.current?.pause()
+    if (catResumeTimer.current) clearTimeout(catResumeTimer.current)
+    catResumeTimer.current = setTimeout(() => catAnimRef.current?.play(), 3000)
+  }
+
+  // Category scroll loop (horizontal)
+  useEffect(() => {
+    const track = catTrackRef.current
+    if (!track) return
+    const totalW = track.scrollWidth / 2
+    catAnimRef.current?.cancel()
+    catAnimRef.current = track.animate(
+      [{ transform: 'translateX(0)' }, { transform: `translateX(-${totalW}px)` }],
+      { duration: 18000, iterations: Infinity, easing: 'linear' }
+    )
+    track.addEventListener('mouseenter', pauseAndScheduleResume)
+    track.addEventListener('mouseleave', pauseAndScheduleResume)
+    track.addEventListener('touchstart', pauseAndScheduleResume, { passive: true })
+    track.addEventListener('touchend', pauseAndScheduleResume, { passive: true })
+    return () => {
+      track.removeEventListener('mouseenter', pauseAndScheduleResume)
+      track.removeEventListener('mouseleave', pauseAndScheduleResume)
+      track.removeEventListener('touchstart', pauseAndScheduleResume)
+      track.removeEventListener('touchend', pauseAndScheduleResume)
+      catAnimRef.current?.cancel()
+      if (catResumeTimer.current) clearTimeout(catResumeTimer.current)
+    }
+  }, [])
+
+  useEffect(() => {
+    const cat = MANGA_CATS.find(c => c.id === activeId)
+    if (!cat) return
+    if (cacheRef.current[activeId]) { setMangaList(cacheRef.current[activeId]); setLoading(false); return }
+    setLoading(true)
+    fetch(cat.url)
+      .then(r => r.json())
+      .then(json => {
+        const data: MangaItem[] = json.data || []
+        cacheRef.current[activeId] = data
+        setMangaList(data)
+      })
+      .catch(() => setMangaList([]))
+      .finally(() => setLoading(false))
+  }, [activeId])
+
+  const catItems = [...MANGA_CATS, ...MANGA_CATS]
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, position: 'relative' }}>
+      {/* CAROUSEL (top) */}
+      <MangaCarousel list={mangaList} loading={loading} activeId={activeId} />
+
+      {/* CATEGORY BAR (bottom, scroll horizontal) */}
+      <div style={{
+        overflow: 'hidden', position: 'relative',
+        WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%)',
+        maskImage: 'linear-gradient(to right, transparent 0%, black 8%, black 92%, transparent 100%)',
+        height: 64,
+      }}>
+        <div ref={catTrackRef} style={{ display: 'flex', flexDirection: 'row', gap: 7, width: 'max-content' }}>
+          {catItems.map((cat, i) => (
+            <div
+              key={cat.id + i}
+              onClick={() => { setActiveId(cat.id); pauseAndScheduleResume() }}
+              style={{
+                background: activeId === cat.id ? '#161f00' : '#111',
+                border: `1px solid ${activeId === cat.id ? '#c8ff00' : '#1e2a00'}`,
+                borderBottom: `3px solid ${activeId === cat.id ? '#c8ff00' : 'transparent'}`,
+                borderRadius: 7, padding: '7px 12px', cursor: 'pointer',
+                textAlign: 'center', transition: 'all 0.2s',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+                boxShadow: activeId === cat.id ? '0 0 8px rgba(200,255,0,0.15)' : 'none',
+                userSelect: 'none', flexShrink: 0,
+              }}
+            >
+              <div style={{ fontSize: 15 }}>{cat.icon}</div>
+              <div style={{
+                fontFamily: 'monospace', fontSize: 7, letterSpacing: 1,
+                textTransform: 'uppercase',
+                color: activeId === cat.id ? '#c8ff00' : '#aaa',
+                lineHeight: 1.3, whiteSpace: 'nowrap',
+              }}>{cat.name}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const ANIME_CATS = [
   { id: 'airing',       name: 'LIVE NOW',  icon: '🔴', url: 'https://api.jikan.moe/v4/top/anime?filter=airing&limit=12' },
   { id: 'popular',      name: 'POPULER',   icon: '🔥', url: 'https://api.jikan.moe/v4/top/anime?filter=bypopularity&limit=12' },
@@ -1596,25 +1848,12 @@ function App() {
 
         <section className="section fade-section" id="karakter">
           <div className="section-number">03</div>
-          <div className="section-bg-text">SOCIAL</div>
+          <div className="section-bg-text">MANGA</div>
           <div className="section-header">
-            <h2>Sosial Media</h2>
-            <p>Ikuti semua kanal konten resmi dan aktivitas komunitas.</p>
+            <h2>Manga Hub</h2>
+            <p>Temukan manga terbaik · selalu diperbarui real-time.</p>
           </div>
-          <div className="card-grid">
-            <a className="link-card" href="https://youtube.com/@ryuukikojo" target="_blank" rel="noreferrer">
-              <div className="card-title">YouTube</div>
-              <div className="card-desc">Video showcase dan tutorial fitur bot.</div>
-            </a>
-            <a className="link-card" href="https://www.instagram.com/yusha_desuwa" target="_blank" rel="noreferrer">
-              <div className="card-title">Instagram</div>
-              <div className="card-desc">Konten visual terbaru dan highlight komunitas.</div>
-            </a>
-            <a className="link-card" href="https://www.facebook.com/share/1BFS6ndTdF/" target="_blank" rel="noreferrer">
-              <div className="card-title">Facebook</div>
-              <div className="card-desc">Berita dan pengumuman resmi.</div>
-            </a>
-          </div>
+          <MangaHubSection />
         </section>
 
         <section className="diagonal-band">
