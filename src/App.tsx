@@ -1301,14 +1301,14 @@ function App() {
         </section>
 
         {/* ── Anime Info Section ── */}
-        <section className="section fade-section" style={{ paddingTop: 0, paddingBottom: 16 }}>
+        <div style={{ padding: '0 4vw 16px' }}>
           <AnimeHeroSection />
-        </section>
+        </div>
 
         {/* ── Manga Info Section ── */}
-        <section className="section fade-section" style={{ paddingTop: 0, paddingBottom: 16 }}>
+        <div style={{ padding: '0 4vw 16px' }}>
           <MangaInfoSection />
-        </section>
+        </div>
 
         {/* ── Tutorial Modal setelah login ── */}
         {showLoginTutorial && (
@@ -1359,36 +1359,7 @@ function App() {
           </div>
         </div>
 
-        {/* ── Anime Quick Feature Cards (HOME only) ─────────────────── */}
-        {!lainnyaOpen && (
-          <section className="section fade-section" id="anime-features">
-            <div className="section-bg-text">STREAM</div>
-            <div className="section-header">
-              <h2>Fitur Utama</h2>
-              <p>Akses streaming anime, manga, novel, dan game favorit kamu langsung dari sini.</p>
-            </div>
-            <div className="anime-feature-grid">
-              {[
-                { key:'anime', label:'AnimeStream', desc:'Nonton anime sub/dub gratis', color:'#c084fc', emoji:'▶' },
-                { key:'manga', label:'MangaStream', desc:'Baca manga & manhwa', color:'#f472b6', emoji:'📖' },
-                { key:'novel', label:'KyoNovel', desc:'Light novel & web novel', color:'#fb923c', emoji:'📚' },
-                { key:'rpg',   label:'RPG Game',   desc:'Battle, gacha & fishing', color:'#facc15', emoji:'⚔️' },
-                { key:'globalchat', label:'Global Chat', desc:'Chat bareng komunitas', color:'#a3e635', emoji:'💬' },
-                { key:'ai',    label:'KyokoAI',    desc:'Tanya AI assistant', color:'#38bdf8', emoji:'🤖' },
-              ].map(f => (
-                <div key={f.key} className="anime-feat-card" style={{ '--feat-color': f.color } as React.CSSProperties}>
-                  <div className="anime-feat-emoji" style={{ color: f.color }}>{f.emoji}</div>
-                  <div className="anime-feat-label">{f.label}</div>
-                  <div className="anime-feat-desc">{f.desc}</div>
-                  <div className="anime-feat-glow" />
-                </div>
-              ))}
-            </div>
-            <div className="anime-feat-note">
-              Buka via tombol <strong style={{color:'#c8f500'}}>+</strong> di tengah navbar untuk mulai streaming!
-            </div>
-          </section>
-        )}
+
 
         {/* ── Community sections (lainnya-mode only) ─────────────────── */}
         <div className={`lainnya-sections-wrap ${(lainnyaOpen || sectionWrapVisible) ? 'lainnya-sections-visible' : 'lainnya-sections-hidden'}`}>

@@ -230,7 +230,7 @@ main {
 }
 
 .hero {
-  padding: 100px 6vw 40px;
+  padding: 90px 6vw 28px;
   min-height: auto;
   position: relative;
   display: flex;
@@ -286,7 +286,7 @@ main {
 
 .section {
   position: relative;
-  padding: 110px 6vw;
+  padding: 48px 6vw;
   background: var(--black);
   overflow: hidden;
 }
@@ -4538,10 +4538,10 @@ h1, h2, h3, .splash-brand, .modal-title {
 .hero {
   position: relative;
   overflow: hidden;
-  min-height: 92vh;
+  min-height: auto;
   display: flex;
   align-items: center;
-  padding: 100px 24px 80px !important;
+  padding: 90px 24px 32px !important;
 }
 
 .hero::before {
@@ -4640,7 +4640,7 @@ h1, h2, h3, .splash-brand, .modal-title {
 
 /* ── Section common ─────────────────────────────────────────── */
 .section {
-  padding: 60px 20px !important;
+  padding: 32px 20px !important;
   position: relative;
 }
 
