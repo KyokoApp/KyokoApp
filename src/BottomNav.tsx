@@ -490,16 +490,15 @@ function LainnyaFullPage({
   }, [])
 
   const handleNav = (id: string) => {
-    // Close page first, then after animation scroll to target
-    setVisible(false)
-    onNavigate(id) // trigger scroll immediately so App knows the target
-    setTimeout(() => {
-      onClose()
-      // Extra scroll attempt after page has unmounted
-      setTimeout(() => {
-        document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      }, 80)
-    }, 240)
+    // Scroll ke section di dalam lainnya-page-body (tidak tutup halaman)
+    const bodyEl = document.querySelector('.lainnya-page-body')
+    const targetEl = document.getElementById(id)
+    if (bodyEl && targetEl) {
+      const bodyRect = bodyEl.getBoundingClientRect()
+      const targetRect = targetEl.getBoundingClientRect()
+      const scrollTop = bodyEl.scrollTop + (targetRect.top - bodyRect.top) - 16
+      bodyEl.scrollTo({ top: scrollTop, behavior: 'smooth' })
+    }
   }
 
   return (

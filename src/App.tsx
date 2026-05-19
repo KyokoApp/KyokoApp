@@ -1950,7 +1950,6 @@ function App() {
             )
           })()}
         </section>
-        </div>{/* end lainnya-sections-wrap */}
 
         <section className="section fade-section" id="rekomendasi-game">
           <div className="section-number">07</div>
@@ -2049,6 +2048,7 @@ function App() {
             )}
           </div>
         </section>
+        </div>{/* end lainnya-sections-wrap */}
       </main>
 
       <footer className="footer">
