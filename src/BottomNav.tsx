@@ -657,11 +657,9 @@ function KomunitasSectionPage({
 // ─── Komunitas Hub (main menu) ───────────────────────────────────
 function KomunitasHub({
   onClose,
-  onOpenSection,
   onNavigate,
 }: {
   onClose: () => void
-  onOpenSection: (tab: KomunitasTab) => void
   onNavigate: (id: string) => void
 }) {
   const [visible, setVisible] = useState(false)
@@ -744,7 +742,7 @@ function KomunitasHub({
           </div>
         </div>
 
-        {/* Section cards 2x2 */}
+        {/* Section cards 2x2 — langsung navigasi ke section, skip halaman detail */}
         <div style={{
           display: 'grid', gridTemplateColumns: '1fr 1fr',
           gap: 12, marginBottom: 24,
@@ -752,7 +750,7 @@ function KomunitasHub({
           {KOMUNITAS_SECTIONS.map((sec, i) => (
             <button
               key={sec.id}
-              onClick={() => onOpenSection(sec.id)}
+              onClick={() => onNavigate(sec.sectionId)}
               type="button"
               style={{
                 position: 'relative', overflow: 'hidden',
@@ -925,7 +923,6 @@ export default function BottomNav({
       {komunitasOpen && komunitasTab === 'menu' && (
         <KomunitasHub
           onClose={closeKomunitas}
-          onOpenSection={openSection}
           onNavigate={handleNavigate}
         />
       )}
