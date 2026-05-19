@@ -103,14 +103,11 @@ const FAB_ITEMS = [
   },
 ]
 
-// ── Horizontal Swipe FAB ───────────────────────────────────────────────────────
+// ── Physics constants ───────────────────────────────────────────
 const CHIP_W = 64
 const CHIP_GAP = 12
 const CHIP_STEP = CHIP_W + CHIP_GAP
-
-// Build infinite clone array: [clone-tail ... original ... clone-head]
-// We prepend N clones at start and append N clones at end for seamless looping
-const CLONE_COUNT = 2 // clones on each side
+const CLONE_COUNT = 2
 
 function buildInfiniteItems(items: typeof FAB_ITEMS) {
   const head = items.slice(-CLONE_COUNT)
@@ -118,12 +115,9 @@ function buildInfiniteItems(items: typeof FAB_ITEMS) {
   return [...head, ...items, ...tail]
 }
 
+// ── SwipeFAB (unchanged from original but polished) ─────────────
 function SwipeFAB({
-  items,
-  handlers,
-  gcUnread,
-  aiUnread,
-  onClose,
+  items, handlers, gcUnread, aiUnread, onClose,
 }: {
   items: typeof FAB_ITEMS
   handlers: Record<string, () => void>
@@ -132,30 +126,17 @@ function SwipeFAB({
   onClose: () => void
 }) {
   const N = items.length
-  // virtualIdx: index within infinite array, starts at CLONE_COUNT (first real item)
   const [virtualIdx, setVirtualIdx] = useState(CLONE_COUNT)
-  // activeIdx: the real item index (0..N-1)
   const activeIdx = (virtualIdx - CLONE_COUNT + N * 100) % N
-
   const infiniteItems = useRef(buildInfiniteItems(items)).current
-
-  // --- RAF-based physics ---
   const stripRef = useRef<HTMLDivElement>(null)
   const trackRef = useRef<HTMLDivElement>(null)
   const rafRef = useRef<number>(0)
-
-  // Live mutable state — no React state for perf
   const drag = useRef({
-    active: false,
-    startX: 0,
-    currentOffset: 0, // current rendered translateX
-    targetOffset: 0,  // spring target
-    velocity: 0,
-    lastX: 0,
-    lastTime: 0,
+    active: false, startX: 0, currentOffset: 0,
+    targetOffset: 0, velocity: 0, lastX: 0, lastTime: 0,
   })
 
-  // compute base offset for a given virtualIdx
   const getBaseOffset = useCallback((vIdx: number) => {
     const containerW = stripRef.current?.clientWidth ?? 320
     const center = containerW / 2
@@ -163,14 +144,10 @@ function SwipeFAB({
     return center - chipCenter
   }, [])
 
-  // Apply transform directly to DOM — no React re-render
   const applyTransform = useCallback((offset: number) => {
-    if (trackRef.current) {
-      trackRef.current.style.transform = `translateX(${offset}px)`
-    }
+    if (trackRef.current) trackRef.current.style.transform = `translateX(${offset}px)`
   }, [])
 
-  // Update chip visual states (opacity, scale, border) directly on DOM
   const updateChipStyles = useCallback((offset: number) => {
     if (!trackRef.current) return
     const containerW = stripRef.current?.clientWidth ?? 320
@@ -180,13 +157,10 @@ function SwipeFAB({
       const chip = chipEl as HTMLDivElement
       const chipCenter = offset + i * CHIP_STEP + CHIP_W / 2
       const dist = Math.abs(chipCenter - center) / CHIP_STEP
-      // Opacity: smooth falloff by distance
       const opacity = Math.max(0.08, 1 - dist * 0.42)
-      // Scale: center chip slightly larger
       const scale = dist < 0.5 ? 1.1 - dist * 0.2 : Math.max(0.85, 1.0 - (dist - 0.5) * 0.12)
       const dataColor = chip.getAttribute('data-color') ?? '#c8f500'
       if (dist < 0.3) {
-        // Active chip
         chip.style.opacity = '1'
         chip.style.transform = `scale(${scale})`
         chip.style.borderColor = `color-mix(in srgb, ${dataColor} 55%, transparent)`
@@ -206,23 +180,20 @@ function SwipeFAB({
     })
   }, [])
 
-  // Spring animation loop
   const springLoop = useCallback(() => {
     const d = drag.current
     if (!d.active) {
-      // Spring toward target
       const diff = d.targetOffset - d.currentOffset
       const springForce = diff * 0.22
       d.velocity = (d.velocity + springForce) * 0.78
       d.currentOffset += d.velocity
       applyTransform(d.currentOffset)
       updateChipStyles(d.currentOffset)
-
       if (Math.abs(d.velocity) < 0.15 && Math.abs(diff) < 0.15) {
         d.currentOffset = d.targetOffset
         applyTransform(d.currentOffset)
         updateChipStyles(d.currentOffset)
-        return // Stop RAF
+        return
       }
     }
     rafRef.current = requestAnimationFrame(springLoop)
@@ -233,34 +204,26 @@ function SwipeFAB({
     rafRef.current = requestAnimationFrame(springLoop)
   }, [springLoop])
 
-  // Snap to virtualIdx
   const snapToIndex = useCallback((vIdx: number) => {
     const clampedV = Math.max(0, Math.min(vIdx, infiniteItems.length - 1))
     drag.current.targetOffset = getBaseOffset(clampedV)
-    drag.current.velocity = drag.current.velocity * 0.4 // bleed some momentum
+    drag.current.velocity = drag.current.velocity * 0.4
     startSpring()
   }, [getBaseOffset, infiniteItems.length, startSpring])
 
-  // Resolve virtualIdx from current offset and snap + handle loop jump
   const resolveAndSnap = useCallback(() => {
     const containerW = stripRef.current?.clientWidth ?? 320
     const center = containerW / 2
-    // Find which chip center is closest to screen center
-    let bestV = 0
-    let bestDist = Infinity
+    let bestV = 0, bestDist = Infinity
     infiniteItems.forEach((_, i) => {
       const chipCenter = drag.current.currentOffset + i * CHIP_STEP + CHIP_W / 2
       const dist = Math.abs(chipCenter - center)
       if (dist < bestDist) { bestDist = dist; bestV = i }
     })
-
-    // Jump to real zone if we've scrolled into clone zone
     let snappedV = bestV
     const realStart = CLONE_COUNT
     const realEnd = CLONE_COUNT + N - 1
-
     if (bestV < realStart) {
-      // Jumped into pre-clones — teleport to equivalent real position
       snappedV = bestV + N
       drag.current.currentOffset = getBaseOffset(snappedV)
       drag.current.targetOffset = getBaseOffset(snappedV)
@@ -269,20 +232,16 @@ function SwipeFAB({
       drag.current.currentOffset = getBaseOffset(snappedV)
       drag.current.targetOffset = getBaseOffset(snappedV)
     }
-
     const newActiveIdx = (snappedV - CLONE_COUNT + N * 100) % N
     setVirtualIdx(snappedV)
-    // Update card display
     updateActiveCard(newActiveIdx)
     snapToIndex(snappedV)
   }, [N, getBaseOffset, snapToIndex])
 
-  // Update main card via DOM (avoids heavy React re-render during drag)
   const updateActiveCard = useCallback((idx: number) => {
     setVirtualIdx(CLONE_COUNT + idx)
   }, [])
 
-  // Init position on mount
   useEffect(() => {
     const offset = getBaseOffset(CLONE_COUNT)
     drag.current.currentOffset = offset
@@ -291,7 +250,6 @@ function SwipeFAB({
     updateChipStyles(offset)
   }, [getBaseOffset, applyTransform, updateChipStyles])
 
-  // Pointer handlers
   const onPointerDown = useCallback((e: React.PointerEvent) => {
     e.currentTarget.setPointerCapture(e.pointerId)
     drag.current.active = true
@@ -307,10 +265,9 @@ function SwipeFAB({
     const now = performance.now()
     const dx = e.clientX - drag.current.lastX
     const dt = Math.max(1, now - drag.current.lastTime)
-    drag.current.velocity = dx / dt * 16 // px per frame at 60fps
+    drag.current.velocity = dx / dt * 16
     drag.current.lastX = e.clientX
     drag.current.lastTime = now
-
     drag.current.currentOffset += dx
     applyTransform(drag.current.currentOffset)
     updateChipStyles(drag.current.currentOffset)
@@ -322,7 +279,6 @@ function SwipeFAB({
     resolveAndSnap()
   }, [resolveAndSnap])
 
-  // Cleanup RAF on unmount
   useEffect(() => () => cancelAnimationFrame(rafRef.current), [])
 
   const active = items[activeIdx]
@@ -340,8 +296,6 @@ function SwipeFAB({
             </svg>
           </button>
         </div>
-
-        {/* Main active card */}
         <div
           className="sfab-card-main"
           style={{ '--card-color': active.color, '--card-grad': active.gradient } as React.CSSProperties}
@@ -363,8 +317,6 @@ function SwipeFAB({
             </svg>
           </div>
         </div>
-
-        {/* Swipe strip — infinite looping */}
         <div className="sfab-strip-label">← geser untuk pilih lainnya →</div>
         <div
           ref={stripRef}
@@ -390,17 +342,13 @@ function SwipeFAB({
                   startSpring()
                 }}
               >
-                <span className="sfab-chip-icon">
-                  {item.icon}
-                </span>
+                <span className="sfab-chip-icon">{item.icon}</span>
                 {item.key === 'globalchat' && gcUnread && <span className="sfab-chip-unread" />}
                 {item.key === 'ai' && aiUnread && <span className="sfab-chip-unread" />}
               </div>
             ))}
           </div>
         </div>
-
-        {/* Dots indicator — real items only */}
         <div className="sfab-dots">
           {items.map((_, i) => (
             <div
@@ -421,70 +369,300 @@ function SwipeFAB({
   )
 }
 
-// ── Lainnya Full Page ─────────────────────────────────────────────────────────
-const LAINNYA_SECTIONS = [
+// ─── Community Section types ────────────────────────────────────
+type KomunitasTab = 'menu' | 'direktori' | 'market' | 'apk' | 'rating'
+
+const KOMUNITAS_SECTIONS = [
   {
-    id: 'direktori-grup',
+    id: 'direktori' as KomunitasTab,
+    sectionId: 'direktori-grup',
     label: 'Direktori Grup',
-    desc: 'Temukan & daftarkan grup komunitas',
+    desc: 'Temukan & daftarkan grup komunitas WhatsApp',
     color: '#a3e635',
+    num: '01',
     icon: (
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
         <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
         <circle cx="9" cy="7" r="4"/>
         <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
         <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
       </svg>
     ),
+    tags: ['WhatsApp', 'Anime', 'Game', 'Bot', 'Cari Teman'],
   },
   {
-    id: 'jual-beli-akun',
-    label: 'Market Jual Beli',
-    desc: 'Marketplace akun game komunitas',
+    id: 'market' as KomunitasTab,
+    sectionId: 'jual-beli-akun',
+    label: 'Market Akun',
+    desc: 'Marketplace jual beli akun game komunitas',
     color: '#f472b6',
+    num: '02',
     icon: (
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
         <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
         <line x1="3" y1="6" x2="21" y2="6"/>
         <path d="M16 10a4 4 0 0 1-8 0"/>
       </svg>
     ),
+    tags: ['Free Fire', 'ML', 'Genshin', 'Valorant', 'Honkai'],
   },
   {
-    id: 'apk-mod',
+    id: 'apk' as KomunitasTab,
+    sectionId: 'apk-mod',
     label: 'APK & ScBot',
-    desc: 'APK Mod, ScBot Free & Premium',
+    desc: 'APK Mod, ScBot Free & Premium pilihan',
     color: '#fb923c',
+    num: '03',
     icon: (
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
         <rect x="5" y="2" width="14" height="20" rx="2"/>
         <line x1="12" y1="18" x2="12" y2="18" strokeWidth="3"/>
         <line x1="9" y1="7" x2="15" y2="7"/>
         <line x1="9" y1="11" x2="15" y2="11"/>
       </svg>
     ),
+    tags: ['Game', 'Sosmed', 'AI', 'Bot', 'Tools'],
   },
   {
-    id: 'kirim-masukan',
+    id: 'rating' as KomunitasTab,
+    sectionId: 'kirim-masukan',
     label: 'Rating & Ulasan',
-    desc: 'Berikan rating untuk KyokoMd',
+    desc: 'Berikan bintang dan ulasan untuk KyokoMd',
     color: '#facc15',
+    num: '04',
     icon: (
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
         <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
       </svg>
     ),
+    tags: ['Review', 'Feedback', 'Saran', 'Kritik'],
   },
 ]
 
-function LainnyaFullPage({
+// ─── Community Section Detail Page ──────────────────────────────
+function KomunitasSectionPage({
+  section,
+  onBack,
   onNavigate,
-  onClose,
-  onKeepOpenAndScroll,
 }: {
+  section: typeof KOMUNITAS_SECTIONS[0]
+  onBack: () => void
   onNavigate: (id: string) => void
+}) {
+  const [visible, setVisible] = useState(false)
+  useEffect(() => {
+    const t = setTimeout(() => setVisible(true), 40)
+    return () => clearTimeout(t)
+  }, [])
+
+  const featureMap: Record<KomunitasTab, { title: string; desc: string; cta: string; steps: string[]; tips: string[] }> = {
+    menu: { title: '', desc: '', cta: '', steps: [], tips: [] },
+    direktori: {
+      title: 'Direktori Grup WhatsApp',
+      desc: 'Temukan grup komunitas sesuai minatmu. Dari anime, game, teknologi sampai cari teman — semua ada di sini!',
+      cta: 'Buka Direktori Grup',
+      steps: ['Pilih kategori grup yang kamu cari', 'Klik link grup untuk bergabung langsung', 'Daftarkan grup milikmu gratis', 'Grup aktif selama 30 hari'],
+      tips: ['Gunakan fitur pencarian untuk cari grup spesifik', 'Perbarui grup sebelum 30 hari untuk tetap tampil', 'Pastikan link WhatsApp masih aktif'],
+    },
+    market: {
+      title: 'Marketplace Akun Game',
+      desc: 'Jual atau beli akun game favoritmu. Ada Free Fire, Mobile Legends, Genshin Impact, dan banyak lagi!',
+      cta: 'Buka Marketplace',
+      steps: ['Browse listing akun berdasarkan game', 'Gunakan MM (Middleman) untuk keamanan', 'Upload listingmu gratis untuk dijual', 'Listing diverifikasi admin sebelum tampil'],
+      tips: ['Selalu gunakan Middleman untuk transaksi aman', 'Foto akun harus jelas dan tidak blur', 'Harga wajar membantu cepat terjual'],
+    },
+    apk: {
+      title: 'APK Mod & Script Bot',
+      desc: 'Koleksi APK mod terseleksi dan ScBot WhatsApp free & premium dari tim KyokoMd.',
+      cta: 'Lihat Koleksi APK',
+      steps: ['Pilih tab APK MOD, ScBot Free, atau Premium', 'Filter berdasarkan kategori atau cari langsung', 'Klik DOWNLOAD untuk APK gratis', 'Hubungi via WA untuk ScBot Premium'],
+      tips: ['Pastikan izin "Unknown Sources" diaktifkan', 'ScBot Premium didukung tim resmi KyokoMd', 'Update koleksi dilakukan secara berkala'],
+    },
+    rating: {
+      title: 'Rating & Ulasan',
+      desc: 'Bagikan pengalamanmu menggunakan KyokoMd! Ulasanmu membantu kami terus berkembang.',
+      cta: 'Tulis Ulasan',
+      steps: ['Pilih jumlah bintang (1-5)', 'Tulis nama dan ulasanmu', 'Klik Kirim Ulasan', 'Lihat ulasan dari pengguna lain'],
+      tips: ['Ulasan jujur sangat kami hargai', 'Filter ulasan berdasarkan bintang', 'Semua ulasan real dari pengguna komunitas'],
+    },
+  }
+
+  const info = featureMap[section.id]
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 9150,
+      background: '#080808',
+      display: 'flex', flexDirection: 'column',
+      transform: visible ? 'translateX(0)' : 'translateX(100%)',
+      transition: 'transform 0.3s cubic-bezier(.4,0,.2,1)',
+      overflow: 'hidden',
+    }}>
+      {/* Accent line top */}
+      <div style={{
+        position: 'absolute', top: 0, left: 0, right: 0, height: 3,
+        background: `linear-gradient(90deg, transparent, ${section.color}, transparent)`,
+      }} />
+
+      {/* Header */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 14,
+        padding: '54px 20px 18px',
+        background: `linear-gradient(180deg, color-mix(in srgb, ${section.color} 8%, #080808) 0%, #080808 100%)`,
+        borderBottom: `1px solid ${section.color}18`,
+        flexShrink: 0,
+      }}>
+        <button
+          onClick={onBack}
+          style={{
+            width: 42, height: 42, borderRadius: 13,
+            border: `1px solid ${section.color}30`,
+            background: `color-mix(in srgb, ${section.color} 8%, transparent)`,
+            color: section.color, display: 'flex', alignItems: 'center',
+            justifyContent: 'center', cursor: 'pointer', flexShrink: 0,
+          }}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <polyline points="15 18 9 12 15 6"/>
+          </svg>
+        </button>
+        <div style={{ flex: 1 }}>
+          <div style={{
+            fontSize: 10, fontWeight: 800, letterSpacing: 2,
+            color: section.color, textTransform: 'uppercase', marginBottom: 3,
+          }}>KOMUNITAS · {section.num}</div>
+          <div style={{ fontSize: 18, fontWeight: 900, color: '#fff', letterSpacing: -0.3 }}>
+            {section.label}
+          </div>
+        </div>
+        <div style={{
+          width: 48, height: 48, borderRadius: 14,
+          background: `color-mix(in srgb, ${section.color} 12%, transparent)`,
+          border: `1px solid ${section.color}25`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: section.color, flexShrink: 0,
+        }}>
+          {section.icon}
+        </div>
+      </div>
+
+      {/* Content */}
+      <div style={{
+        flex: 1, overflowY: 'auto',
+        padding: '24px 20px',
+        paddingBottom: 'calc(var(--bottom-nav-h, 70px) + 32px)',
+      }}>
+        {/* Hero desc */}
+        <div style={{
+          padding: '20px', borderRadius: 18, marginBottom: 22,
+          background: `linear-gradient(135deg, color-mix(in srgb, ${section.color} 8%, transparent), transparent)`,
+          border: `1px solid ${section.color}20`,
+        }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#fff', marginBottom: 8, lineHeight: 1.4 }}>
+            {info.title}
+          </div>
+          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', lineHeight: 1.65 }}>
+            {info.desc}
+          </div>
+        </div>
+
+        {/* Tags */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginBottom: 24 }}>
+          {section.tags.map(t => (
+            <span key={t} style={{
+              fontSize: 11, fontWeight: 700, padding: '5px 12px',
+              borderRadius: 99, color: section.color,
+              background: `color-mix(in srgb, ${section.color} 10%, transparent)`,
+              border: `1px solid ${section.color}25`,
+            }}>{t}</span>
+          ))}
+        </div>
+
+        {/* How it works */}
+        <div style={{ marginBottom: 22 }}>
+          <div style={{
+            fontSize: 10, fontWeight: 800, letterSpacing: 2, color: 'rgba(255,255,255,0.3)',
+            textTransform: 'uppercase', marginBottom: 12,
+          }}>CARA PAKAI</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {info.steps.map((step, i) => (
+              <div key={i} style={{
+                display: 'flex', alignItems: 'flex-start', gap: 12,
+                padding: '12px 14px', borderRadius: 14,
+                background: 'rgba(255,255,255,0.03)',
+                border: '1px solid rgba(255,255,255,0.06)',
+                animation: `bn-fade-up 0.35s ease ${i * 0.07}s both`,
+              }}>
+                <div style={{
+                  width: 26, height: 26, borderRadius: 8, flexShrink: 0,
+                  background: `color-mix(in srgb, ${section.color} 15%, transparent)`,
+                  border: `1px solid ${section.color}30`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 11, fontWeight: 800, color: section.color,
+                  fontFamily: "'Bebas Neue', sans-serif",
+                }}>{i + 1}</div>
+                <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)', lineHeight: 1.5 }}>
+                  {step}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Tips */}
+        <div style={{ marginBottom: 28 }}>
+          <div style={{
+            fontSize: 10, fontWeight: 800, letterSpacing: 2, color: 'rgba(255,255,255,0.3)',
+            textTransform: 'uppercase', marginBottom: 12,
+          }}>TIPS & INFO</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {info.tips.map((tip, i) => (
+              <div key={i} style={{
+                display: 'flex', alignItems: 'flex-start', gap: 10,
+                fontSize: 12, color: 'rgba(255,255,255,0.45)', lineHeight: 1.5,
+              }}>
+                <span style={{ color: section.color, flexShrink: 0, fontSize: 14, lineHeight: 1.5 }}>◆</span>
+                {tip}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* CTA */}
+        <button
+          onClick={() => onNavigate(section.sectionId)}
+          style={{
+            width: '100%', padding: '16px',
+            borderRadius: 16, border: 'none', cursor: 'pointer',
+            background: `linear-gradient(135deg, ${section.color}, color-mix(in srgb, ${section.color} 70%, #000))`,
+            color: section.color === '#facc15' || section.color === '#a3e635' ? '#000' : '#000',
+            fontWeight: 900, fontSize: 15, letterSpacing: 0.8,
+            boxShadow: `0 8px 32px ${section.color}35`,
+            transition: 'transform 0.15s, box-shadow 0.15s',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          }}
+          onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.97)' }}
+          onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)' }}
+        >
+          {info.cta}
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Komunitas Hub (main menu) ───────────────────────────────────
+function KomunitasHub({
+  onClose,
+  onOpenSection,
+  onNavigate,
+}: {
   onClose: () => void
-  onKeepOpenAndScroll: (id: string) => void
+  onOpenSection: (tab: KomunitasTab) => void
+  onNavigate: (id: string) => void
 }) {
   const [visible, setVisible] = useState(false)
   useEffect(() => {
@@ -492,77 +670,175 @@ function LainnyaFullPage({
     return () => clearTimeout(t)
   }, [])
 
-  const handleNav = (id: string) => {
-    // Slide out lainnya page, section tetap visible (lainnyaOpen stays true)
-    setVisible(false)
-    setTimeout(() => {
-      onKeepOpenAndScroll(id)
-    }, 250)
-  }
-
   return (
-    <div className={`lainnya-page ${visible ? 'lainnya-page-in' : ''}`}>
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 9100,
+      background: '#080808',
+      display: 'flex', flexDirection: 'column',
+      transform: visible ? 'translateX(0)' : 'translateX(100%)',
+      transition: 'transform 0.28s cubic-bezier(.4,0,.2,1)',
+      overflow: 'hidden',
+    }}>
+      {/* header accent */}
+      <div style={{
+        position: 'absolute', top: 0, left: 0, right: 0, height: 2,
+        background: 'linear-gradient(90deg, transparent, #c8f500 40%, #a3e635 60%, transparent)',
+      }} />
+
       {/* Header */}
-      <div className="lainnya-page-header">
-        <button className="lainnya-page-back" onClick={onClose} type="button">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 14,
+        padding: '52px 20px 18px',
+        borderBottom: '1px solid rgba(255,255,255,0.06)',
+        background: '#080808', flexShrink: 0,
+      }}>
+        <button
+          onClick={onClose}
+          style={{
+            width: 42, height: 42, borderRadius: 13,
+            border: '1px solid rgba(255,255,255,0.1)',
+            background: 'rgba(255,255,255,0.05)', color: '#fff',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', flexShrink: 0,
+          }}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
             <polyline points="15 18 9 12 15 6"/>
           </svg>
         </button>
-        <div className="lainnya-page-title-wrap">
-          <div className="lainnya-page-title">KOMUNITAS</div>
-          <div className="lainnya-page-sub">KyokoMd · Hub Komunitas</div>
+        <div style={{ flex: 1 }}>
+          <div style={{
+            fontSize: 10, fontWeight: 800, letterSpacing: 2,
+            color: '#c8f500', textTransform: 'uppercase', marginBottom: 3,
+          }}>◆ HUB KOMUNITAS</div>
+          <div style={{ fontSize: 20, fontWeight: 900, color: '#fff', letterSpacing: -0.3 }}>
+            KOMUNITAS
+          </div>
         </div>
-        <div className="lainnya-page-badge">4 FITUR</div>
+        <div style={{
+          fontSize: 10, fontWeight: 800, letterSpacing: 1,
+          color: '#c8f500', background: 'rgba(200,245,0,0.1)',
+          border: '1px solid rgba(200,245,0,0.22)',
+          borderRadius: 8, padding: '4px 10px',
+        }}>4 FITUR</div>
       </div>
 
-      <div className="lainnya-page-body">
+      {/* Body */}
+      <div style={{
+        flex: 1, overflowY: 'auto',
+        padding: '0 16px',
+        paddingBottom: 'calc(var(--bottom-nav-h,70px) + 24px)',
+      }}>
         {/* Headline */}
-        <div className="lainnya-page-headline">
-          <div className="lainnya-headline-tag">◆ HUB KOMUNITAS</div>
-          <h2 className="lainnya-headline-title">Semua Fitur<br/>Komunitas</h2>
-          <p className="lainnya-headline-desc">Direktori grup, marketplace akun game, koleksi APK mod, dan ruang ulasan pengguna.</p>
+        <div style={{ padding: '24px 4px 20px' }}>
+          <div style={{
+            fontSize: 11, fontWeight: 800, letterSpacing: 2,
+            color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase',
+            marginBottom: 8,
+          }}>Semua Fitur Komunitas</div>
+          <div style={{
+            fontSize: 13, color: 'rgba(255,255,255,0.38)',
+            lineHeight: 1.6,
+          }}>
+            Direktori grup, marketplace akun game, koleksi APK, dan ruang ulasan. Pilih fitur di bawah.
+          </div>
         </div>
 
-        {/* Section cards 2x2 grid */}
-        <div className="lainnya-cards-grid">
-          {LAINNYA_SECTIONS.map((sec, i) => (
+        {/* Section cards 2x2 */}
+        <div style={{
+          display: 'grid', gridTemplateColumns: '1fr 1fr',
+          gap: 12, marginBottom: 24,
+        }}>
+          {KOMUNITAS_SECTIONS.map((sec, i) => (
             <button
               key={sec.id}
-              className="lainnya-sec-card"
-              style={{ '--sec-color': sec.color, animationDelay: `${i * 0.07}s` } as React.CSSProperties}
-              onClick={() => handleNav(sec.id)}
+              onClick={() => onOpenSection(sec.id)}
               type="button"
+              style={{
+                position: 'relative', overflow: 'hidden',
+                borderRadius: 20,
+                border: `1px solid color-mix(in srgb, ${sec.color} 20%, transparent)`,
+                background: 'rgba(255,255,255,0.03)',
+                padding: '18px 16px',
+                cursor: 'pointer', textAlign: 'left',
+                transition: 'transform 0.18s, background 0.15s',
+                animation: `bn-card-in 0.4s cubic-bezier(.34,1.3,.64,1) ${i * 0.08}s both`,
+              }}
+              onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.96)' }}
+              onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)' }}
             >
-              <div className="lainnya-sec-card-top">
-                <div className="lainnya-sec-icon" style={{ color: sec.color, background: `color-mix(in srgb, ${sec.color} 12%, transparent)` }}>
+              {/* number watermark */}
+              <div style={{
+                position: 'absolute', top: -4, right: 12,
+                fontFamily: "'Bebas Neue', sans-serif",
+                fontSize: 52, fontWeight: 900,
+                color: sec.color, opacity: 0.06,
+                lineHeight: 1, userSelect: 'none',
+              }}>{sec.num}</div>
+
+              <div style={{
+                display: 'flex', alignItems: 'flex-start',
+                justifyContent: 'space-between', marginBottom: 14,
+              }}>
+                <div style={{
+                  width: 50, height: 50, borderRadius: 14,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: sec.color,
+                  background: `color-mix(in srgb, ${sec.color} 12%, transparent)`,
+                  border: `1px solid ${sec.color}20`,
+                }}>
                   {sec.icon}
                 </div>
-                <div className="lainnya-sec-arrow" style={{ color: `color-mix(in srgb, ${sec.color} 50%, transparent)` }}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <div style={{
+                  color: `color-mix(in srgb, ${sec.color} 50%, transparent)`,
+                }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                     <polyline points="9 18 15 12 9 6"/>
                   </svg>
                 </div>
               </div>
-              <div className="lainnya-sec-label" style={{ color: sec.color }}>{sec.label}</div>
-              <div className="lainnya-sec-desc">{sec.desc}</div>
-              <div className="lainnya-sec-glow" style={{ background: `radial-gradient(ellipse at 50% 120%, color-mix(in srgb, ${sec.color} 18%, transparent), transparent 60%)` }} />
+              <div style={{
+                fontSize: 14, fontWeight: 800, marginBottom: 5,
+                lineHeight: 1.2, color: sec.color,
+              }}>{sec.label}</div>
+              <div style={{
+                fontSize: 11, color: 'rgba(255,255,255,0.33)',
+                lineHeight: 1.4,
+              }}>{sec.desc}</div>
+
+              {/* glow */}
+              <div style={{
+                position: 'absolute', inset: 0, pointerEvents: 'none',
+                background: `radial-gradient(ellipse at 50% 120%, color-mix(in srgb, ${sec.color} 14%, transparent), transparent 60%)`,
+              }} />
             </button>
           ))}
         </div>
 
-        {/* Quick pills */}
-        <div className="lainnya-quick-header">AKSES CEPAT</div>
-        <div className="lainnya-quick-row">
-          {LAINNYA_SECTIONS.map((sec) => (
+        {/* Quick access */}
+        <div style={{
+          fontSize: 10, fontWeight: 800, letterSpacing: 2,
+          color: 'rgba(255,255,255,0.2)', textTransform: 'uppercase', marginBottom: 10,
+        }}>AKSES LANGSUNG</div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 24 }}>
+          {KOMUNITAS_SECTIONS.map(sec => (
             <button
               key={`q-${sec.id}`}
-              className="lainnya-quick-pill"
-              style={{ '--sec-color': sec.color } as React.CSSProperties}
-              onClick={() => handleNav(sec.id)}
+              onClick={() => onNavigate(sec.sectionId)}
               type="button"
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '9px 14px', borderRadius: 99,
+                border: `1px solid color-mix(in srgb, ${sec.color} 25%, transparent)`,
+                background: `color-mix(in srgb, ${sec.color} 6%, transparent)`,
+                color: 'rgba(255,255,255,0.65)', fontSize: 12, fontWeight: 700,
+                cursor: 'pointer',
+                transition: 'transform 0.12s',
+              }}
+              onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.94)' }}
+              onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)' }}
             >
-              <span style={{ color: sec.color, display:'flex',alignItems:'center',width:14,height:14,overflow:'hidden',flexShrink:0 }}>
+              <span style={{ color: sec.color, display: 'flex', width: 12, height: 12, overflow: 'hidden', flexShrink: 0 }}>
                 {sec.icon}
               </span>
               <span>{sec.label.split(' ')[0]}</span>
@@ -570,34 +846,54 @@ function LainnyaFullPage({
           ))}
         </div>
 
-        {/* Footer */}
-        <div className="lainnya-footer-note">
+        {/* Footer note */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10,
+          padding: '14px 16px', borderRadius: 14,
+          border: '1px solid rgba(255,255,255,0.06)',
+          background: 'rgba(255,255,255,0.02)', marginBottom: 16,
+          fontSize: 12, color: 'rgba(255,255,255,0.28)', lineHeight: 1.5,
+        }}>
           <span>⚡</span>
-          <span>Daftarkan grup atau akun game kamu. Fitur diperbarui berkala!</span>
+          <span>Fitur komunitas terus diperbarui. Daftarkan grup atau akun game kamu sekarang!</span>
         </div>
       </div>
     </div>
   )
 }
 
-// ── Main BottomNav ────────────────────────────────────────────────────────────
+// ─── Main BottomNav ────────────────────────────────────────────────────────────
 export default function BottomNav({
   onOpenGlobalChat, onOpenAI, onOpenManga, onOpenNovel, onOpenAnime, onOpenRpg,
   onScrollTo, onLainnyaOpen, onLainnyaClose, onSectionNav, gcUnread, aiUnread,
 }: BottomNavProps) {
   const [fabOpen, setFabOpen] = useState(false)
-  const [lainnyaOpen, setLainnyaOpen] = useState(false)
+  const [komunitasOpen, setKomunitasOpen] = useState(false)
+  const [komunitasTab, setKomunitasTab] = useState<KomunitasTab>('menu')
   const [activeTab, setActiveTab] = useState('beranda')
 
-  const openLainnya = () => {
-    setLainnyaOpen(true)
+  const openKomunitas = () => {
+    setKomunitasOpen(true)
+    setKomunitasTab('menu')
     setFabOpen(false)
     onLainnyaOpen?.()
   }
 
-  const closeLainnya = () => {
-    setLainnyaOpen(false)
+  const closeKomunitas = () => {
+    setKomunitasOpen(false)
+    setKomunitasTab('menu')
     onLainnyaClose?.()
+  }
+
+  const openSection = (tab: KomunitasTab) => {
+    setKomunitasTab(tab)
+  }
+
+  const handleNavigate = (sectionId: string) => {
+    // Navigate to actual section
+    setKomunitasOpen(false)
+    setKomunitasTab('menu')
+    onSectionNav?.(sectionId)
   }
 
   const handlers: Record<string, () => void> = {
@@ -611,6 +907,8 @@ export default function BottomNav({
 
   const hasUnread = gcUnread || aiUnread
 
+  const currentSection = KOMUNITAS_SECTIONS.find(s => s.id === komunitasTab)
+
   return (
     <>
       {fabOpen && (
@@ -623,21 +921,28 @@ export default function BottomNav({
         />
       )}
 
-      {lainnyaOpen && (
-        <LainnyaFullPage
-          onNavigate={(id) => { onScrollTo(id) }}
-          onClose={closeLainnya}
-          onKeepOpenAndScroll={(id) => {
-            // Gunakan callback dari App yang handle sectionWrapVisible
-            onSectionNav?.(id)
-          }}
+      {/* Komunitas Hub */}
+      {komunitasOpen && komunitasTab === 'menu' && (
+        <KomunitasHub
+          onClose={closeKomunitas}
+          onOpenSection={openSection}
+          onNavigate={handleNavigate}
+        />
+      )}
+
+      {/* Individual section pages */}
+      {komunitasOpen && komunitasTab !== 'menu' && currentSection && (
+        <KomunitasSectionPage
+          section={currentSection}
+          onBack={() => setKomunitasTab('menu')}
+          onNavigate={handleNavigate}
         />
       )}
 
       <nav className="bottom-nav">
         <button
-          className={`bn-tab ${activeTab === 'beranda' && !lainnyaOpen ? 'bn-tab-active' : ''}`}
-          onClick={() => { setActiveTab('beranda'); onScrollTo('beranda'); closeLainnya() }}
+          className={`bn-tab ${activeTab === 'beranda' && !komunitasOpen ? 'bn-tab-active' : ''}`}
+          onClick={() => { setActiveTab('beranda'); onScrollTo('beranda'); closeKomunitas() }}
           type="button"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -648,8 +953,8 @@ export default function BottomNav({
         </button>
 
         <button
-          className={`bn-tab ${activeTab === 'rekomendasi-game' && !lainnyaOpen ? 'bn-tab-active' : ''}`}
-          onClick={() => { setActiveTab('rekomendasi-game'); onScrollTo('rekomendasi-game'); closeLainnya() }}
+          className={`bn-tab ${activeTab === 'rekomendasi-game' && !komunitasOpen ? 'bn-tab-active' : ''}`}
+          onClick={() => { setActiveTab('rekomendasi-game'); onScrollTo('rekomendasi-game'); closeKomunitas() }}
           type="button"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -664,7 +969,7 @@ export default function BottomNav({
         <div className="bn-fab-wrap">
           <button
             className={`bn-fab ${fabOpen ? 'bn-fab-open' : ''}`}
-            onClick={() => { setFabOpen(p => !p); if (lainnyaOpen) closeLainnya() }}
+            onClick={() => { setFabOpen(p => !p); if (komunitasOpen) closeKomunitas() }}
             type="button"
             aria-label="Menu"
           >
@@ -680,8 +985,8 @@ export default function BottomNav({
         </div>
 
         <button
-          className={`bn-tab ${activeTab === 'berita-game' && !lainnyaOpen ? 'bn-tab-active' : ''}`}
-          onClick={() => { setActiveTab('berita-game'); onScrollTo('berita-game'); closeLainnya() }}
+          className={`bn-tab ${activeTab === 'berita-game' && !komunitasOpen ? 'bn-tab-active' : ''}`}
+          onClick={() => { setActiveTab('berita-game'); onScrollTo('berita-game'); closeKomunitas() }}
           type="button"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -694,8 +999,8 @@ export default function BottomNav({
         </button>
 
         <button
-          className={`bn-tab ${lainnyaOpen ? 'bn-tab-active' : ''}`}
-          onClick={() => { lainnyaOpen ? closeLainnya() : openLainnya() }}
+          className={`bn-tab ${komunitasOpen ? 'bn-tab-active' : ''}`}
+          onClick={() => { komunitasOpen ? closeKomunitas() : openKomunitas() }}
           type="button"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -709,31 +1014,32 @@ export default function BottomNav({
       </nav>
 
       <style>{`
+        @keyframes bn-fade-up {
+          from { opacity:0; transform: translateY(10px); }
+          to { opacity:1; transform: translateY(0); }
+        }
+        @keyframes bn-card-in {
+          from { opacity:0; transform: translateY(16px) scale(0.95) }
+          to   { opacity:1; transform: translateY(0) scale(1) }
+        }
+
         /* ── Swipe FAB ─────────────────────────────────────────── */
         .sfab-outer {
-          position: fixed;
-          inset: 0;
-          z-index: 9000;
-          display: flex;
-          align-items: flex-end;
-          justify-content: center;
+          position: fixed; inset: 0; z-index: 9000;
+          display: flex; align-items: flex-end; justify-content: center;
           pointer-events: none;
         }
         .sfab-backdrop {
-          position: absolute;
-          inset: 0;
-          background: rgba(0,0,0,0.72);
+          position: absolute; inset: 0;
+          background: rgba(0,0,0,0.75);
           backdrop-filter: blur(8px);
           pointer-events: auto;
           animation: sfabBdIn .2s ease;
         }
         @keyframes sfabBdIn { from { opacity:0 } to { opacity:1 } }
-
         .sfab-panel {
-          position: relative;
-          z-index: 1;
-          width: 100%;
-          max-width: 480px;
+          position: relative; z-index: 1;
+          width: 100%; max-width: 480px;
           background: #0d0d0b;
           border-top: 1px solid rgba(200,245,0,0.14);
           border-left: 1px solid rgba(255,255,255,0.04);
@@ -741,123 +1047,86 @@ export default function BottomNav({
           border-radius: 28px 28px 0 0;
           padding-bottom: calc(var(--bottom-nav-h, 70px) + 4px);
           pointer-events: auto;
-          animation: sfabPanelIn .3s cubic-bezier(.34,1.3,.64,1);
+          animation: sfabPanelIn .32s cubic-bezier(.34,1.3,.64,1);
         }
         @keyframes sfabPanelIn {
           from { transform: translateY(110%); opacity:0 }
           to   { transform: translateY(0);   opacity:1 }
         }
         .sfab-handle {
-          width: 36px; height: 4px;
-          border-radius: 2px;
-          background: rgba(255,255,255,0.12);
-          margin: 10px auto 0;
+          width: 36px; height: 4px; border-radius: 2px;
+          background: rgba(255,255,255,0.12); margin: 10px auto 0;
         }
         .sfab-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
+          display: flex; align-items: center; justify-content: space-between;
           padding: 12px 20px 10px;
         }
         .sfab-title {
-          font-size: 10px;
-          font-weight: 800;
-          letter-spacing: 0.12em;
-          color: rgba(255,255,255,0.3);
-          text-transform: uppercase;
+          font-size: 10px; font-weight: 800; letter-spacing: 0.12em;
+          color: rgba(255,255,255,0.3); text-transform: uppercase;
         }
         .sfab-close {
-          width: 28px; height: 28px;
-          border-radius: 50%;
+          width: 28px; height: 28px; border-radius: 50%;
           border: 1px solid rgba(255,255,255,0.1);
-          background: rgba(255,255,255,0.05);
-          color: rgba(255,255,255,0.45);
-          display: flex; align-items: center; justify-content: center;
-          cursor: pointer;
+          background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.45);
+          display: flex; align-items: center; justify-content: center; cursor: pointer;
         }
-
         .sfab-card-main {
-          margin: 0 16px 16px;
-          padding: 18px 20px;
-          border-radius: 20px;
+          margin: 0 16px 16px; padding: 18px 20px; border-radius: 20px;
           background: rgba(255,255,255,0.04);
           border: 1px solid color-mix(in srgb, var(--card-color,#c8f500) 22%, transparent);
-          display: flex;
-          align-items: center;
-          gap: 16px;
-          cursor: pointer;
-          position: relative;
-          overflow: hidden;
+          display: flex; align-items: center; gap: 16px;
+          cursor: pointer; position: relative; overflow: hidden;
           transition: transform .15s;
         }
         .sfab-card-main:active { transform: scale(0.98); }
         .sfab-card-bg {
           position: absolute; inset: 0;
           background: var(--card-grad, linear-gradient(135deg,#c8f500,#a3e635));
-          opacity: 0.05;
-          pointer-events: none;
+          opacity: 0.05; pointer-events: none;
         }
         .sfab-card-icon {
-          width: 54px; height: 54px;
-          border-radius: 16px;
+          width: 54px; height: 54px; border-radius: 16px;
           display: flex; align-items: center; justify-content: center;
-          flex-shrink: 0;
-          position: relative;
+          flex-shrink: 0; position: relative;
         }
         .sfab-unread {
           position: absolute; top: 3px; right: 3px;
-          width: 10px; height: 10px;
-          border-radius: 50%;
-          background: #ff3b3b;
-          border: 2px solid #0d0d0b;
+          width: 10px; height: 10px; border-radius: 50%;
+          background: #ff3b3b; border: 2px solid #0d0d0b;
         }
         .sfab-card-info { flex: 1; min-width: 0; }
-        .sfab-card-name {
-          font-size: 17px; font-weight: 800; color: #fff; margin-bottom: 3px;
-        }
+        .sfab-card-name { font-size: 17px; font-weight: 800; color: #fff; margin-bottom: 3px; }
         .sfab-card-sub { font-size: 12px; color: rgba(255,255,255,0.38); }
         .sfab-card-arrow { flex-shrink: 0; }
-
         .sfab-strip-label {
           font-size: 10px; font-weight: 700; letter-spacing: 0.06em;
           color: rgba(255,255,255,0.18); text-transform: uppercase;
           text-align: center; margin-bottom: 8px;
         }
         .sfab-strip {
-          overflow: hidden;
-          padding: 4px 0 4px 0;
-          cursor: grab;
-          touch-action: none;
-          user-select: none;
+          overflow: hidden; padding: 4px 0 4px 0;
+          cursor: grab; touch-action: none; user-select: none;
           position: relative;
         }
         .sfab-strip-infinite { cursor: grab; }
         .sfab-strip-infinite:active { cursor: grabbing; }
-        /* center indicator */
         .sfab-strip::after {
-          content: '';
-          position: absolute;
-          top: 4px; bottom: 4px;
+          content: ''; position: absolute; top: 4px; bottom: 4px;
           left: 50%; transform: translateX(-50%);
-          width: 72px;
-          border-radius: 20px;
-          border: 1.5px solid rgba(255,255,255,0.08);
-          pointer-events: none;
+          width: 72px; border-radius: 20px;
+          border: 1.5px solid rgba(255,255,255,0.08); pointer-events: none;
         }
         .sfab-strip-track {
-          display: flex; gap: 12px;
-          width: max-content;
-          will-change: transform;
-          padding: 2px 0;
+          display: flex; gap: 12px; width: max-content;
+          will-change: transform; padding: 2px 0;
         }
         .sfab-chip {
-          width: 64px; height: 64px;
-          border-radius: 18px;
+          width: 64px; height: 64px; border-radius: 18px;
           border: 1.5px solid rgba(255,255,255,0.07);
           background: rgba(255,255,255,0.04);
           display: flex; align-items: center; justify-content: center;
           cursor: pointer; flex-shrink: 0; position: relative;
-          /* No CSS transition — RAF handles smoothness */
         }
         .sfab-chip-icon { display:flex;align-items:center;justify-content:center;pointer-events:none; }
         .sfab-chip-unread {
@@ -865,127 +1134,12 @@ export default function BottomNav({
           width: 7px; height: 7px; border-radius: 50%;
           background: #ff3b3b; border: 1.5px solid #0d0d0b;
         }
-        .sfab-dots {
-          display: flex; justify-content: center; gap: 6px;
-          padding: 10px 0 6px;
-        }
+        .sfab-dots { display: flex; justify-content: center; gap: 6px; padding: 10px 0 6px; }
         .sfab-dot {
           width: 6px; height: 6px; border-radius: 50%;
-          background: rgba(255,255,255,0.14); cursor: pointer;
-          transition: all .22s;
+          background: rgba(255,255,255,0.14); cursor: pointer; transition: all .22s;
         }
         .sfab-dot-active { width: 22px; border-radius: 3px; background: #c8f500; }
-
-        /* ── Lainnya Full Page ─────────────────────────────────── */
-        .lainnya-page {
-          position: fixed; inset: 0; z-index: 9100;
-          background: #080808;
-          display: flex; flex-direction: column;
-          transform: translateX(100%);
-          transition: transform .28s cubic-bezier(.4,0,.2,1);
-          overflow: hidden;
-        }
-        .lainnya-page-in { transform: translateX(0); }
-
-        .lainnya-page-header {
-          display: flex; align-items: center; gap: 14px;
-          padding: 52px 20px 16px;
-          border-bottom: 1px solid rgba(255,255,255,0.06);
-          background: #080808;
-          flex-shrink: 0;
-        }
-        .lainnya-page-back {
-          width: 40px; height: 40px; border-radius: 12px;
-          border: 1px solid rgba(255,255,255,0.1);
-          background: rgba(255,255,255,0.05); color: #fff;
-          display: flex; align-items: center; justify-content: center;
-          cursor: pointer; flex-shrink: 0;
-          transition: background .15s;
-        }
-        .lainnya-page-back:active { background: rgba(255,255,255,0.1); }
-        .lainnya-page-title-wrap { flex: 1; }
-        .lainnya-page-title { font-size: 18px; font-weight: 900; color: #fff; letter-spacing: 0.06em; }
-        .lainnya-page-sub { font-size: 11px; color: rgba(255,255,255,0.32); margin-top: 2px; }
-        .lainnya-page-badge {
-          font-size: 10px; font-weight: 800; letter-spacing: 0.06em;
-          color: #c8f500;
-          background: rgba(200,245,0,0.1);
-          border: 1px solid rgba(200,245,0,0.22);
-          border-radius: 8px; padding: 4px 10px;
-        }
-
-        .lainnya-page-body {
-          flex: 1; overflow-y: auto;
-          padding: 0 16px calc(var(--bottom-nav-h,70px) + 24px);
-          -webkit-overflow-scrolling: touch;
-        }
-
-        .lainnya-page-headline { padding: 28px 4px 24px; }
-        .lainnya-headline-tag {
-          font-size: 10px; font-weight: 800; letter-spacing: 0.12em;
-          color: #c8f500; text-transform: uppercase; margin-bottom: 10px;
-        }
-        .lainnya-headline-title {
-          font-size: 34px; font-weight: 900; color: #fff;
-          line-height: 1.12; margin: 0 0 12px; letter-spacing: -0.02em;
-        }
-        .lainnya-headline-desc {
-          font-size: 13px; color: rgba(255,255,255,0.38); line-height: 1.6; margin: 0;
-        }
-
-        .lainnya-cards-grid {
-          display: grid; grid-template-columns: 1fr 1fr;
-          gap: 12px; margin-bottom: 28px;
-        }
-        .lainnya-sec-card {
-          position: relative; overflow: hidden;
-          border-radius: 20px;
-          border: 1px solid color-mix(in srgb, var(--sec-color,#c8f500) 20%, transparent);
-          background: rgba(255,255,255,0.03);
-          padding: 18px 16px;
-          cursor: pointer; text-align: left;
-          transition: transform .18s, background .15s;
-          animation: secCardIn .4s cubic-bezier(.34,1.3,.64,1) both;
-        }
-        @keyframes secCardIn {
-          from { opacity:0; transform: translateY(16px) scale(0.95) }
-          to   { opacity:1; transform: translateY(0) scale(1) }
-        }
-        .lainnya-sec-card:active { transform: scale(0.97); }
-        .lainnya-sec-card-top {
-          display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 12px;
-        }
-        .lainnya-sec-icon {
-          width: 48px; height: 48px; border-radius: 14px;
-          display: flex; align-items: center; justify-content: center;
-        }
-        .lainnya-sec-label { font-size: 14px; font-weight: 800; margin-bottom: 5px; line-height: 1.2; }
-        .lainnya-sec-desc { font-size: 11px; color: rgba(255,255,255,0.33); line-height: 1.4; }
-        .lainnya-sec-glow { position: absolute; inset: 0; pointer-events: none; }
-
-        .lainnya-quick-header {
-          font-size: 10px; font-weight: 800; letter-spacing: 0.1em;
-          color: rgba(255,255,255,0.22); text-transform: uppercase; margin-bottom: 10px;
-        }
-        .lainnya-quick-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 28px; }
-        .lainnya-quick-pill {
-          display: flex; align-items: center; gap: 6px;
-          padding: 9px 14px; border-radius: 99px;
-          border: 1px solid color-mix(in srgb, var(--sec-color,#c8f500) 25%, transparent);
-          background: color-mix(in srgb, var(--sec-color,#c8f500) 6%, transparent);
-          color: rgba(255,255,255,0.65); font-size: 12px; font-weight: 700;
-          cursor: pointer;
-          transition: background .15s, transform .12s;
-        }
-        .lainnya-quick-pill:active { transform: scale(0.95); }
-
-        .lainnya-footer-note {
-          display: flex; align-items: center; gap: 10px;
-          padding: 14px 16px; border-radius: 14px;
-          border: 1px solid rgba(255,255,255,0.06);
-          background: rgba(255,255,255,0.02); margin-bottom: 16px;
-          font-size: 12px; color: rgba(255,255,255,0.3); line-height: 1.5;
-        }
 
         /* ── Bottom nav ────────────────────────────────────────── */
         .bottom-nav {
@@ -995,8 +1149,7 @@ export default function BottomNav({
           border-top: 1px solid rgba(200,245,0,0.1);
           display: flex; align-items: center; justify-content: space-around;
           padding: 0 4px; z-index: 9200;
-          backdrop-filter: blur(16px);
-          -webkit-backdrop-filter: blur(16px);
+          backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
         }
         .bn-tab {
           flex: 1; display: flex; flex-direction: column;
@@ -1047,12 +1200,6 @@ export default function BottomNav({
         @keyframes badgePulse {
           0%,100% { transform:scale(1); }
           50% { transform:scale(1.25); }
-        }
-        .bn-unread-dot {
-          position: absolute; top: 2px; right: 2px;
-          width: 8px; height: 8px; border-radius: 50%;
-          background: #ff3b3b; border: 1.5px solid #0a0a05;
-          pointer-events: none;
         }
       `}</style>
     </>
