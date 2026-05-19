@@ -5146,6 +5146,14 @@ main.lainnya-mode #kirim-masukan {
   display: none;
 }
 
+/* Wrapper komunitas: tersembunyi di halaman utama, muncul saat lainnya aktif */
+.lainnya-sections-wrap {
+  display: none;
+}
+.lainnya-sections-wrap.lainnya-sections-visible {
+  display: block;
+}
+
 /* ── Anime Feature Grid (HOME page) ─────────────────────────────────────── */
 .anime-feature-grid {
   display: grid;
