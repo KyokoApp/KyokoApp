@@ -1194,15 +1194,15 @@ function App() {
 
       <main className={lainnyaOpen ? 'lainnya-mode' : ''}>
         <section className="hero section" id="beranda">
-          <div className="section-bg-text">KYOKO</div>
+          <div className="section-bg-text">ANIME</div>
           <div className="hero-content fade-section">
-            <div className="tagline">WhatsApp Bot · Official</div>
+            <div className="tagline">Anime · Manga · Novel · Game</div>
             <h1>
               KYOKO <span>/</span> MD
             </h1>
-            <p className="subtitle">By Ryuuki Kojo · Powered for the Community</p>
+            <p className="subtitle">Streaming · Community · Bot WhatsApp</p>
             <p className="description">
-              Bot WhatsApp multifungsi dengan fitur lengkap. Gabung komunitas dan rasakan pengalaman chat yang lebih seru!
+              Nonton anime, baca manga & novel, main RPG, dan terhubung dengan komunitas. Semua dalam satu aplikasi.
             </p>
             <div className="hero-actions">
               <a className="btn btn-primary" href="https://chat.whatsapp.com/BbLtlR1EbviEHDnaUSvGYz" target="_blank" rel="noreferrer">
@@ -1364,12 +1364,46 @@ function App() {
 
         <div className="ticker" aria-hidden="true">
           <div className="ticker-track">
-            <span>KYOKOMD · COMMUNITY READY · MULTI COMMAND · PLUGIN SYSTEM · ALWAYS ONLINE · </span>
-            <span>KYOKOMD · COMMUNITY READY · MULTI COMMAND · PLUGIN SYSTEM · ALWAYS ONLINE · </span>
+            <span>ANIME STREAM · MANGA READ · LIGHT NOVEL · RPG BATTLE · GACHA · FISHING · GLOBAL CHAT · TOP ANIME · </span>
+            <span>ANIME STREAM · MANGA READ · LIGHT NOVEL · RPG BATTLE · GACHA · FISHING · GLOBAL CHAT · TOP ANIME · </span>
           </div>
         </div>
 
         <div className="film-divider" aria-hidden="true" />
+
+        {/* ── Anime Quick Feature Cards (HOME only) ─────────────────── */}
+        {!lainnyaOpen && (
+          <section className="section fade-section" id="anime-features">
+            <div className="section-bg-text">STREAM</div>
+            <div className="section-header">
+              <h2>Fitur Utama</h2>
+              <p>Akses streaming anime, manga, novel, dan game favorit kamu langsung dari sini.</p>
+            </div>
+            <div className="anime-feature-grid">
+              {[
+                { key:'anime', label:'AnimeStream', desc:'Nonton anime sub/dub gratis', color:'#c084fc', emoji:'▶' },
+                { key:'manga', label:'MangaStream', desc:'Baca manga & manhwa', color:'#f472b6', emoji:'📖' },
+                { key:'novel', label:'KyoNovel', desc:'Light novel & web novel', color:'#fb923c', emoji:'📚' },
+                { key:'rpg',   label:'RPG Game',   desc:'Battle, gacha & fishing', color:'#facc15', emoji:'⚔️' },
+                { key:'globalchat', label:'Global Chat', desc:'Chat bareng komunitas', color:'#a3e635', emoji:'💬' },
+                { key:'ai',    label:'KyokoAI',    desc:'Tanya AI assistant', color:'#38bdf8', emoji:'🤖' },
+              ].map(f => (
+                <div key={f.key} className="anime-feat-card" style={{ '--feat-color': f.color } as React.CSSProperties}>
+                  <div className="anime-feat-emoji" style={{ color: f.color }}>{f.emoji}</div>
+                  <div className="anime-feat-label">{f.label}</div>
+                  <div className="anime-feat-desc">{f.desc}</div>
+                  <div className="anime-feat-glow" />
+                </div>
+              ))}
+            </div>
+            <div className="anime-feat-note">
+              Buka via tombol <strong style={{color:'#c8f500'}}>+</strong> di tengah navbar untuk mulai streaming!
+            </div>
+          </section>
+        )}
+
+        {/* ── Community sections (lainnya-mode only) ─────────────────── */}
+        <div className={`lainnya-sections-wrap ${lainnyaOpen ? 'lainnya-sections-visible' : 'lainnya-sections-hidden'}`}>
 
         <section className="section fade-section" id="direktori-grup">
           <div className="section-number">05</div>
@@ -2026,6 +2060,7 @@ function App() {
             )
           })()}
         </section>
+        </div>{/* end lainnya-sections-wrap */}
       </main>
 
       <footer className="footer">
