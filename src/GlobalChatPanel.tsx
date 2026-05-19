@@ -5869,7 +5869,7 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange, init
         /* ── Nav Popup Panel ── */
         .qc-nav-panel {
           position:absolute; top:62px; left:8px;
-          width:210px; max-height:82vh;
+          width:210px; max-height:52vh;
           z-index:50;
           background:linear-gradient(160deg,#0d0d1c 0%,#09090f 100%);
           border:1px solid rgba(200,245,0,0.12);
@@ -5895,7 +5895,7 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange, init
         .qc-channel-scroll {
           flex:1; overflow-y:auto; overflow-x:hidden;
           padding:6px 0 4px; scrollbar-width:none;
-          max-height:calc(85vh - 110px);
+          min-height:0;
         }
         .qc-channel-scroll::-webkit-scrollbar { display:none; }
         .qc-cat-label {
