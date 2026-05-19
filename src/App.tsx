@@ -1,8 +1,9 @@
-// Lazy load GlobalChatPanel - hemat memory saat tidak dibuka
-const GlobalChatPanel = React.lazy(() => import('./GlobalChatPanel'))
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { auth, googleProvider, dbChat, dbCommunity, dbAdmin, dbBonus } from './firebase'
-import { collection, doc, setDoc, deleteDoc, onSnapshot, addDoc, orderBy, query, serverTimestamp, getDoc, getDocs, limit, updateDoc, increment } from 'firebase/firestore'
+import { collection, doc, setDoc, deleteDoc, onSnapshot, orderBy, query, getDoc, getDocs, limit, updateDoc, increment } from 'firebase/firestore'
+
+// Lazy load GlobalChatPanel - hemat memory saat tidak dibuka
+const GlobalChatPanel = React.lazy(() => import('./GlobalChatPanel'))
 
 // ── Cache helper (localStorage dengan TTL) ────────────────────
 const CACHE_TTL = 5 * 60 * 1000 // 5 menit
@@ -172,7 +173,6 @@ function App() {
     }
   }
   const [aiUnread, setAiUnread] = useState(false)
-  const [fabOpen, setFabOpen] = useState(false)
   const [gcInitialTab, setGcInitialTab] = useState<'chat'|'rpg'|'fishing'|'anime'|'manga'|'novel'>('chat')
 
   // Max 2 RPG toast notifications
@@ -297,7 +297,6 @@ function App() {
   const [announcementPosition, setAnnouncementPosition] = useState<'top'|'side'>('top')
   const [announcementActive, setAnnouncementActive] = useState(false)
   const [announcementVisible, setAnnouncementVisible] = useState(false)
-  const annCooldownRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const audioRef = React.useRef<HTMLAudioElement | null>(null)
 
   // ── Unread badge: watch globalChat untuk notif saat panel tertutup ──
@@ -626,8 +625,7 @@ function App() {
       rafId = requestAnimationFrame(animate)
     }
     // Increment count
-    import('firebase/firestore').then(({ increment, updateDoc, getDoc, setDoc }) => {
-      getDoc(visitorDocRef).then(snap => {
+    getDoc(visitorDocRef).then(snap => {
         if (!snap.exists()) {
           setDoc(visitorDocRef, { count: 1280 }).then(() => {
             runAnimation(1280, 0)
@@ -635,6 +633,11 @@ function App() {
         } else {
           const current = snap.data().count || 1280
           updateDoc(visitorDocRef, { count: increment(1) }).catch(() => {})
+          runAnimation(current + 1, Math.max(0, current - 5))
+        }
+      }).catch(() => {
+        runAnimation(1280, 1270)
+      })
           runAnimation(current + 1, Math.max(0, current - 5))
         }
       }).catch(() => {
@@ -719,12 +722,6 @@ function App() {
     })
     window.alert('Grup berhasil diperbarui! Aktif 30 hari lagi.')
   }
-
-  const visibleGroups = useMemo(() => {
-    const items = groups[activeCategory] || []
-    if (expandedCategories[activeCategory]) return items
-    return items.slice(0, 5)
-  }, [activeCategory, expandedCategories, groups])
 
   const handleFeedbackSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -981,9 +978,7 @@ function App() {
   }
 
   const handleJualBeliApprove = (id: string) => {
-    import('firebase/firestore').then(({ updateDoc }) => {
-      updateDoc(doc(dbCommunity, 'jualBeliAkun', id), { status: 'approved' }).catch(console.error)
-    })
+    updateDoc(doc(dbCommunity, 'jualBeliAkun', id), { status: 'approved' }).catch(console.error)
   }
   const handleJualBeliReject = (id: string) => {
     if (!window.confirm('Tolak & hapus listing ini?')) return
@@ -1023,9 +1018,7 @@ function App() {
       setJbSoldErr('Nomor tidak cocok dengan nomor penjual listing ini.')
       return
     }
-    import('firebase/firestore').then(({ updateDoc }) => {
-      updateDoc(doc(dbCommunity, 'jualBeliAkun', jbSoldItem.id), { status: 'sold' }).catch(console.error)
-    })
+    updateDoc(doc(dbCommunity, 'jualBeliAkun', jbSoldItem.id), { status: 'sold' }).catch(console.error)
     setJbSoldModalOpen(false)
     setJbSoldInput('')
     setJbSoldErr('')
@@ -1033,9 +1026,7 @@ function App() {
   }
 
   const handleJbAdminMarkSold = (id: string) => {
-    import('firebase/firestore').then(({ updateDoc }) => {
-      updateDoc(doc(dbCommunity, 'jualBeliAkun', id), { status: 'sold' }).catch(console.error)
-    })
+    updateDoc(doc(dbCommunity, 'jualBeliAkun', id), { status: 'sold' }).catch(console.error)
   }
 
   const formatDate = (dateStr: string) => {
@@ -1297,10 +1288,7 @@ function App() {
                   </div>
                 </div>
                 <button
-                  onClick={() => { 
-              setFabOpen(false)
-              setGcUnread(false); setGcOpen(true) 
-            }}
+                  onClick={() => { setGcUnread(false); setGcOpen(true) }}
                   style={{
                     padding: '10px 18px',
                     borderRadius: 999,
@@ -1640,104 +1628,6 @@ function App() {
           })()}
         </section>
 
-        <section className="section fade-section" id="rekomendasi-game">
-          <div className="section-number">07</div>
-          <div className="section-bg-text">GAMES</div>
-          <div className="section-header">
-            <h2>Rekomendasi Game</h2>
-            <p>Pilihan game favorit komunitas. Pilih genre dan langsung menuju Play Store.</p>
-          </div>
-          <div className="genre-tabs">
-            {(['RPG', 'MOBA', 'FPS'] as const).map((genre) => (
-              <button key={genre} className={`genre-btn ${activeGenre === genre ? 'active' : ''}`} onClick={() => setActiveGenre(genre)}>
-                {genre}
-              </button>
-            ))}
-          </div>
-          <div className="card-grid">
-            {gameData[activeGenre].map((game) => (
-              <div className="game-card" key={game.name}>
-                <div className="card-title">{game.name}</div>
-                <a className="btn btn-secondary" href={game.link} target="_blank" rel="noreferrer">
-                  Download
-                </a>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <div className="film-divider" aria-hidden="true" />
-
-        <section className="section fade-section" id="berita-game">
-          <div className="section-number">08</div>
-          <div className="section-bg-text">NEWS</div>
-          <div className="section-header">
-            <h2>BERITA GAME</h2>
-            <p className="section-tag">Update Terbaru</p>
-            <p>Berita dan update terbaru seputar game favoritmu</p>
-          </div>
-          <div className="news-actions">
-            <div className="news-filters">
-              {['Semua', 'Genshin', 'Mobile Legends', 'Free Fire', 'Wuthering Waves'].map((filter) => (
-                <button
-                  key={filter}
-                  className={`news-filter ${newsFilter === filter ? 'active' : ''}`}
-                  onClick={() => setNewsFilter(filter)}
-                >
-                  {filter}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="news-track">
-            {filteredNews.length === 0 && <div className="news-empty">Berita tidak tersedia saat ini. Coba lagi nanti.</div>}
-            {filteredNews.length > 0 && (
-              <div className="news-scroll">
-                {filteredNews.map((item, index) => (
-                  <article key={`${item.title}-${index}`} className="news-card" style={{ animationDelay: `${0.1 * index}s` }}>
-                    <div className="news-thumb">
-                      {typeof item.image === 'string' && item.image.startsWith('http') ? (
-                        <img
-                          src={item.image}
-                          alt={item.title}
-                          onError={(event) => {
-                            const target = event.currentTarget
-                            target.style.display = 'none'
-                            const parent = target.parentElement
-                            if (parent && !parent.querySelector('.news-placeholder')) {
-                              const placeholder = document.createElement('div')
-                              placeholder.className = 'news-placeholder'
-                              const span = document.createElement('span')
-                              span.textContent = gameEmoji[item.game] || gameEmoji.default
-                              placeholder.appendChild(span)
-                              parent.appendChild(placeholder)
-                            }
-                          }}
-                        />
-                      ) : (
-                        <div className="news-placeholder">
-                          <span>{gameEmoji[item.game] || gameEmoji.default}</span>
-                        </div>
-                      )}
-                    </div>
-                    <div className="news-source">{item.source}</div>
-                    <div className="news-title">{item.title}</div>
-                    <div className="news-desc">
-                      {(item.description || '').slice(0, 60)}{(item.description || '').length > 60 ? '...' : ''}
-                    </div>
-                    <div className="news-footer">
-                      <span className="news-date">{formatDate(item.date)}</span>
-                      <a className="btn btn-secondary" href={item.url} target="_blank" rel="noreferrer">
-                        Baca
-                      </a>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            )}
-          </div>
-        </section>
-
         <section className="section fade-section" id="apk-mod">
           <div className="section-number">09</div>
           <div key={apkBgKey} className={`section-bg-text section-bg-text-anim section-bg-text-${apkBgDir}`}>
@@ -2061,6 +1951,104 @@ function App() {
           })()}
         </section>
         </div>{/* end lainnya-sections-wrap */}
+
+        <section className="section fade-section" id="rekomendasi-game">
+          <div className="section-number">07</div>
+          <div className="section-bg-text">GAMES</div>
+          <div className="section-header">
+            <h2>Rekomendasi Game</h2>
+            <p>Pilihan game favorit komunitas. Pilih genre dan langsung menuju Play Store.</p>
+          </div>
+          <div className="genre-tabs">
+            {(['RPG', 'MOBA', 'FPS'] as const).map((genre) => (
+              <button key={genre} className={`genre-btn ${activeGenre === genre ? 'active' : ''}`} onClick={() => setActiveGenre(genre)}>
+                {genre}
+              </button>
+            ))}
+          </div>
+          <div className="card-grid">
+            {gameData[activeGenre].map((game) => (
+              <div className="game-card" key={game.name}>
+                <div className="card-title">{game.name}</div>
+                <a className="btn btn-secondary" href={game.link} target="_blank" rel="noreferrer">
+                  Download
+                </a>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <div className="film-divider" aria-hidden="true" />
+
+        <section className="section fade-section" id="berita-game">
+          <div className="section-number">08</div>
+          <div className="section-bg-text">NEWS</div>
+          <div className="section-header">
+            <h2>BERITA GAME</h2>
+            <p className="section-tag">Update Terbaru</p>
+            <p>Berita dan update terbaru seputar game favoritmu</p>
+          </div>
+          <div className="news-actions">
+            <div className="news-filters">
+              {['Semua', 'Genshin', 'Mobile Legends', 'Free Fire', 'Wuthering Waves'].map((filter) => (
+                <button
+                  key={filter}
+                  className={`news-filter ${newsFilter === filter ? 'active' : ''}`}
+                  onClick={() => setNewsFilter(filter)}
+                >
+                  {filter}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="news-track">
+            {filteredNews.length === 0 && <div className="news-empty">Berita tidak tersedia saat ini. Coba lagi nanti.</div>}
+            {filteredNews.length > 0 && (
+              <div className="news-scroll">
+                {filteredNews.map((item, index) => (
+                  <article key={`${item.title}-${index}`} className="news-card" style={{ animationDelay: `${0.1 * index}s` }}>
+                    <div className="news-thumb">
+                      {typeof item.image === 'string' && item.image.startsWith('http') ? (
+                        <img
+                          src={item.image}
+                          alt={item.title}
+                          onError={(event) => {
+                            const target = event.currentTarget
+                            target.style.display = 'none'
+                            const parent = target.parentElement
+                            if (parent && !parent.querySelector('.news-placeholder')) {
+                              const placeholder = document.createElement('div')
+                              placeholder.className = 'news-placeholder'
+                              const span = document.createElement('span')
+                              span.textContent = gameEmoji[item.game] || gameEmoji.default
+                              placeholder.appendChild(span)
+                              parent.appendChild(placeholder)
+                            }
+                          }}
+                        />
+                      ) : (
+                        <div className="news-placeholder">
+                          <span>{gameEmoji[item.game] || gameEmoji.default}</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="news-source">{item.source}</div>
+                    <div className="news-title">{item.title}</div>
+                    <div className="news-desc">
+                      {(item.description || '').slice(0, 60)}{(item.description || '').length > 60 ? '...' : ''}
+                    </div>
+                    <div className="news-footer">
+                      <span className="news-date">{formatDate(item.date)}</span>
+                      <a className="btn btn-secondary" href={item.url} target="_blank" rel="noreferrer">
+                        Baca
+                      </a>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
       </main>
 
       <footer className="footer">
