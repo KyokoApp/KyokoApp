@@ -108,6 +108,8 @@ function App() {
   const [gcOpen, setGcOpen] = useState(false)
   // ── Lainnya full-page tab ────────────────────────────────────────────────
   const [lainnyaOpen, setLainnyaOpen] = useState(false)
+  // sectionWrapVisible: tetap true saat navigasi dari Komunitas ke section
+  const [sectionWrapVisible, setSectionWrapVisible] = useState(false)
   const [gcUnread, setGcUnread] = useState(false)
   const [authUser, setAuthUser] = useState<User | null>(null)
   const [showLoginTutorial, setShowLoginTutorial] = useState(false)
@@ -1391,7 +1393,7 @@ function App() {
         )}
 
         {/* ── Community sections (lainnya-mode only) ─────────────────── */}
-        <div className={`lainnya-sections-wrap ${lainnyaOpen ? 'lainnya-sections-visible' : 'lainnya-sections-hidden'}`}>
+        <div className={`lainnya-sections-wrap ${(lainnyaOpen || sectionWrapVisible) ? 'lainnya-sections-visible' : 'lainnya-sections-hidden'}`}>
 
         <section className="section fade-section" id="direktori-grup">
           <div className="section-number">05</div>
@@ -2167,8 +2169,16 @@ function App() {
             document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
           })
         }}
-        onLainnyaOpen={() => setLainnyaOpen(true)}
+        onLainnyaOpen={() => { setLainnyaOpen(true); setSectionWrapVisible(true) }}
         onLainnyaClose={() => setLainnyaOpen(false)}
+        onSectionNav={(id) => {
+          // Tutup lainnya page, tapi section wrap tetap visible
+          setLainnyaOpen(false)
+          setSectionWrapVisible(true)
+          setTimeout(() => {
+            document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          }, 80)
+        }}
         gcUnread={gcUnread}
         aiUnread={aiUnread}
       />

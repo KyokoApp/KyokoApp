@@ -10,6 +10,7 @@ interface BottomNavProps {
   onScrollTo: (id: string) => void
   onLainnyaOpen?: () => void
   onLainnyaClose?: () => void
+  onSectionNav?: (id: string) => void
   gcUnread?: boolean
   aiUnread?: boolean
 }
@@ -479,9 +480,11 @@ const LAINNYA_SECTIONS = [
 function LainnyaFullPage({
   onNavigate,
   onClose,
+  onKeepOpenAndScroll,
 }: {
   onNavigate: (id: string) => void
   onClose: () => void
+  onKeepOpenAndScroll: (id: string) => void
 }) {
   const [visible, setVisible] = useState(false)
   useEffect(() => {
@@ -490,15 +493,11 @@ function LainnyaFullPage({
   }, [])
 
   const handleNav = (id: string) => {
-    // Scroll ke section di dalam lainnya-page-body (tidak tutup halaman)
-    const bodyEl = document.querySelector('.lainnya-page-body')
-    const targetEl = document.getElementById(id)
-    if (bodyEl && targetEl) {
-      const bodyRect = bodyEl.getBoundingClientRect()
-      const targetRect = targetEl.getBoundingClientRect()
-      const scrollTop = bodyEl.scrollTop + (targetRect.top - bodyRect.top) - 16
-      bodyEl.scrollTo({ top: scrollTop, behavior: 'smooth' })
-    }
+    // Slide out lainnya page, section tetap visible (lainnyaOpen stays true)
+    setVisible(false)
+    setTimeout(() => {
+      onKeepOpenAndScroll(id)
+    }, 250)
   }
 
   return (
@@ -584,7 +583,7 @@ function LainnyaFullPage({
 // ── Main BottomNav ────────────────────────────────────────────────────────────
 export default function BottomNav({
   onOpenGlobalChat, onOpenAI, onOpenManga, onOpenNovel, onOpenAnime, onOpenRpg,
-  onScrollTo, onLainnyaOpen, onLainnyaClose, gcUnread, aiUnread,
+  onScrollTo, onLainnyaOpen, onLainnyaClose, onSectionNav, gcUnread, aiUnread,
 }: BottomNavProps) {
   const [fabOpen, setFabOpen] = useState(false)
   const [lainnyaOpen, setLainnyaOpen] = useState(false)
@@ -628,6 +627,10 @@ export default function BottomNav({
         <LainnyaFullPage
           onNavigate={(id) => { onScrollTo(id) }}
           onClose={closeLainnya}
+          onKeepOpenAndScroll={(id) => {
+            // Gunakan callback dari App yang handle sectionWrapVisible
+            onSectionNav?.(id)
+          }}
         />
       )}
 
