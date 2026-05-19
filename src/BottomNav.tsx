@@ -376,8 +376,8 @@ function LainnyaFullPage({
               onClick={() => handleNav(sec.id)}
               type="button"
             >
-              <span style={{ color: sec.color, display:'flex',alignItems:'center' }}>
-                {React.cloneElement(sec.icon as React.ReactElement, { width: 14, height: 14 })}
+              <span style={{ color: sec.color, display:'flex',alignItems:'center',width:14,height:14,overflow:'hidden',flexShrink:0 }}>
+                {sec.icon}
               </span>
               <span>{sec.label.split(' ')[0]}</span>
             </button>
