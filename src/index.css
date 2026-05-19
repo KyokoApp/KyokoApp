@@ -5138,3 +5138,11 @@ h1, h2, h3, .splash-brand, .modal-title {
   letter-spacing: 2px !important;
   font-weight: 700 !important;
 }
+
+/* ── Lainnya Tab: sembunyikan community sections dari main scroll ─────────── */
+/* Saat panel Lainnya terbuka, 3 section ini tidak terlihat di halaman utama   */
+main.lainnya-mode #direktori-grup,
+main.lainnya-mode #jual-beli-akun,
+main.lainnya-mode #apk-mod {
+  display: none;
+}

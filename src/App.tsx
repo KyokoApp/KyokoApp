@@ -103,6 +103,8 @@ function App() {
   const [visitorCount, setVisitorCount] = useState(0)
   const [newsFilter, setNewsFilter] = useState('Semua')
   const [gcOpen, setGcOpen] = useState(false)
+  // ── Lainnya full-page tab ────────────────────────────────────────────────
+  const [lainnyaOpen, setLainnyaOpen] = useState(false)
   const [gcUnread, setGcUnread] = useState(false)
   const [authUser, setAuthUser] = useState<User | null>(null)
   const [showLoginTutorial, setShowLoginTutorial] = useState(false)
@@ -1190,7 +1192,7 @@ function App() {
         </div>
       </header>
 
-      <main>
+      <main className={lainnyaOpen ? 'lainnya-mode' : ''}>
         <section className="hero section" id="beranda">
           <div className="section-bg-text">KYOKO</div>
           <div className="hero-content fade-section">
@@ -2142,6 +2144,8 @@ function App() {
             document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
           })
         }}
+        onLainnyaOpen={() => setLainnyaOpen(true)}
+        onLainnyaClose={() => setLainnyaOpen(false)}
         gcUnread={gcUnread}
         aiUnread={aiUnread}
       />

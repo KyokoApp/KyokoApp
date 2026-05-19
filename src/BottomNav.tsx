@@ -8,6 +8,9 @@ interface BottomNavProps {
   onOpenAnime: () => void
   onOpenRpg: () => void
   onScrollTo: (id: string) => void
+  // ── NEW: dipanggil saat tab Lainnya dibuka/ditutup ──────────────
+  onLainnyaOpen?: () => void
+  onLainnyaClose?: () => void
   gcUnread?: boolean
   aiUnread?: boolean
 }
@@ -88,15 +91,17 @@ const FAB_ITEMS = [
   },
 ]
 
-// ── "Lainnya" panel items ────────────────────────────────────────────────────
-const LAINNYA_ITEMS = [
+// ── "Lainnya" full-page tab items ─────────────────────────────────────────────
+// id harus sama persis dengan section id di App.tsx agar onScrollTo bekerja
+const LAINNYA_TABS = [
   {
     id: 'direktori-grup',
     label: 'Direktori Grup',
+    shortLabel: 'Grup',
     desc: 'Temukan & daftarkan grup komunitas',
     color: '#a3e635',
     icon: (
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
         <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
         <circle cx="9" cy="7" r="4"/>
         <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
@@ -107,10 +112,11 @@ const LAINNYA_ITEMS = [
   {
     id: 'jual-beli-akun',
     label: 'Market Jual Beli',
+    shortLabel: 'Market',
     desc: 'Marketplace akun game komunitas',
     color: '#f472b6',
     icon: (
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
         <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
         <line x1="3" y1="6" x2="21" y2="6"/>
         <path d="M16 10a4 4 0 0 1-8 0"/>
@@ -120,10 +126,11 @@ const LAINNYA_ITEMS = [
   {
     id: 'apk-mod',
     label: 'APK & SC Bot',
+    shortLabel: 'APK',
     desc: 'APK Mod, ScBot Free & Premium',
     color: '#fb923c',
     icon: (
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
         <rect x="5" y="2" width="14" height="20" rx="2"/>
         <line x1="12" y1="18" x2="12" y2="18" strokeWidth="3"/>
         <line x1="9" y1="7" x2="15" y2="7"/>
@@ -133,13 +140,11 @@ const LAINNYA_ITEMS = [
   },
 ]
 
-// ── Radial Carousel FAB ──────────────────────────────────────────────────────
-// Only 3 items visible at once (center = top), rest fade out
-// User can drag/rotate the wheel inside the circle
-const VISIBLE_COUNT = 3        // how many visible at once
-const RADIUS = 82              // px from center to item center
-const ITEM_ANGLE = 55          // degrees between items
-const BASE_ANGLE = -90         // top = item[0] when rotation=0
+// ── Radial Carousel FAB ───────────────────────────────────────────────────────
+const VISIBLE_COUNT = 3
+const RADIUS = 82
+const ITEM_ANGLE = 55
+const BASE_ANGLE = -90
 
 function RadialCarousel({
   items,
@@ -154,8 +159,8 @@ function RadialCarousel({
   aiUnread?: boolean
   onClose: () => void
 }) {
-  const [rotation, setRotation] = useState(0)          // degrees, current wheel rotation
-  const [targetRot, setTargetRot] = useState(0)         // snapped target
+  const [rotation, setRotation] = useState(0)
+  const [targetRot, setTargetRot] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
   const [dragging3d, setDragging3d] = useState({ tiltX: 0, tiltY: 0 })
   const startRef = useRef<{ angle: number; rotation: number } | null>(null)
@@ -163,7 +168,6 @@ function RadialCarousel({
   const animRef = useRef<number>(0)
   const rotRef = useRef(0)
 
-  // Smooth animate rotation toward target
   useEffect(() => {
     cancelAnimationFrame(animRef.current)
     const animate = () => {
@@ -204,7 +208,6 @@ function RadialCarousel({
     const newRot = startRef.current.rotation + delta
     rotRef.current = newRot
     setRotation(newRot)
-    // 3D tilt effect
     const el = containerRef.current
     if (el) {
       const rect = el.getBoundingClientRect()
@@ -214,38 +217,30 @@ function RadialCarousel({
     }
   }, [isDragging, getAngleFromEvent])
 
-  const onPointerUp = useCallback((e: React.PointerEvent) => {
+  const onPointerUp = useCallback((_e: React.PointerEvent) => {
     if (!isDragging) return
     setIsDragging(false)
     setDragging3d({ tiltX: 0, tiltY: 0 })
     startRef.current = null
-    // Snap: find the nearest item slot
     const step = ITEM_ANGLE
     const snapped = Math.round(rotRef.current / step) * step
     setTargetRot(snapped)
   }, [isDragging])
 
-  // Rotate by one step (button)
   const rotateBy = useCallback((dir: 1 | -1) => {
     const next = Math.round(rotRef.current / ITEM_ANGLE) * ITEM_ANGLE + dir * ITEM_ANGLE
     setTargetRot(next)
   }, [])
 
-  const n = items.length
   return (
     <div className="rc-outer">
-      {/* Backdrop */}
       <div className="rc-backdrop" onClick={onClose} />
-
-      {/* Arrow rotate buttons */}
       <button className="rc-arrow rc-arrow-left" onClick={() => rotateBy(-1)} type="button" aria-label="Putar kiri">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="15 18 9 12 15 6"/></svg>
       </button>
       <button className="rc-arrow rc-arrow-right" onClick={() => rotateBy(1)} type="button" aria-label="Putar kanan">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>
       </button>
-
-      {/* Drag circle */}
       <div
         ref={containerRef}
         className={`rc-ring ${isDragging ? 'rc-ring-drag' : ''}`}
@@ -260,39 +255,27 @@ function RadialCarousel({
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
       >
-        {/* Ring glow */}
         <div className="rc-ring-glow" aria-hidden />
-        {/* Track dots */}
         <div className="rc-track-dots" aria-hidden>
           {Array.from({ length: 12 }).map((_, i) => (
             <div key={i} className="rc-track-dot" style={{ transform: `rotate(${i * 30}deg) translateY(-${RADIUS + 12}px)` }} />
           ))}
         </div>
-
-        {/* Items */}
         {items.map((item, idx) => {
           const step = ITEM_ANGLE
-          // angle on wheel: item's base angle + rotation
           const baseAngle = BASE_ANGLE + idx * step
           const absAngle = baseAngle + rotation
-          // Normalize angle to -180..180 for opacity calc
           let normAngle = ((absAngle % 360) + 360) % 360
           if (normAngle > 180) normAngle -= 360
-          // "top" slot = 0 degrees difference from -90 (pointing up)
-          // We consider the effective angle pointing up as closest to 270 (= -90)
-          // Distance from top slot
           const distFromTop = Math.abs(normAngle + 90) % 360
           const dist = distFromTop > 180 ? 360 - distFromTop : distFromTop
-          // Visibility: visible if within VISIBLE_COUNT/2 * step
           const halfVisible = ((VISIBLE_COUNT - 1) / 2) * step
           const opacityRaw = dist <= halfVisible ? 1 - (dist / halfVisible) * 0.3 : Math.max(0, 1 - ((dist - halfVisible) / step) * 1.5)
           const isCenter = dist < step * 0.5
           const scale = isCenter ? 1.15 : opacityRaw > 0.5 ? 0.9 : 0.7
-
           const rad = (absAngle * Math.PI) / 180
           const x = Math.cos(rad) * RADIUS
           const y = Math.sin(rad) * RADIUS
-
           return (
             <div
               key={item.key}
@@ -306,7 +289,6 @@ function RadialCarousel({
               }}
               onClick={() => handlers[item.key]?.()}
             >
-              {/* Label */}
               <span
                 className="rc-item-label"
                 style={{
@@ -318,8 +300,6 @@ function RadialCarousel({
               >
                 {item.label}
               </span>
-
-              {/* Button */}
               <button
                 className={`rc-item-btn ${isCenter ? 'rc-item-center' : ''}`}
                 style={{ '--item-color': item.color } as React.CSSProperties}
@@ -331,63 +311,145 @@ function RadialCarousel({
                 {item.key === 'globalchat' && gcUnread && <span className="bn-unread-dot" />}
                 {item.key === 'ai' && aiUnread && <span className="bn-unread-dot" />}
               </button>
-
-              {/* Center ring highlight */}
               {isCenter && <div className="rc-item-ring" style={{ borderColor: item.color }} />}
             </div>
           )
         })}
-
-        {/* Center label */}
         <div className="rc-center-hint" aria-hidden>PUTAR</div>
       </div>
     </div>
   )
 }
 
-// ── "Lainnya" Panel (slides up) ──────────────────────────────────────────────
-function LainnyaPanel({ onScrollTo, onClose }: { onScrollTo: (id: string) => void; onClose: () => void }) {
+// ── Full-Screen Lainnya Tab ───────────────────────────────────────────────────
+// Menggantikan LainnyaPanel lama yang hanya bottom sheet kecil.
+// Sekarang jadi halaman penuh dengan 3 sub-tab + konten preview.
+// Saat item diklik → onNavigate(id) dipanggil, App.tsx scroll + tutup panel.
+function LainnyaFullPage({
+  onNavigate,
+  onClose,
+}: {
+  onNavigate: (id: string) => void
+  onClose: () => void
+}) {
+  const [activeSubTab, setActiveSubTab] = useState(0)
+  const active = LAINNYA_TABS[activeSubTab]
+
   return (
     <>
-      <div className="lainnya-backdrop" onClick={onClose} />
-      <div className="lainnya-panel">
-        <div className="lainnya-handle" />
-        <div className="lainnya-title">Lainnya</div>
-        <div className="lainnya-grid">
-          {LAINNYA_ITEMS.map((item) => (
-            <button
-              key={item.id}
-              className="lainnya-card"
-              style={{ '--lainnya-color': item.color } as React.CSSProperties}
-              onClick={() => { onScrollTo(item.id); onClose() }}
-              type="button"
-            >
-              <div className="lainnya-card-icon" style={{ color: item.color, background: `${item.color}18` }}>
-                {item.icon}
-              </div>
-              <div className="lainnya-card-text">
-                <div className="lainnya-card-label">{item.label}</div>
-                <div className="lainnya-card-desc">{item.desc}</div>
-              </div>
-              <div className="lainnya-card-arrow">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>
-              </div>
+      {/* Backdrop */}
+      <div className="lainnya-full-backdrop" onClick={onClose} />
+
+      {/* Full screen panel */}
+      <div className="lainnya-full-page">
+        {/* Header */}
+        <div className="lainnya-full-header">
+          <div className="lainnya-full-handle" />
+          <div className="lainnya-full-title-row">
+            <span className="lainnya-full-title">Lainnya</span>
+            <button className="lainnya-full-close" onClick={onClose} type="button" aria-label="Tutup">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
             </button>
-          ))}
+          </div>
+
+          {/* Sub-tabs */}
+          <div className="lainnya-subtabs">
+            {LAINNYA_TABS.map((tab, i) => (
+              <button
+                key={tab.id}
+                className={`lainnya-subtab ${activeSubTab === i ? 'lainnya-subtab-active' : ''}`}
+                style={{ '--stab-color': tab.color } as React.CSSProperties}
+                onClick={() => setActiveSubTab(i)}
+                type="button"
+              >
+                {tab.shortLabel}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Content area */}
+        <div className="lainnya-full-content">
+          {/* Active section preview card */}
+          <div
+            className="lainnya-section-card"
+            style={{ '--card-color': active.color } as React.CSSProperties}
+          >
+            <div className="lainnya-section-card-icon" style={{ color: active.color, background: `${active.color}18` }}>
+              {active.icon}
+            </div>
+            <div className="lainnya-section-card-body">
+              <div className="lainnya-section-card-label">{active.label}</div>
+              <div className="lainnya-section-card-desc">{active.desc}</div>
+            </div>
+          </div>
+
+          {/* CTA button - scroll ke section di main page */}
+          <button
+            className="lainnya-goto-btn"
+            style={{ '--goto-color': active.color } as React.CSSProperties}
+            onClick={() => { onNavigate(active.id); onClose() }}
+            type="button"
+          >
+            <span>Buka {active.label}</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </button>
+
+          {/* All sections quick list */}
+          <div className="lainnya-quick-list-label">Semua Fitur</div>
+          <div className="lainnya-quick-list">
+            {LAINNYA_TABS.map((tab, i) => (
+              <button
+                key={tab.id}
+                className={`lainnya-quick-item ${i === activeSubTab ? 'lainnya-quick-item-active' : ''}`}
+                style={{ '--qi-color': tab.color } as React.CSSProperties}
+                onClick={() => { onNavigate(tab.id); onClose() }}
+                type="button"
+              >
+                <div className="lainnya-quick-icon" style={{ color: tab.color, background: `${tab.color}18` }}>
+                  {tab.icon}
+                </div>
+                <div className="lainnya-quick-text">
+                  <div className="lainnya-quick-label">{tab.label}</div>
+                  <div className="lainnya-quick-desc">{tab.desc}</div>
+                </div>
+                <div className="lainnya-quick-arrow">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                    <polyline points="9 18 15 12 9 6"/>
+                  </svg>
+                </div>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     </>
   )
 }
 
-// ── Main BottomNav ───────────────────────────────────────────────────────────
+// ── Main BottomNav ────────────────────────────────────────────────────────────
 export default function BottomNav({
   onOpenGlobalChat, onOpenAI, onOpenManga, onOpenNovel, onOpenAnime, onOpenRpg,
-  onScrollTo, gcUnread, aiUnread,
+  onScrollTo, onLainnyaOpen, onLainnyaClose, gcUnread, aiUnread,
 }: BottomNavProps) {
   const [fabOpen, setFabOpen] = useState(false)
   const [lainnyaOpen, setLainnyaOpen] = useState(false)
   const [activeTab, setActiveTab] = useState('beranda')
+
+  const openLainnya = () => {
+    setLainnyaOpen(true)
+    setFabOpen(false)
+    onLainnyaOpen?.()
+  }
+
+  const closeLainnya = () => {
+    setLainnyaOpen(false)
+    onLainnyaClose?.()
+  }
 
   const handlers: Record<string, () => void> = {
     globalchat: () => { setFabOpen(false); onOpenGlobalChat() },
@@ -402,7 +464,7 @@ export default function BottomNav({
 
   return (
     <>
-      {/* Radial carousel */}
+      {/* Radial carousel FAB */}
       {fabOpen && (
         <RadialCarousel
           items={FAB_ITEMS}
@@ -413,11 +475,13 @@ export default function BottomNav({
         />
       )}
 
-      {/* Lainnya panel */}
+      {/* ── Full-Screen Lainnya Tab ── */}
       {lainnyaOpen && (
-        <LainnyaPanel
-          onScrollTo={onScrollTo}
-          onClose={() => setLainnyaOpen(false)}
+        <LainnyaFullPage
+          onNavigate={(id) => {
+            onScrollTo(id)
+          }}
+          onClose={closeLainnya}
         />
       )}
 
@@ -455,7 +519,7 @@ export default function BottomNav({
         <div className="bn-fab-wrap">
           <button
             className={`bn-fab ${fabOpen ? 'bn-fab-open' : ''}`}
-            onClick={() => { setFabOpen(p => !p); setLainnyaOpen(false) }}
+            onClick={() => { setFabOpen(p => !p); closeLainnya() }}
             type="button"
             aria-label="Menu"
           >
@@ -487,10 +551,10 @@ export default function BottomNav({
           <span>BERITA</span>
         </button>
 
-        {/* LAINNYA */}
+        {/* LAINNYA — sekarang buka full-screen tab */}
         <button
           className={`bn-tab ${lainnyaOpen ? 'bn-tab-active' : ''}`}
-          onClick={() => { setLainnyaOpen(p => !p); setFabOpen(false) }}
+          onClick={() => { lainnyaOpen ? closeLainnya() : openLainnya() }}
           type="button"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -525,7 +589,6 @@ export default function BottomNav({
         }
         @keyframes rcBackdropIn { from { opacity:0 } to { opacity:1 } }
 
-        /* Arrow rotate buttons */
         .rc-arrow {
           position: absolute;
           bottom: calc(var(--bottom-nav-h, 70px) + 105px);
@@ -544,7 +607,6 @@ export default function BottomNav({
         .rc-arrow-left  { left: calc(50% - 130px); }
         .rc-arrow-right { left: calc(50% + 92px); }
 
-        /* Ring */
         .rc-ring {
           position: relative;
           width: 220px;
@@ -577,7 +639,6 @@ export default function BottomNav({
         }
         @keyframes rcGlowSpin { to { transform: rotate(360deg); } }
 
-        /* Track dots */
         .rc-track-dots {
           position: absolute;
           inset: 0;
@@ -593,7 +654,6 @@ export default function BottomNav({
           transform-origin: 0 0;
         }
 
-        /* Items */
         .rc-item {
           position: absolute;
           left: 50%; top: 50%;
@@ -654,50 +714,173 @@ export default function BottomNav({
           user-select: none;
         }
 
-        /* ── Lainnya Panel ─────────────────────────────────────── */
-        .lainnya-backdrop {
+        /* ── Lainnya Full-Screen Tab ────────────────────────────── */
+        .lainnya-full-backdrop {
           position: fixed;
           inset: 0;
-          background: rgba(0,0,0,0.5);
-          backdrop-filter: blur(3px);
+          background: rgba(0,0,0,0.55);
+          backdrop-filter: blur(4px);
           z-index: 8900;
-          animation: rcBackdropIn .2s ease;
+          animation: rcBackdropIn .22s ease;
         }
-        .lainnya-panel {
+        .lainnya-full-page {
           position: fixed;
-          bottom: calc(var(--bottom-nav-h, 70px));
+          /* Dari bawah bottom-nav sampai dekat top */
+          bottom: var(--bottom-nav-h, 70px);
           left: 0; right: 0;
-          background: linear-gradient(180deg, rgba(12,12,8,0.97) 0%, rgba(8,8,5,0.99) 100%);
-          border-top: 1px solid rgba(200,245,0,0.15);
-          border-radius: 20px 20px 0 0;
+          /* Tinggi hampir full screen */
+          max-height: calc(100vh - var(--bottom-nav-h, 70px) - env(safe-area-inset-top, 0px) - 12px);
+          background: linear-gradient(180deg, #0d0d08 0%, #080805 100%);
+          border-top: 1px solid rgba(200,245,0,0.18);
+          border-radius: 22px 22px 0 0;
           z-index: 8950;
-          padding: 12px 20px 20px;
-          animation: lainnyaUp .28s cubic-bezier(.34,1.56,.64,1);
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+          animation: lainnyaFullUp .32s cubic-bezier(.34,1.56,.64,1);
         }
-        @keyframes lainnyaUp {
+        @keyframes lainnyaFullUp {
           from { transform: translateY(100%); opacity: 0; }
           to   { transform: translateY(0);    opacity: 1; }
         }
-        .lainnya-handle {
+
+        /* Header */
+        .lainnya-full-header {
+          padding: 10px 20px 0;
+          flex-shrink: 0;
+          border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .lainnya-full-handle {
           width: 40px; height: 4px;
           border-radius: 2px;
-          background: rgba(200,245,0,0.2);
-          margin: 0 auto 14px;
+          background: rgba(200,245,0,0.25);
+          margin: 0 auto 12px;
         }
-        .lainnya-title {
-          font-size: 13px;
-          font-weight: 800;
-          color: rgba(255,255,255,0.4);
-          letter-spacing: 0.08em;
-          text-transform: uppercase;
+        .lainnya-full-title-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
           margin-bottom: 14px;
         }
-        .lainnya-grid {
+        .lainnya-full-title {
+          font-size: 18px;
+          font-weight: 900;
+          color: #fff;
+          letter-spacing: 0.05em;
+          text-transform: uppercase;
+        }
+        .lainnya-full-close {
+          width: 32px; height: 32px;
+          border-radius: 50%;
+          border: 1px solid rgba(255,255,255,0.12);
+          background: rgba(255,255,255,0.05);
+          color: rgba(255,255,255,0.5);
+          display: flex; align-items: center; justify-content: center;
+          cursor: pointer;
+          transition: background .15s, color .15s;
+        }
+        .lainnya-full-close:active { background: rgba(255,255,255,0.12); color: #fff; }
+
+        /* Sub-tabs */
+        .lainnya-subtabs {
+          display: flex;
+          gap: 8px;
+          padding-bottom: 14px;
+        }
+        .lainnya-subtab {
+          flex: 1;
+          padding: 8px 4px;
+          border-radius: 10px;
+          border: 1px solid rgba(255,255,255,0.08);
+          background: rgba(255,255,255,0.04);
+          color: rgba(255,255,255,0.4);
+          font-size: 12px;
+          font-weight: 700;
+          letter-spacing: 0.04em;
+          cursor: pointer;
+          transition: all .18s;
+        }
+        .lainnya-subtab-active {
+          background: rgba(var(--stab-color, 200,245,0), 0.12) !important;
+          border-color: var(--stab-color, #c8f500) !important;
+          color: var(--stab-color, #c8f500) !important;
+        }
+
+        /* Scrollable content */
+        .lainnya-full-content {
+          flex: 1;
+          overflow-y: auto;
+          padding: 20px 20px calc(env(safe-area-inset-bottom, 0px) + 16px);
+          -webkit-overflow-scrolling: touch;
+        }
+
+        /* Active section card */
+        .lainnya-section-card {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          padding: 16px;
+          border-radius: 16px;
+          border: 1px solid color-mix(in srgb, var(--card-color, #c8f500) 25%, transparent);
+          background: color-mix(in srgb, var(--card-color, #c8f500) 6%, transparent);
+          margin-bottom: 14px;
+          transition: all .2s;
+        }
+        .lainnya-section-card-icon {
+          width: 50px; height: 50px;
+          border-radius: 14px;
+          display: flex; align-items: center; justify-content: center;
+          flex-shrink: 0;
+        }
+        .lainnya-section-card-body { flex: 1; min-width: 0; }
+        .lainnya-section-card-label {
+          font-size: 16px;
+          font-weight: 800;
+          color: #fff;
+          margin-bottom: 4px;
+        }
+        .lainnya-section-card-desc {
+          font-size: 12px;
+          color: rgba(255,255,255,0.4);
+          line-height: 1.4;
+        }
+
+        /* Go-to CTA button */
+        .lainnya-goto-btn {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 14px 18px;
+          border-radius: 14px;
+          border: none;
+          background: var(--goto-color, #c8f500);
+          color: #0a0a05;
+          font-size: 14px;
+          font-weight: 800;
+          letter-spacing: 0.03em;
+          cursor: pointer;
+          margin-bottom: 24px;
+          transition: opacity .15s, transform .15s;
+          box-shadow: 0 4px 20px color-mix(in srgb, var(--goto-color, #c8f500) 40%, transparent);
+        }
+        .lainnya-goto-btn:active { opacity: 0.85; transform: scale(0.98); }
+
+        /* Quick list */
+        .lainnya-quick-list-label {
+          font-size: 11px;
+          font-weight: 800;
+          color: rgba(255,255,255,0.25);
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          margin-bottom: 10px;
+        }
+        .lainnya-quick-list {
           display: flex;
           flex-direction: column;
-          gap: 10px;
+          gap: 8px;
         }
-        .lainnya-card {
+        .lainnya-quick-item {
           display: flex;
           align-items: center;
           gap: 14px;
@@ -708,47 +891,51 @@ export default function BottomNav({
           cursor: pointer;
           text-align: left;
           color: #fff;
-          transition: background .15s, border-color .15s, transform .15s;
+          transition: background .15s, border-color .15s, transform .12s;
           position: relative;
           overflow: hidden;
         }
-        .lainnya-card::after {
+        .lainnya-quick-item::after {
           content: '';
           position: absolute;
           inset: 0;
-          background: linear-gradient(135deg, var(--lainnya-color, #a3e635) 0%, transparent 60%);
+          background: linear-gradient(135deg, var(--qi-color, #c8f500) 0%, transparent 60%);
           opacity: 0;
           transition: opacity .2s;
         }
-        .lainnya-card:active {
+        .lainnya-quick-item:active {
           transform: scale(0.98);
           background: rgba(255,255,255,0.06);
         }
-        .lainnya-card:active::after { opacity: 0.06; }
-        .lainnya-card-icon {
+        .lainnya-quick-item:active::after { opacity: 0.06; }
+        .lainnya-quick-item-active {
+          border-color: color-mix(in srgb, var(--qi-color, #c8f500) 35%, transparent) !important;
+          background: color-mix(in srgb, var(--qi-color, #c8f500) 7%, transparent) !important;
+        }
+        .lainnya-quick-icon {
           width: 44px; height: 44px;
           border-radius: 12px;
           display: flex; align-items: center; justify-content: center;
           flex-shrink: 0;
         }
-        .lainnya-card-text { flex: 1; min-width: 0; }
-        .lainnya-card-label {
+        .lainnya-quick-text { flex: 1; min-width: 0; }
+        .lainnya-quick-label {
           font-size: 14px;
           font-weight: 700;
           color: #fff;
           margin-bottom: 2px;
         }
-        .lainnya-card-desc {
+        .lainnya-quick-desc {
           font-size: 11px;
-          opacity: 0.45;
+          color: rgba(255,255,255,0.35);
           line-height: 1.3;
         }
-        .lainnya-card-arrow {
+        .lainnya-quick-arrow {
           color: rgba(255,255,255,0.25);
           flex-shrink: 0;
         }
 
-        /* ── Bottom nav overrides ──────────────────────────────── */
+        /* ── Bottom nav ────────────────────────────────────────── */
         .bottom-nav {
           position: fixed;
           bottom: 0; left: 0; right: 0;
