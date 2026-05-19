@@ -103,6 +103,11 @@ const FAB_ITEMS = [
 ]
 
 // ── Horizontal Swipe FAB ───────────────────────────────────────────────────────
+// CHIP_SIZE + GAP used for centering calculation
+const CHIP_W = 64
+const CHIP_GAP = 12
+const CHIP_STEP = CHIP_W + CHIP_GAP
+
 function SwipeFAB({
   items,
   handlers,
@@ -120,15 +125,25 @@ function SwipeFAB({
   const [dragX, setDragX] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
   const startXRef = useRef(0)
-  const startIdxRef = useRef(0)
+  const stripRef = useRef<HTMLDivElement>(null)
+
+  // Real-time preview index while dragging
+  const dragPreviewIdx = (() => {
+    if (!isDragging) return activeIdx
+    const threshold = CHIP_STEP / 2
+    if (dragX < -threshold) return Math.min(activeIdx + 1, items.length - 1)
+    if (dragX > threshold) return Math.max(activeIdx - 1, 0)
+    return activeIdx
+  })()
+
+  const displayIdx = isDragging ? dragPreviewIdx : activeIdx
 
   const onPointerDown = useCallback((e: React.PointerEvent) => {
     e.currentTarget.setPointerCapture(e.pointerId)
     startXRef.current = e.clientX
-    startIdxRef.current = activeIdx
     setIsDragging(true)
     setDragX(0)
-  }, [activeIdx])
+  }, [])
 
   const onPointerMove = useCallback((e: React.PointerEvent) => {
     if (!isDragging) return
@@ -139,7 +154,7 @@ function SwipeFAB({
   const onPointerUp = useCallback((_e: React.PointerEvent) => {
     if (!isDragging) return
     setIsDragging(false)
-    const threshold = 50
+    const threshold = CHIP_STEP / 2
     if (dragX < -threshold) {
       setActiveIdx(i => Math.min(i + 1, items.length - 1))
     } else if (dragX > threshold) {
@@ -148,7 +163,16 @@ function SwipeFAB({
     setDragX(0)
   }, [isDragging, dragX, items.length])
 
-  const active = items[activeIdx]
+  // Center the active chip: offset = containerWidth/2 - (activeIdx * CHIP_STEP + CHIP_W/2)
+  const getTrackOffset = () => {
+    const containerW = stripRef.current?.clientWidth ?? 320
+    const center = containerW / 2
+    const activeCenter = activeIdx * CHIP_STEP + CHIP_W / 2
+    const baseOffset = center - activeCenter
+    return baseOffset + (isDragging ? dragX * 0.6 : 0)
+  }
+
+  const active = items[displayIdx]
 
   return (
     <div className="sfab-outer">
@@ -164,11 +188,11 @@ function SwipeFAB({
           </button>
         </div>
 
-        {/* Main active card */}
+        {/* Main active card — updates real-time while dragging */}
         <div
           className="sfab-card-main"
           style={{ '--card-color': active.color, '--card-grad': active.gradient } as React.CSSProperties}
-          onClick={() => handlers[active.key]?.()}
+          onClick={() => !isDragging && handlers[active.key]?.()}
         >
           <div className="sfab-card-bg" />
           <div className="sfab-card-icon" style={{ color: active.color, background: `color-mix(in srgb, ${active.color} 14%, #0a0a08)` }}>
@@ -177,7 +201,7 @@ function SwipeFAB({
             {active.key === 'ai' && aiUnread && <span className="sfab-unread" />}
           </div>
           <div className="sfab-card-info">
-            <div className="sfab-card-name">{active.label}</div>
+            <div className="sfab-card-name" key={active.key}>{active.label}</div>
             <div className="sfab-card-sub">{active.sublabel}</div>
           </div>
           <div className="sfab-card-arrow" style={{ color: active.color }}>
@@ -187,9 +211,10 @@ function SwipeFAB({
           </div>
         </div>
 
-        {/* Swipe strip */}
+        {/* Swipe strip — active chip always centered */}
         <div className="sfab-strip-label">← geser untuk pilih lainnya →</div>
         <div
+          ref={stripRef}
           className={`sfab-strip ${isDragging ? 'sfab-strip-drag' : ''}`}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
@@ -199,20 +224,20 @@ function SwipeFAB({
           <div
             className="sfab-strip-track"
             style={{
-              transform: `translateX(calc(${20 - activeIdx * 76}px + ${dragX * 0.5}px))`,
+              transform: `translateX(${getTrackOffset()}px)`,
               transition: isDragging ? 'none' : 'transform 0.32s cubic-bezier(.34,1.4,.64,1)',
             }}
           >
             {items.map((item, i) => {
-              const isActive = i === activeIdx
-              const dist = Math.abs(i - activeIdx)
+              const isActive = i === displayIdx
+              const dist = Math.abs(i - displayIdx)
               const opacity = dist === 0 ? 1 : dist === 1 ? 0.65 : dist === 2 ? 0.35 : 0.15
               return (
                 <div
                   key={item.key}
                   className={`sfab-chip ${isActive ? 'sfab-chip-active' : ''}`}
                   style={{ '--chip-color': item.color, opacity } as React.CSSProperties}
-                  onClick={() => { if (isActive) handlers[item.key]?.(); else setActiveIdx(i) }}
+                  onClick={() => { if (isActive && !isDragging) handlers[item.key]?.(); else if (!isDragging) setActiveIdx(i) }}
                 >
                   <span className="sfab-chip-icon" style={{ color: isActive ? item.color : 'rgba(255,255,255,0.45)' }}>
                     {item.icon}
@@ -230,7 +255,7 @@ function SwipeFAB({
           {items.map((_, i) => (
             <div
               key={i}
-              className={`sfab-dot ${i === activeIdx ? 'sfab-dot-active' : ''}`}
+              className={`sfab-dot ${i === displayIdx ? 'sfab-dot-active' : ''}`}
               onClick={() => setActiveIdx(i)}
             />
           ))}
@@ -310,8 +335,16 @@ function LainnyaFullPage({
   }, [])
 
   const handleNav = (id: string) => {
+    // Close page first, then after animation scroll to target
     setVisible(false)
-    setTimeout(() => { onNavigate(id); onClose() }, 220)
+    onNavigate(id) // trigger scroll immediately so App knows the target
+    setTimeout(() => {
+      onClose()
+      // Extra scroll attempt after page has unmounted
+      setTimeout(() => {
+        document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 80)
+    }, 240)
   }
 
   return (
@@ -639,6 +672,18 @@ export default function BottomNav({
           cursor: grab;
           touch-action: none;
           user-select: none;
+          position: relative;
+        }
+        /* center indicator */
+        .sfab-strip::after {
+          content: '';
+          position: absolute;
+          top: 4px; bottom: 4px;
+          left: 50%; transform: translateX(-50%);
+          width: 72px;
+          border-radius: 20px;
+          border: 1.5px solid rgba(255,255,255,0.08);
+          pointer-events: none;
         }
         .sfab-strip-drag { cursor: grabbing; }
         .sfab-strip-track {
