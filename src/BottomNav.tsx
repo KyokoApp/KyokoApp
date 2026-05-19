@@ -103,10 +103,19 @@ const FAB_ITEMS = [
 ]
 
 // ── Horizontal Swipe FAB ───────────────────────────────────────────────────────
-// CHIP_SIZE + GAP used for centering calculation
 const CHIP_W = 64
 const CHIP_GAP = 12
 const CHIP_STEP = CHIP_W + CHIP_GAP
+
+// Build infinite clone array: [clone-tail ... original ... clone-head]
+// We prepend N clones at start and append N clones at end for seamless looping
+const CLONE_COUNT = 2 // clones on each side
+
+function buildInfiniteItems(items: typeof FAB_ITEMS) {
+  const head = items.slice(-CLONE_COUNT)
+  const tail = items.slice(0, CLONE_COUNT)
+  return [...head, ...items, ...tail]
+}
 
 function SwipeFAB({
   items,
@@ -121,58 +130,201 @@ function SwipeFAB({
   aiUnread?: boolean
   onClose: () => void
 }) {
-  const [activeIdx, setActiveIdx] = useState(0)
-  const [dragX, setDragX] = useState(0)
-  const [isDragging, setIsDragging] = useState(false)
-  const startXRef = useRef(0)
+  const N = items.length
+  // virtualIdx: index within infinite array, starts at CLONE_COUNT (first real item)
+  const [virtualIdx, setVirtualIdx] = useState(CLONE_COUNT)
+  // activeIdx: the real item index (0..N-1)
+  const activeIdx = (virtualIdx - CLONE_COUNT + N * 100) % N
+
+  const infiniteItems = useRef(buildInfiniteItems(items)).current
+
+  // --- RAF-based physics ---
   const stripRef = useRef<HTMLDivElement>(null)
+  const trackRef = useRef<HTMLDivElement>(null)
+  const rafRef = useRef<number>(0)
 
-  // Real-time preview index while dragging
-  const dragPreviewIdx = (() => {
-    if (!isDragging) return activeIdx
-    const threshold = CHIP_STEP / 2
-    if (dragX < -threshold) return Math.min(activeIdx + 1, items.length - 1)
-    if (dragX > threshold) return Math.max(activeIdx - 1, 0)
-    return activeIdx
-  })()
+  // Live mutable state — no React state for perf
+  const drag = useRef({
+    active: false,
+    startX: 0,
+    currentOffset: 0, // current rendered translateX
+    targetOffset: 0,  // spring target
+    velocity: 0,
+    lastX: 0,
+    lastTime: 0,
+  })
 
-  const displayIdx = isDragging ? dragPreviewIdx : activeIdx
+  // compute base offset for a given virtualIdx
+  const getBaseOffset = useCallback((vIdx: number) => {
+    const containerW = stripRef.current?.clientWidth ?? 320
+    const center = containerW / 2
+    const chipCenter = vIdx * CHIP_STEP + CHIP_W / 2
+    return center - chipCenter
+  }, [])
 
+  // Apply transform directly to DOM — no React re-render
+  const applyTransform = useCallback((offset: number) => {
+    if (trackRef.current) {
+      trackRef.current.style.transform = `translateX(${offset}px)`
+    }
+  }, [])
+
+  // Update chip visual states (opacity, scale, border) directly on DOM
+  const updateChipStyles = useCallback((offset: number) => {
+    if (!trackRef.current) return
+    const containerW = stripRef.current?.clientWidth ?? 320
+    const center = containerW / 2
+    const chips = trackRef.current.querySelectorAll('.sfab-chip')
+    chips.forEach((chipEl, i) => {
+      const chip = chipEl as HTMLDivElement
+      const chipCenter = offset + i * CHIP_STEP + CHIP_W / 2
+      const dist = Math.abs(chipCenter - center) / CHIP_STEP
+      // Opacity: smooth falloff by distance
+      const opacity = Math.max(0.08, 1 - dist * 0.42)
+      // Scale: center chip slightly larger
+      const scale = dist < 0.5 ? 1.1 - dist * 0.2 : Math.max(0.85, 1.0 - (dist - 0.5) * 0.12)
+      const dataColor = chip.getAttribute('data-color') ?? '#c8f500'
+      if (dist < 0.3) {
+        // Active chip
+        chip.style.opacity = '1'
+        chip.style.transform = `scale(${scale})`
+        chip.style.borderColor = `color-mix(in srgb, ${dataColor} 55%, transparent)`
+        chip.style.background = `color-mix(in srgb, ${dataColor} 10%, #0d0d0b)`
+        chip.style.boxShadow = `0 0 22px color-mix(in srgb, ${dataColor} 28%, transparent)`
+        const icon = chip.querySelector('.sfab-chip-icon') as HTMLSpanElement | null
+        if (icon) icon.style.color = dataColor
+      } else {
+        chip.style.opacity = String(opacity)
+        chip.style.transform = `scale(${scale})`
+        chip.style.borderColor = 'rgba(255,255,255,0.07)'
+        chip.style.background = 'rgba(255,255,255,0.04)'
+        chip.style.boxShadow = 'none'
+        const icon = chip.querySelector('.sfab-chip-icon') as HTMLSpanElement | null
+        if (icon) icon.style.color = 'rgba(255,255,255,0.45)'
+      }
+    })
+  }, [])
+
+  // Spring animation loop
+  const springLoop = useCallback(() => {
+    const d = drag.current
+    if (!d.active) {
+      // Spring toward target
+      const diff = d.targetOffset - d.currentOffset
+      const springForce = diff * 0.22
+      d.velocity = (d.velocity + springForce) * 0.78
+      d.currentOffset += d.velocity
+      applyTransform(d.currentOffset)
+      updateChipStyles(d.currentOffset)
+
+      if (Math.abs(d.velocity) < 0.15 && Math.abs(diff) < 0.15) {
+        d.currentOffset = d.targetOffset
+        applyTransform(d.currentOffset)
+        updateChipStyles(d.currentOffset)
+        return // Stop RAF
+      }
+    }
+    rafRef.current = requestAnimationFrame(springLoop)
+  }, [applyTransform, updateChipStyles])
+
+  const startSpring = useCallback(() => {
+    cancelAnimationFrame(rafRef.current)
+    rafRef.current = requestAnimationFrame(springLoop)
+  }, [springLoop])
+
+  // Snap to virtualIdx
+  const snapToIndex = useCallback((vIdx: number) => {
+    const clampedV = Math.max(0, Math.min(vIdx, infiniteItems.length - 1))
+    drag.current.targetOffset = getBaseOffset(clampedV)
+    drag.current.velocity = drag.current.velocity * 0.4 // bleed some momentum
+    startSpring()
+  }, [getBaseOffset, infiniteItems.length, startSpring])
+
+  // Resolve virtualIdx from current offset and snap + handle loop jump
+  const resolveAndSnap = useCallback(() => {
+    const containerW = stripRef.current?.clientWidth ?? 320
+    const center = containerW / 2
+    // Find which chip center is closest to screen center
+    let bestV = 0
+    let bestDist = Infinity
+    infiniteItems.forEach((_, i) => {
+      const chipCenter = drag.current.currentOffset + i * CHIP_STEP + CHIP_W / 2
+      const dist = Math.abs(chipCenter - center)
+      if (dist < bestDist) { bestDist = dist; bestV = i }
+    })
+
+    // Jump to real zone if we've scrolled into clone zone
+    let snappedV = bestV
+    const realStart = CLONE_COUNT
+    const realEnd = CLONE_COUNT + N - 1
+
+    if (bestV < realStart) {
+      // Jumped into pre-clones — teleport to equivalent real position
+      snappedV = bestV + N
+      drag.current.currentOffset = getBaseOffset(snappedV)
+      drag.current.targetOffset = getBaseOffset(snappedV)
+    } else if (bestV > realEnd) {
+      snappedV = bestV - N
+      drag.current.currentOffset = getBaseOffset(snappedV)
+      drag.current.targetOffset = getBaseOffset(snappedV)
+    }
+
+    const newActiveIdx = (snappedV - CLONE_COUNT + N * 100) % N
+    setVirtualIdx(snappedV)
+    // Update card display
+    updateActiveCard(newActiveIdx)
+    snapToIndex(snappedV)
+  }, [N, getBaseOffset, snapToIndex])
+
+  // Update main card via DOM (avoids heavy React re-render during drag)
+  const updateActiveCard = useCallback((idx: number) => {
+    setVirtualIdx(CLONE_COUNT + idx)
+  }, [])
+
+  // Init position on mount
+  useEffect(() => {
+    const offset = getBaseOffset(CLONE_COUNT)
+    drag.current.currentOffset = offset
+    drag.current.targetOffset = offset
+    applyTransform(offset)
+    updateChipStyles(offset)
+  }, [getBaseOffset, applyTransform, updateChipStyles])
+
+  // Pointer handlers
   const onPointerDown = useCallback((e: React.PointerEvent) => {
     e.currentTarget.setPointerCapture(e.pointerId)
-    startXRef.current = e.clientX
-    setIsDragging(true)
-    setDragX(0)
+    drag.current.active = true
+    drag.current.startX = e.clientX
+    drag.current.lastX = e.clientX
+    drag.current.lastTime = performance.now()
+    drag.current.velocity = 0
+    cancelAnimationFrame(rafRef.current)
   }, [])
 
   const onPointerMove = useCallback((e: React.PointerEvent) => {
-    if (!isDragging) return
-    const dx = e.clientX - startXRef.current
-    setDragX(dx)
-  }, [isDragging])
+    if (!drag.current.active) return
+    const now = performance.now()
+    const dx = e.clientX - drag.current.lastX
+    const dt = Math.max(1, now - drag.current.lastTime)
+    drag.current.velocity = dx / dt * 16 // px per frame at 60fps
+    drag.current.lastX = e.clientX
+    drag.current.lastTime = now
+
+    drag.current.currentOffset += dx
+    applyTransform(drag.current.currentOffset)
+    updateChipStyles(drag.current.currentOffset)
+  }, [applyTransform, updateChipStyles])
 
   const onPointerUp = useCallback((_e: React.PointerEvent) => {
-    if (!isDragging) return
-    setIsDragging(false)
-    const threshold = CHIP_STEP / 2
-    if (dragX < -threshold) {
-      setActiveIdx(i => Math.min(i + 1, items.length - 1))
-    } else if (dragX > threshold) {
-      setActiveIdx(i => Math.max(i - 1, 0))
-    }
-    setDragX(0)
-  }, [isDragging, dragX, items.length])
+    if (!drag.current.active) return
+    drag.current.active = false
+    resolveAndSnap()
+  }, [resolveAndSnap])
 
-  // Center the active chip: offset = containerWidth/2 - (activeIdx * CHIP_STEP + CHIP_W/2)
-  const getTrackOffset = () => {
-    const containerW = stripRef.current?.clientWidth ?? 320
-    const center = containerW / 2
-    const activeCenter = activeIdx * CHIP_STEP + CHIP_W / 2
-    const baseOffset = center - activeCenter
-    return baseOffset + (isDragging ? dragX * 0.6 : 0)
-  }
+  // Cleanup RAF on unmount
+  useEffect(() => () => cancelAnimationFrame(rafRef.current), [])
 
-  const active = items[displayIdx]
+  const active = items[activeIdx]
 
   return (
     <div className="sfab-outer">
@@ -188,11 +340,11 @@ function SwipeFAB({
           </button>
         </div>
 
-        {/* Main active card — updates real-time while dragging */}
+        {/* Main active card */}
         <div
           className="sfab-card-main"
           style={{ '--card-color': active.color, '--card-grad': active.gradient } as React.CSSProperties}
-          onClick={() => !isDragging && handlers[active.key]?.()}
+          onClick={() => !drag.current.active && handlers[active.key]?.()}
         >
           <div className="sfab-card-bg" />
           <div className="sfab-card-icon" style={{ color: active.color, background: `color-mix(in srgb, ${active.color} 14%, #0a0a08)` }}>
@@ -211,52 +363,55 @@ function SwipeFAB({
           </div>
         </div>
 
-        {/* Swipe strip — active chip always centered */}
+        {/* Swipe strip — infinite looping */}
         <div className="sfab-strip-label">← geser untuk pilih lainnya →</div>
         <div
           ref={stripRef}
-          className={`sfab-strip ${isDragging ? 'sfab-strip-drag' : ''}`}
+          className="sfab-strip sfab-strip-infinite"
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerUp}
         >
-          <div
-            className="sfab-strip-track"
-            style={{
-              transform: `translateX(${getTrackOffset()}px)`,
-              transition: isDragging ? 'none' : 'transform 0.32s cubic-bezier(.34,1.4,.64,1)',
-            }}
-          >
-            {items.map((item, i) => {
-              const isActive = i === displayIdx
-              const dist = Math.abs(i - displayIdx)
-              const opacity = dist === 0 ? 1 : dist === 1 ? 0.65 : dist === 2 ? 0.35 : 0.15
-              return (
-                <div
-                  key={item.key}
-                  className={`sfab-chip ${isActive ? 'sfab-chip-active' : ''}`}
-                  style={{ '--chip-color': item.color, opacity } as React.CSSProperties}
-                  onClick={() => { if (isActive && !isDragging) handlers[item.key]?.(); else if (!isDragging) setActiveIdx(i) }}
-                >
-                  <span className="sfab-chip-icon" style={{ color: isActive ? item.color : 'rgba(255,255,255,0.45)' }}>
-                    {item.icon}
-                  </span>
-                  {item.key === 'globalchat' && gcUnread && <span className="sfab-chip-unread" />}
-                  {item.key === 'ai' && aiUnread && <span className="sfab-chip-unread" />}
-                </div>
-              )
-            })}
+          <div ref={trackRef} className="sfab-strip-track">
+            {infiniteItems.map((item, i) => (
+              <div
+                key={`${item.key}-${i}`}
+                className="sfab-chip"
+                data-color={item.color}
+                style={{ '--chip-color': item.color } as React.CSSProperties}
+                onClick={() => {
+                  if (drag.current.active) return
+                  const vIdx = CLONE_COUNT + items.findIndex(x => x.key === item.key)
+                  setVirtualIdx(vIdx)
+                  drag.current.targetOffset = getBaseOffset(vIdx)
+                  drag.current.velocity = 0
+                  startSpring()
+                }}
+              >
+                <span className="sfab-chip-icon">
+                  {item.icon}
+                </span>
+                {item.key === 'globalchat' && gcUnread && <span className="sfab-chip-unread" />}
+                {item.key === 'ai' && aiUnread && <span className="sfab-chip-unread" />}
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* Dots indicator */}
+        {/* Dots indicator — real items only */}
         <div className="sfab-dots">
           {items.map((_, i) => (
             <div
               key={i}
-              className={`sfab-dot ${i === displayIdx ? 'sfab-dot-active' : ''}`}
-              onClick={() => setActiveIdx(i)}
+              className={`sfab-dot ${i === activeIdx ? 'sfab-dot-active' : ''}`}
+              onClick={() => {
+                const vIdx = CLONE_COUNT + i
+                setVirtualIdx(vIdx)
+                drag.current.targetOffset = getBaseOffset(vIdx)
+                drag.current.velocity = 0
+                startSpring()
+              }}
             />
           ))}
         </div>
@@ -674,6 +829,8 @@ export default function BottomNav({
           user-select: none;
           position: relative;
         }
+        .sfab-strip-infinite { cursor: grab; }
+        .sfab-strip-infinite:active { cursor: grabbing; }
         /* center indicator */
         .sfab-strip::after {
           content: '';
@@ -685,7 +842,6 @@ export default function BottomNav({
           border: 1.5px solid rgba(255,255,255,0.08);
           pointer-events: none;
         }
-        .sfab-strip-drag { cursor: grabbing; }
         .sfab-strip-track {
           display: flex; gap: 12px;
           width: max-content;
@@ -699,13 +855,7 @@ export default function BottomNav({
           background: rgba(255,255,255,0.04);
           display: flex; align-items: center; justify-content: center;
           cursor: pointer; flex-shrink: 0; position: relative;
-          transition: border-color .2s, background .2s, transform .22s, box-shadow .22s;
-        }
-        .sfab-chip-active {
-          border-color: color-mix(in srgb, var(--chip-color,#c8f500) 55%, transparent) !important;
-          background: color-mix(in srgb, var(--chip-color,#c8f500) 10%, #0d0d0b) !important;
-          transform: scale(1.1);
-          box-shadow: 0 0 22px color-mix(in srgb, var(--chip-color,#c8f500) 28%, transparent);
+          /* No CSS transition — RAF handles smoothness */
         }
         .sfab-chip-icon { display:flex;align-items:center;justify-content:center;pointer-events:none; }
         .sfab-chip-unread {
