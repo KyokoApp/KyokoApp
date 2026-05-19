@@ -25,6 +25,7 @@ function invalidateCache(key: string) {
 import { signInWithRedirect, signInWithPopup, getRedirectResult, signOut, onAuthStateChanged, User } from 'firebase/auth'
 
 import BottomNav from './BottomNav'
+import AnimeHeroSection from './AnimeHeroSection'
 
 function App() {
   const groupCategories = useMemo(
@@ -1190,12 +1191,6 @@ function App() {
               Nonton anime, baca manga & novel, main RPG, dan terhubung dengan komunitas. Semua dalam satu aplikasi.
             </p>
             <div className="hero-actions">
-              <a className="btn btn-primary" href="https://chat.whatsapp.com/BbLtlR1EbviEHDnaUSvGYz" target="_blank" rel="noreferrer">
-                Official Group
-              </a>
-              <a className="btn btn-secondary" href="https://whatsapp.com/channel/0029Vb5avimI1rcisKNii32A" target="_blank" rel="noreferrer">
-                Official Channel
-              </a>
               {!pwaInstalled && deferredPrompt && (
                 <button className="btn btn-install" onClick={handleInstall}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{marginRight:6}}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -1300,6 +1295,8 @@ function App() {
               </div>
             )}
           </div>
+          {/* ── Anime Info Section ── */}
+          <AnimeHeroSection />
         </section>
 
         {/* ── Tutorial Modal setelah login ── */}
