@@ -26,6 +26,7 @@ import { signInWithRedirect, signInWithPopup, getRedirectResult, signOut, onAuth
 
 import BottomNav from './BottomNav'
 import AnimeHeroSection from './AnimeHeroSection'
+import MangaInfoSection from './MangaInfoSection'
 
 function App() {
   const groupCategories = useMemo(
@@ -1300,6 +1301,11 @@ function App() {
         {/* ── Anime Info Section ── */}
         <section className="section fade-section" style={{ paddingTop: 0 }}>
           <AnimeHeroSection />
+        </section>
+
+        {/* ── Manga Info Section ── */}
+        <section className="section fade-section" style={{ paddingTop: 0 }}>
+          <MangaInfoSection />
         </section>
 
         {/* ── Tutorial Modal setelah login ── */}
