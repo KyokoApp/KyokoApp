@@ -22,6 +22,221 @@ function invalidateCache(key: string) {
 }
 import { signInWithRedirect, signInWithPopup, getRedirectResult, signOut, onAuthStateChanged, User } from 'firebase/auth'
 
+// ── Anime Hub Section ─────────────────────────────────────────────────────
+const ANIME_CATS = [
+  { id: 'airing',       name: 'LIVE NOW',  icon: '🔴', url: 'https://api.jikan.moe/v4/top/anime?filter=airing&limit=12' },
+  { id: 'popular',      name: 'POPULER',   icon: '🔥', url: 'https://api.jikan.moe/v4/top/anime?filter=bypopularity&limit=12' },
+  { id: 'seasonal',     name: 'SEASONAL',  icon: '🌸', url: 'https://api.jikan.moe/v4/seasons/now?limit=12' },
+  { id: 'upcoming',     name: 'UPCOMING',  icon: '📅', url: 'https://api.jikan.moe/v4/top/anime?filter=upcoming&limit=12' },
+  { id: 'movie',        name: 'MOVIE',     icon: '🎬', url: 'https://api.jikan.moe/v4/top/anime?filter=movie&limit=12' },
+  { id: 'action',       name: 'ACTION',    icon: '⚔️', url: 'https://api.jikan.moe/v4/anime?genres=1&order_by=score&sort=desc&limit=12' },
+  { id: 'romance',      name: 'ROMANCE',   icon: '💘', url: 'https://api.jikan.moe/v4/anime?genres=22&order_by=score&sort=desc&limit=12' },
+  { id: 'fantasy',      name: 'FANTASY',   icon: '🧙', url: 'https://api.jikan.moe/v4/anime?genres=10&order_by=score&sort=desc&limit=12' },
+  { id: 'horror',       name: 'HORROR',    icon: '👁️', url: 'https://api.jikan.moe/v4/anime?genres=14&order_by=score&sort=desc&limit=12' },
+  { id: 'comedy',       name: 'KOMEDI',    icon: '😂', url: 'https://api.jikan.moe/v4/anime?genres=4&order_by=score&sort=desc&limit=12' },
+]
+
+interface AnimeItem {
+  mal_id: number
+  title: string
+  title_english?: string
+  images: { jpg: { image_url: string } }
+  score?: number
+  episodes?: number
+  type?: string
+  status?: string
+  url?: string
+}
+
+function AnimeHubSection() {
+  const [activeId, setActiveId] = useState('airing')
+  const [animeList, setAnimeList] = useState<AnimeItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const cacheRef = useRef<Record<string, AnimeItem[]>>({})
+  const trackRef = useRef<HTMLDivElement>(null)
+  const animRef = useRef<Animation | null>(null)
+
+  // Scroll loop via Web Animations API
+  useEffect(() => {
+    const track = trackRef.current
+    if (!track) return
+    const totalH = track.scrollHeight / 2
+    animRef.current?.cancel()
+    animRef.current = track.animate(
+      [{ transform: 'translateY(0)' }, { transform: `translateY(-${totalH}px)` }],
+      { duration: 14000, iterations: Infinity, easing: 'linear' }
+    )
+    const pause = () => animRef.current?.pause()
+    const play  = () => animRef.current?.play()
+    track.addEventListener('mouseenter', pause)
+    track.addEventListener('mouseleave', play)
+    return () => {
+      track.removeEventListener('mouseenter', pause)
+      track.removeEventListener('mouseleave', play)
+      animRef.current?.cancel()
+    }
+  }, [])
+
+  useEffect(() => {
+    const cat = ANIME_CATS.find(c => c.id === activeId)
+    if (!cat) return
+    if (cacheRef.current[activeId]) { setAnimeList(cacheRef.current[activeId]); return }
+    setLoading(true)
+    fetch(cat.url)
+      .then(r => r.json())
+      .then(json => {
+        const data: AnimeItem[] = json.data || []
+        cacheRef.current[activeId] = data
+        setAnimeList(data)
+      })
+      .catch(() => setAnimeList([]))
+      .finally(() => setLoading(false))
+  }, [activeId])
+
+  const catItems = [...ANIME_CATS, ...ANIME_CATS] // doubled for loop
+
+  return (
+    <div style={{ display: 'flex', gap: 12, height: 400, position: 'relative' }}>
+      {/* SIDEBAR */}
+      <div style={{
+        width: 80, flexShrink: 0, overflow: 'hidden', position: 'relative',
+        WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 12%, black 88%, transparent 100%)',
+        maskImage: 'linear-gradient(to bottom, transparent 0%, black 12%, black 88%, transparent 100%)',
+      }}>
+        <div ref={trackRef} style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+          {catItems.map((cat, i) => (
+            <div
+              key={cat.id + i}
+              onClick={() => setActiveId(cat.id)}
+              style={{
+                background: activeId === cat.id ? '#161f00' : '#111',
+                border: `1px solid ${activeId === cat.id ? 'var(--accent, #c8ff00)' : '#1e2a00'}`,
+                borderLeft: `3px solid ${activeId === cat.id ? 'var(--accent, #c8ff00)' : 'transparent'}`,
+                borderRadius: 6,
+                padding: '8px 6px',
+                cursor: 'pointer',
+                textAlign: 'center',
+                transition: 'all 0.2s',
+                boxShadow: activeId === cat.id ? '0 0 8px rgba(200,255,0,0.15)' : 'none',
+                userSelect: 'none',
+              }}
+            >
+              <div style={{ fontSize: 16, marginBottom: 3 }}>{cat.icon}</div>
+              <div style={{
+                fontFamily: 'monospace',
+                fontSize: 7,
+                letterSpacing: 1,
+                textTransform: 'uppercase',
+                color: activeId === cat.id ? '#c8ff00' : '#aaa',
+                lineHeight: 1.3,
+              }}>{cat.name}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* CARD AREA */}
+      <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+        {loading && (
+          <div style={{
+            position: 'absolute', inset: 0, display: 'flex', alignItems: 'center',
+            justifyContent: 'center', flexDirection: 'column', gap: 8,
+            background: 'var(--bg, #0a0a0a)', zIndex: 10,
+          }}>
+            <div style={{
+              width: 32, height: 32,
+              border: '3px solid #1a2200',
+              borderTopColor: '#c8ff00',
+              borderRadius: '50%',
+              animation: 'spin 0.7s linear infinite',
+            }} />
+            <span style={{ fontFamily: 'monospace', fontSize: 9, color: '#c8ff00', letterSpacing: 2 }}>FETCHING</span>
+          </div>
+        )}
+        <div
+          key={activeId}
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(2, 1fr)',
+            gap: 8,
+            height: '100%',
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            paddingRight: 2,
+            scrollbarWidth: 'thin',
+            scrollbarColor: '#c8ff00 transparent',
+            animation: 'animeCardFade 0.3s ease',
+          }}
+        >
+          {animeList.slice(0, 12).map(anime => {
+            const title = anime.title_english || anime.title || 'Unknown'
+            const score = anime.score ? `★ ${anime.score.toFixed(1)}` : '★ –'
+            const eps   = anime.episodes ? `${anime.episodes} eps` : anime.type || ''
+            const img   = anime.images?.jpg?.image_url || ''
+            const st    = anime.status
+            const badgeColor  = st === 'Currently Airing' ? '#c8ff00' : st === 'Not yet aired' ? '#00c8ff' : '#444'
+            const badgeTxtCol = st === 'Currently Airing' ? '#000' : '#fff'
+            const badgeTxt    = st === 'Currently Airing' ? 'LIVE' : st === 'Not yet aired' ? 'SOON' : 'END'
+            return (
+              <div
+                key={anime.mal_id}
+                onClick={() => anime.url && window.open(anime.url, '_blank')}
+                style={{
+                  background: '#111',
+                  border: '1px solid #1e2a00',
+                  borderRadius: 8,
+                  overflow: 'hidden',
+                  cursor: 'pointer',
+                  position: 'relative',
+                  transition: 'transform 0.2s, border-color 0.2s',
+                }}
+                onMouseEnter={e => {
+                  (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-3px)'
+                  ;(e.currentTarget as HTMLDivElement).style.borderColor = '#a0e000'
+                }}
+                onMouseLeave={e => {
+                  (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)'
+                  ;(e.currentTarget as HTMLDivElement).style.borderColor = '#1e2a00'
+                }}
+              >
+                <img
+                  src={img} alt={title}
+                  loading="lazy"
+                  style={{ width: '100%', aspectRatio: '2/3', objectFit: 'cover', display: 'block', background: '#1a1a1a' }}
+                />
+                <div style={{
+                  position: 'absolute', inset: 0,
+                  background: 'linear-gradient(to top, rgba(0,0,0,0.92) 40%, transparent 75%)',
+                  display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', padding: 7,
+                }}>
+                  <div style={{ fontFamily: 'monospace', fontSize: 9, color: '#c8ff00', fontWeight: 700, marginBottom: 2 }}>{score}</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: '#fff', lineHeight: 1.3,
+                    display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{title}</div>
+                  <div style={{ fontSize: 8, color: '#666', marginTop: 2 }}>{eps}</div>
+                </div>
+                <div style={{
+                  position: 'absolute', top: 5, right: 5,
+                  background: badgeColor, color: badgeTxtCol,
+                  fontFamily: 'monospace', fontSize: 6, letterSpacing: 1,
+                  padding: '2px 4px', borderRadius: 3,
+                }}>{badgeTxt}</div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes animeCardFade {
+          from { opacity: 0; transform: translateY(8px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
+    </div>
+  )
+}
+
 function App() {
   const groupCategories = useMemo(
     () => ['Anime', 'Game', 'Bot WhatsApp', 'Jual Beli', 'Cari Teman', 'Teknologi', 'Musik', 'Belajar', 'Daerah', 'Random'],
@@ -1323,25 +1538,12 @@ function App() {
 
         <section className="section fade-section" id="info-berita">
           <div className="section-number">02</div>
-          <div className="section-bg-text">LINKS</div>
+          <div className="section-bg-text">ANIME</div>
           <div className="section-header">
-            <h2>Official Links</h2>
-            <p>Selalu terhubung dengan jalur resmi KyokoMd.</p>
+            <h2>Anime Hub</h2>
+            <p>Temukan anime terbaik · selalu diperbarui real-time.</p>
           </div>
-          <div className="card-grid">
-            <a className="link-card" href="https://chat.whatsapp.com/BbLtlR1EbviEHDnaUSvGYz" target="_blank" rel="noreferrer">
-              <div className="card-title">Official Group WhatsApp</div>
-              <div className="card-desc">Highlight utama untuk bergabung dan berdiskusi.</div>
-            </a>
-            <a className="link-card" href="https://whatsapp.com/channel/0029Vb5avimI1rcisKNii32A" target="_blank" rel="noreferrer">
-              <div className="card-title">Official Channel WhatsApp</div>
-              <div className="card-desc">Update terbaru dan info fitur bot.</div>
-            </a>
-            <a className="link-card" href="https://t.me/kyokomd" target="_blank" rel="noreferrer">
-              <div className="card-title">Telegram Hub</div>
-              <div className="card-desc">Komunitas tambahan untuk diskusi dan support.</div>
-            </a>
-          </div>
+          <AnimeHubSection />
         </section>
 
         <div className="film-divider reverse" aria-hidden="true" />
