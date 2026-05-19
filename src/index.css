@@ -230,8 +230,8 @@ main {
 }
 
 .hero {
-  padding: 140px 6vw 100px;
-  min-height: 90vh;
+  padding: 100px 6vw 40px;
+  min-height: auto;
   position: relative;
   display: flex;
   align-items: center;
@@ -1422,7 +1422,7 @@ main {
   }
 
   .hero {
-    padding-top: 120px;
+    padding-top: 90px;
   }
 
   .section-number {

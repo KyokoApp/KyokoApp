@@ -1301,12 +1301,12 @@ function App() {
         </section>
 
         {/* ── Anime Info Section ── */}
-        <section className="section fade-section" style={{ paddingTop: 0 }}>
+        <section className="section fade-section" style={{ paddingTop: 0, paddingBottom: 16 }}>
           <AnimeHeroSection />
         </section>
 
         {/* ── Manga Info Section ── */}
-        <section className="section fade-section" style={{ paddingTop: 0 }}>
+        <section className="section fade-section" style={{ paddingTop: 0, paddingBottom: 16 }}>
           <MangaInfoSection />
         </section>
 
@@ -1358,8 +1358,6 @@ function App() {
             <span>ANIME STREAM · MANGA READ · LIGHT NOVEL · RPG BATTLE · GACHA · FISHING · GLOBAL CHAT · TOP ANIME · </span>
           </div>
         </div>
-
-        <div className="film-divider" aria-hidden="true" />
 
         {/* ── Anime Quick Feature Cards (HOME only) ─────────────────── */}
         {!lainnyaOpen && (
