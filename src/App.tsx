@@ -1295,7 +1295,10 @@ function App() {
               </div>
             )}
           </div>
-          {/* ── Anime Info Section ── */}
+        </section>
+
+        {/* ── Anime Info Section ── */}
+        <section className="section fade-section" style={{ paddingTop: 0 }}>
           <AnimeHeroSection />
         </section>
 
