@@ -118,6 +118,8 @@ function App() {
   const [lainnyaOpen, setLainnyaOpen] = useState(false)
   // sectionWrapVisible: tetap true saat navigasi dari Komunitas ke section
   const [sectionWrapVisible, setSectionWrapVisible] = useState(false)
+  // lainnyaSection: buka section tertentu sebagai fullscreen panel
+  const [lainnyaSection, setLainnyaSection] = useState<string|null>(null)
   const [gcUnread, setGcUnread] = useState(false)
   const [authUser, setAuthUser] = useState<User | null>(null)
   const [showLoginTutorial, setShowLoginTutorial] = useState(false)
@@ -1369,10 +1371,55 @@ function App() {
 
 
 
-        {/* ── Community sections (lainnya-mode only) ─────────────────── */}
-        <div className={`lainnya-sections-wrap ${(lainnyaOpen || sectionWrapVisible) ? 'lainnya-sections-visible' : 'lainnya-sections-hidden'}`}>
+        {/* ── Community sections (lainnya-mode only / fullscreen panel) ── */}
+        <div
+          className={`lainnya-sections-wrap ${(lainnyaOpen || sectionWrapVisible) ? 'lainnya-sections-visible' : 'lainnya-sections-hidden'}`}
+          style={lainnyaSection ? {
+            position: 'fixed', inset: 0, zIndex: 9050,
+            background: '#080808', overflowY: 'auto',
+            display: 'flex', flexDirection: 'column',
+          } : {}}
+        >
+        {/* Header panel saat mode fullscreen section */}
+        {lainnyaSection && (() => {
+          const labels: Record<string,{label:string;color:string}> = {
+            'direktori-grup': { label: 'Direktori Grup', color: '#a3e635' },
+            'jual-beli-akun': { label: 'Market Akun', color: '#f472b6' },
+            'apk-mod': { label: 'APK & ScBot', color: '#fb923c' },
+            'kirim-masukan': { label: 'Rating & Ulasan', color: '#facc15' },
+          }
+          const meta = labels[lainnyaSection] ?? { label: 'Komunitas', color: '#c8f500' }
+          return (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 14,
+              padding: '52px 20px 16px',
+              borderBottom: `1px solid ${meta.color}18`,
+              background: `linear-gradient(180deg, color-mix(in srgb, ${meta.color} 6%, #080808) 0%, #080808 100%)`,
+              flexShrink: 0, position: 'sticky', top: 0, zIndex: 10,
+            }}>
+              <button
+                onClick={() => { setLainnyaSection(null); setLainnyaOpen(true) }}
+                style={{
+                  width: 42, height: 42, borderRadius: 13,
+                  border: `1px solid ${meta.color}30`,
+                  background: `color-mix(in srgb, ${meta.color} 8%, transparent)`,
+                  color: meta.color, display: 'flex', alignItems: 'center',
+                  justifyContent: 'center', cursor: 'pointer', flexShrink: 0,
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <polyline points="15 18 9 12 15 6"/>
+                </svg>
+              </button>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 2, color: meta.color, textTransform: 'uppercase', marginBottom: 3 }}>KOMUNITAS</div>
+                <div style={{ fontSize: 20, fontWeight: 900, color: '#fff', letterSpacing: -0.3 }}>{meta.label}</div>
+              </div>
+            </div>
+          )
+        })()}
 
-        <section className="section fade-section" id="direktori-grup">
+        <section className="section fade-section" id="direktori-grup" style={lainnyaSection && lainnyaSection !== 'direktori-grup' ? {display:'none'} : {}}>
           <div className="section-number">05</div>
           <div
             key={groupBgKey}
@@ -1475,7 +1522,7 @@ function App() {
           </div>
         </section>
 
-        <section className="section fade-section" id="jual-beli-akun">
+        <section className="section fade-section" id="jual-beli-akun" style={lainnyaSection && lainnyaSection !== 'jual-beli-akun' ? {display:'none'} : {}}>
           <div className="section-number">06</div>
           <div className="section-bg-text">MARKET</div>
           <div className="section-header">
@@ -1607,7 +1654,7 @@ function App() {
           })()}
         </section>
 
-        <section className="section fade-section" id="apk-mod">
+        <section className="section fade-section" id="apk-mod" style={lainnyaSection && lainnyaSection !== 'apk-mod' ? {display:'none'} : {}}>
           <div className="section-number">09</div>
           <div key={apkBgKey} className={`section-bg-text section-bg-text-anim section-bg-text-${apkBgDir}`}>
             {apkBgLabels[apkTab] || 'APKMOD'}
@@ -1802,7 +1849,7 @@ function App() {
           })()}
         </section>
 
-        <section className="section fade-section" id="kirim-masukan">
+        <section className="section fade-section" id="kirim-masukan" style={lainnyaSection && lainnyaSection !== 'kirim-masukan' ? {display:'none'} : {}}>
           <div className="section-number">10</div>
           <div className="section-bg-text">RATING</div>
           <div className="section-header">
@@ -1930,7 +1977,7 @@ function App() {
           })()}
         </section>
 
-        <section className="section fade-section" id="rekomendasi-game">
+        <section className="section fade-section" id="rekomendasi-game" style={lainnyaSection ? {display:'none'} : {}}>
           <div className="section-number">07</div>
           <div className="section-bg-text">GAMES</div>
           <div className="section-header">
@@ -1956,9 +2003,9 @@ function App() {
           </div>
         </section>
 
-        <div className="film-divider" aria-hidden="true" />
+        {!lainnyaSection && <div className="film-divider" aria-hidden="true" />}
 
-        <section className="section fade-section" id="berita-game">
+        <section className="section fade-section" id="berita-game" style={lainnyaSection ? {display:'none'} : {}}>
           <div className="section-number">08</div>
           <div className="section-bg-text">NEWS</div>
           <div className="section-header">
@@ -2224,12 +2271,10 @@ function App() {
         onLainnyaOpen={() => { setLainnyaOpen(true); setSectionWrapVisible(true) }}
         onLainnyaClose={() => setLainnyaOpen(false)}
         onSectionNav={(id) => {
-          // Tutup lainnya page, tapi section wrap tetap visible
-          setLainnyaOpen(false)
+          // Buka section sebagai fullscreen panel — tidak ke tampilan utama
+          setLainnyaSection(id)
           setSectionWrapVisible(true)
-          setTimeout(() => {
-            document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-          }, 80)
+          setLainnyaOpen(false)
         }}
         gcUnread={gcUnread}
         aiUnread={aiUnread}
