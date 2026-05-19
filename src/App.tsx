@@ -28,34 +28,73 @@ function invalidateCache(key: string) {
 }
 import { signInWithRedirect, signInWithPopup, getRedirectResult, signOut, onAuthStateChanged, User } from 'firebase/auth'
 
-import BottomNav from './BottomNav'
-import AnimeHeroSection from './AnimeHeroSection'
-import MangaInfoSection from './MangaInfoSection'
+// Lazy load komponen pendukung — tidak dibutuhkan saat splash/first paint
+const BottomNav        = React.lazy(() => import('./BottomNav'))
+const AnimeHeroSection = React.lazy(() => import('./AnimeHeroSection'))
+const MangaInfoSection = React.lazy(() => import('./MangaInfoSection'))
+
+// ── Data statis — definisikan di luar komponen supaya tidak re-create tiap render ──
+const GROUP_CATEGORIES = ['Anime', 'Game', 'Bot WhatsApp', 'Jual Beli', 'Cari Teman', 'Teknologi', 'Musik', 'Belajar', 'Daerah', 'Random']
+
+const GAME_DATA = {
+  RPG: [
+    { name: 'Genshin Impact', link: 'https://play.google.com/store/apps/details?id=com.miHoYo.GenshinImpact' },
+    { name: 'Wuthering Waves', link: 'https://play.google.com/store/apps/details?id=com.kurogame.wutheringwaves.global' },
+    { name: 'Neverness To Everness', link: 'https://play.google.com/store/apps/details?id=com.hottagames.nte' },
+  ],
+  MOBA: [
+    { name: 'Honor of Kings', link: 'https://play.google.com/store/apps/details?id=com.levelinfinite.sgameGlobal' },
+    { name: 'Mobile Legends', link: 'https://play.google.com/store/apps/details?id=com.mobile.legends' },
+  ],
+  FPS: [
+    { name: 'Delta Force', link: 'https://play.google.com/store/apps/details?id=com.garena.game.df' },
+    { name: 'Free Fire', link: 'https://play.google.com/store/apps/details?id=com.dts.freefireth' },
+    { name: 'Blood Strike', link: 'https://play.google.com/store/apps/details?id=com.netease.newspike' },
+  ],
+}
+
+// EDIT BERITA DI SINI - tambah objek baru untuk berita terbaru
+const GAME_NEWS = [
+  {
+    game: 'genshin',
+    title: 'Genshin Impact Version 5.5 Brings New Characters',
+    description: 'Update terbaru Genshin Impact menghadirkan karakter baru dan area eksplorasi yang lebih luas.',
+    url: 'https://genshin.hoyoverse.com',
+    image: 'https://c.termai.cc/a168/fWL8x6q.jpg',
+    date: '2026-05-09',
+    source: 'HoYoverse Official',
+  },
+  {
+    game: 'mobile-legends',
+    title: 'Mobile Legends Season Update: Meta Baru dan Balance Patch',
+    description: 'Patch terbaru Mobile Legends membawa perubahan meta dan penyesuaian hero utama.',
+    url: 'https://m.mobilelegends.com',
+    image: 'https://c.termai.cc/a167/OZkTk.jpg',
+    date: '2026-05-10',
+    source: 'Moonton News',
+  },
+  {
+    game: 'wuthering-waves',
+    title: 'Wuthering Waves Update: Eksplorasi dan Event Musim Baru',
+    description: 'Event terbaru membuka area baru dan reward eksklusif untuk pemain aktif.',
+    url: 'https://wutheringwaves.kurogame.com',
+    image: 'https://c.termai.cc/a109/QJM.jpg',
+    date: '2026-05-11',
+    source: 'Kuro Games',
+  },
+  {
+    game: 'free-fire',
+    title: 'Free Fire menghadirkan mode baru dan kolaborasi spesial',
+    description: 'Mode terbatas dan bundle kolaborasi baru tersedia di update terbaru Free Fire.',
+    url: 'https://ff.garena.com',
+    image: 'https://c.termai.cc/a184/MPYWRSy.jpg',
+    date: '2026-05-12',
+    source: 'Garena',
+  },
+]
 
 function App() {
-  const groupCategories = useMemo(
-    () => ['Anime', 'Game', 'Bot WhatsApp', 'Jual Beli', 'Cari Teman', 'Teknologi', 'Musik', 'Belajar', 'Daerah', 'Random'],
-    [],
-  )
-  const gameData = useMemo(
-    () => ({
-      RPG: [
-        { name: 'Genshin Impact', link: 'https://play.google.com/store/apps/details?id=com.miHoYo.GenshinImpact' },
-        { name: 'Wuthering Waves', link: 'https://play.google.com/store/apps/details?id=com.kurogame.wutheringwaves.global' },
-        { name: 'Neverness To Everness', link: 'https://play.google.com/store/apps/details?id=com.hottagames.nte' },
-      ],
-      MOBA: [
-        { name: 'Honor of Kings', link: 'https://play.google.com/store/apps/details?id=com.levelinfinite.sgameGlobal' },
-        { name: 'Mobile Legends', link: 'https://play.google.com/store/apps/details?id=com.mobile.legends' },
-      ],
-      FPS: [
-        { name: 'Delta Force', link: 'https://play.google.com/store/apps/details?id=com.garena.game.df' },
-        { name: 'Free Fire', link: 'https://play.google.com/store/apps/details?id=com.dts.freefireth' },
-        { name: 'Blood Strike', link: 'https://play.google.com/store/apps/details?id=com.netease.newspike' },
-      ],
-    }),
-    [],
-  )
+  // groupCategories & gameData pakai konstanta modul (di atas)
 
   // ── Splash screen ─────────────────────────────────────────────────────────
   const [splashDone, setSplashDone] = useState(false)
@@ -71,7 +110,7 @@ function App() {
 
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [groups, setGroups] = useState<Record<string, { name: string; link: string; desc: string; createdAt: number }[]>>({})
-  const [groupForm, setGroupForm] = useState({ name: '', link: '', category: groupCategories[0], desc: '' })
+  const [groupForm, setGroupForm] = useState({ name: '', link: '', category: GROUP_CATEGORIES[0], desc: '' })
   const [groupErrors, setGroupErrors] = useState({ link: '' })
   const [activeGroupIndex, setActiveGroupIndex] = useState(0)
   const [groupSlideDirection, setGroupSlideDirection] = useState<'left' | 'right'>('right')
@@ -414,50 +453,9 @@ function App() {
       audio.play().then(() => setMusicPlaying(true)).catch(() => {})
     }
   }
-  // EDIT BERITA DI SINI - tambah objek baru untuk berita terbaru
-  const gameNews = useMemo(
-    () => [
-      {
-        game: 'genshin',
-        title: 'Genshin Impact Version 5.5 Brings New Characters',
-        description: 'Update terbaru Genshin Impact menghadirkan karakter baru dan area eksplorasi yang lebih luas.',
-        url: 'https://genshin.hoyoverse.com',
-        image: 'https://c.termai.cc/a168/fWL8x6q.jpg',
-        date: '2026-05-09',
-        source: 'HoYoverse Official',
-      },
-      {
-        game: 'mobile-legends',
-        title: 'Mobile Legends Season Update: Meta Baru dan Balance Patch',
-        description: 'Patch terbaru Mobile Legends membawa perubahan meta dan penyesuaian hero utama.',
-        url: 'https://m.mobilelegends.com',
-        image: 'https://c.termai.cc/a167/OZkTk.jpg',
-        date: '2026-05-10',
-        source: 'Moonton News',
-      },
-      {
-        game: 'wuthering-waves',
-        title: 'Wuthering Waves Update: Eksplorasi dan Event Musim Baru',
-        description: 'Event terbaru membuka area baru dan reward eksklusif untuk pemain aktif.',
-        url: 'https://wutheringwaves.kurogame.com',
-        image: 'https://c.termai.cc/a109/QJM.jpg',
-        date: '2026-05-11',
-        source: 'Kuro Games',
-      },
-      {
-        game: 'free-fire',
-        title: 'Free Fire menghadirkan mode baru dan kolaborasi spesial',
-        description: 'Mode terbatas dan bundle kolaborasi baru tersedia di update terbaru Free Fire.',
-        url: 'https://ff.garena.com',
-        image: 'https://c.termai.cc/a184/MPYWRSy.jpg',
-        date: '2026-05-12',
-        source: 'Garena',
-      },
-    ],
-    [],
-  )
+  // gameNews dipakai di bawah (didefinisikan sebagai konstanta modul di luar komponen)
 
-  const activeCategory = groupCategories[activeGroupIndex]
+  const activeCategory = GROUP_CATEGORIES[activeGroupIndex]
 
   useEffect(() => {
     const elements = document.querySelectorAll('.fade-section')
@@ -514,12 +512,13 @@ function App() {
     } catch (e) { console.error('loadRatings error:', e) }
   }, [])
 
-  useEffect(() => { loadRatings() }, [loadRatings])
+  // ── Defer semua data loading sampai splash selesai (hemat CPU & network saat cold start) ──
+  useEffect(() => { if (splashDone) loadRatings() }, [loadRatings, splashDone])
 
   // ── Firebase: Load groups (getDocs + cache 5 menit) ──────────────────────
   const loadGroups = React.useCallback(async (forceRefresh = false) => {
     const expiryMs = 2592000000
-    const initialGroups = groupCategories.reduce(
+    const initialGroups = GROUP_CATEGORIES.reduce(
       (acc, category) => { acc[category] = []; return acc },
       {} as Record<string, { name: string; link: string; desc: string; createdAt: number }[]>,
     )
@@ -532,7 +531,7 @@ function App() {
       const loaded: Record<string, { name: string; link: string; desc: string; createdAt: number }[]> = { ...initialGroups }
       snapshot.forEach((docSnap) => {
         const data = docSnap.data() as { category: string; name: string; link: string; desc: string; createdAt: number }
-        if (!data.category || !groupCategories.includes(data.category)) return
+        if (!data.category || !GROUP_CATEGORIES.includes(data.category)) return
         const createdAt = typeof data.createdAt === 'number' ? data.createdAt : Date.now()
         if (Date.now() - createdAt > expiryMs) return
         if (!loaded[data.category]) loaded[data.category] = []
@@ -544,9 +543,9 @@ function App() {
       setGroups(loaded)
       setCache('kyoko_groups', loaded)
     } catch (e) { console.error('loadGroups error:', e) }
-  }, [groupCategories])
+  }, [])
 
-  useEffect(() => { loadGroups() }, [loadGroups])
+  useEffect(() => { if (splashDone) loadGroups() }, [loadGroups, splashDone])
 
   // ── Firebase: Load jual beli & MM list (getDocs + cache 5 menit) ────────
   const loadJualBeli = React.useCallback(async (forceRefresh = false) => {
@@ -570,7 +569,7 @@ function App() {
     } catch (e) { console.error('loadJualBeli error:', e) }
   }, [])
 
-  useEffect(() => { loadJualBeli() }, [loadJualBeli])
+  useEffect(() => { if (splashDone) loadJualBeli() }, [loadJualBeli, splashDone])
 
   // ── Firebase: Load APK / SC lists (getDocs + cache 5 menit) ─────────────
   const loadApkLists = React.useCallback(async (forceRefresh = false) => {
@@ -594,7 +593,7 @@ function App() {
     } catch (e) { console.error('loadApkLists error:', e) }
   }, [])
 
-  useEffect(() => { loadApkLists() }, [loadApkLists])
+  useEffect(() => { if (splashDone) loadApkLists() }, [loadApkLists, splashDone])
 
   useEffect(() => {
     const storedTheme = localStorage.getItem('theme')
@@ -687,7 +686,7 @@ function App() {
       return updated
     })
     invalidateCache('kyoko_groups')
-    setGroupForm({ name: '', link: '', category: groupCategories[0], desc: '' })
+    setGroupForm({ name: '', link: '', category: GROUP_CATEGORIES[0], desc: '' })
     setIsModalOpen(false)
   }
 
@@ -697,8 +696,8 @@ function App() {
     setGroupBgKey(k => k + 1)
     setActiveGroupIndex((prev) => {
       const next = direction === 'left'
-        ? (prev === 0 ? groupCategories.length - 1 : prev - 1)
-        : (prev === groupCategories.length - 1 ? 0 : prev + 1)
+        ? (prev === 0 ? GROUP_CATEGORIES.length - 1 : prev - 1)
+        : (prev === GROUP_CATEGORIES.length - 1 ? 0 : prev + 1)
       setGroupBgText(next)
       return next
     })
@@ -707,12 +706,27 @@ function App() {
   const filteredGroups = useMemo(() => {
     const query = groupSearch.trim().toLowerCase()
     if (!query) return [] as { category: string; name: string; link: string; desc: string; createdAt: number }[]
-    return groupCategories.flatMap((category) =>
+    return GROUP_CATEGORIES.flatMap((category) =>
       (groups[category] || [])
         .filter((group) => [group.name, group.desc, category].some((field) => field.toLowerCase().includes(query)))
         .map((group) => ({ ...group, category })),
     )
-  }, [groupCategories, groupSearch, groups])
+  }, [groupSearch, groups])
+
+  // Pindahkan filter rating ke useMemo — mencegah re-compute tiap render
+  const filteredRatings = useMemo(() =>
+    ratingFilter ? ratings.filter(r => r.star === ratingFilter) : ratings
+  , [ratings, ratingFilter])
+
+  const ratingStarCounts = useMemo(() => {
+    const counts: Record<number, number> = {}
+    for (let s = 1; s <= 5; s++) counts[s] = ratings.filter(r => r.star === s).length
+    return counts
+  }, [ratings])
+
+  const ratingAverage = useMemo(() =>
+    ratings.length ? ratings.reduce((s, r) => s + r.star, 0) / ratings.length : 0
+  , [ratings])
 
   const expiryMs = 2592000000
   const getDaysLeft = (createdAt: number) => Math.max(0, Math.ceil((createdAt + expiryMs - Date.now()) / 86400000))
@@ -1044,7 +1058,7 @@ function App() {
   }
 
   const filteredNews = useMemo(() => {
-    if (newsFilter === 'Semua') return gameNews
+    if (newsFilter === 'Semua') return GAME_NEWS
     const map: Record<string, string> = {
       Genshin: 'genshin',
       'Mobile Legends': 'mobile-legends',
@@ -1052,8 +1066,8 @@ function App() {
       'Wuthering Waves': 'wuthering-waves',
     }
     const target = map[newsFilter]
-    return gameNews.filter((item) => item.game === target)
-  }, [gameNews, newsFilter])
+    return GAME_NEWS.filter((item) => item.game === target)
+  }, [newsFilter])
 
   const gameEmoji: Record<string, string> = {
     genshin: '✨',
@@ -1312,12 +1326,16 @@ function App() {
 
         {/* ── Anime Info Section ── */}
         <div style={{ padding: '0 4vw 16px' }}>
-          <AnimeHeroSection />
+          <React.Suspense fallback={<div style={{height:120}}/>}>
+            <AnimeHeroSection />
+          </React.Suspense>
         </div>
 
         {/* ── Manga Info Section ── */}
         <div style={{ padding: '0 4vw 16px' }}>
-          <MangaInfoSection />
+          <React.Suspense fallback={<div style={{height:100}}/>}>
+            <MangaInfoSection />
+          </React.Suspense>
         </div>
 
         {/* ── Tutorial Modal setelah login ── */}
@@ -1425,7 +1443,7 @@ function App() {
             key={groupBgKey}
             className={`section-bg-text section-bg-text-anim section-bg-text-${groupBgDir}`}
           >
-            {groupCategories[groupBgText].toUpperCase()}
+            {GROUP_CATEGORIES[groupBgText].toUpperCase()}
           </div>
           <div className="section-header">
             <h2>Direktori Grup</h2>
@@ -1518,7 +1536,7 @@ function App() {
             </div>
           )}
           <div className="group-indicator">
-            {activeCategory.toUpperCase()} ({activeGroupIndex + 1}/{groupCategories.length})
+            {activeCategory.toUpperCase()} ({activeGroupIndex + 1}/{GROUP_CATEGORIES.length})
           </div>
         </section>
 
@@ -1861,19 +1879,19 @@ function App() {
           {ratings.length > 0 && (
             <div className="rating-summary">
               <div className="rating-avg">
-                {(ratings.reduce((s, r) => s + r.star, 0) / ratings.length).toFixed(1)}
+                {ratingAverage.toFixed(1)}
               </div>
               <div className="rating-summary-right">
                 <div className="rating-stars-display">
                   {[1,2,3,4,5].map(s => (
-                    <span key={s} className={s <= Math.round(ratings.reduce((acc, r) => acc + r.star, 0) / ratings.length) ? 'star-filled' : 'star-empty'}>★</span>
+                    <span key={s} className={s <= Math.round(ratingAverage) ? 'star-filled' : 'star-empty'}>★</span>
                   ))}
                 </div>
                 <div className="rating-count">{ratings.length} ulasan</div>
                 {/* Bar chart per bintang */}
                 <div className="rating-bars">
                   {[5,4,3,2,1].map(s => {
-                    const count = ratings.filter(r => r.star === s).length
+                    const count = ratingStarCounts[s] || 0
                     const pct = ratings.length ? (count / ratings.length) * 100 : 0
                     return (
                       <div className="rating-bar-row" key={s}>
@@ -1925,7 +1943,7 @@ function App() {
 
           {/* List ulasan — 3 teratas + tombol filter kategori */}
           {(() => {
-            const filtered = ratingFilter ? ratings.filter(r => r.star === ratingFilter) : ratings
+            const filtered = filteredRatings
             const showFilterBtn = ratings.length > 3
             return (
               <>
@@ -1966,7 +1984,7 @@ function App() {
                       <div className="rating-bubble">
                         <button className={`rb-item ${!ratingFilter ? 'rb-active' : ''}`} onClick={() => { setRatingFilter(null); setRatingBubbleOpen(false) }} type="button">Semua ★</button>
                         {[5,4,3,2,1].map(s => (
-                          <button key={s} className={`rb-item ${ratingFilter === s ? 'rb-active' : ''}`} onClick={() => { setRatingFilter(s); setRatingBubbleOpen(false) }} type="button">{s} ★ ({ratings.filter(r => r.star === s).length})</button>
+                          <button key={s} className={`rb-item ${ratingFilter === s ? 'rb-active' : ''}`} onClick={() => { setRatingFilter(s); setRatingBubbleOpen(false) }} type="button">{s} ★ ({ratingStarCounts[s] || 0})</button>
                         ))}
                       </div>
                     )}
@@ -1992,7 +2010,7 @@ function App() {
             ))}
           </div>
           <div className="card-grid">
-            {gameData[activeGenre].map((game) => (
+            {GAME_DATA[activeGenre].map((game) => (
               <div className="game-card" key={game.name}>
                 <div className="card-title">{game.name}</div>
                 <a className="btn btn-secondary" href={game.link} target="_blank" rel="noreferrer">
@@ -2256,29 +2274,31 @@ function App() {
       )}
 
       {/* ── BottomNav (replaces old FAB) ────────────────────────── */}
-      <BottomNav
-        onOpenGlobalChat={() => { setGcInitialTab('chat'); setGcUnread(false); setGcOpen(true) }}
-        onOpenAI={() => { setAiUnread(false); setChatOpen(true) }}
-        onOpenManga={() => { setMangaOpen(true) }}
-        onOpenNovel={() => { setNovelOpen(true) }}
-        onOpenAnime={() => { setAnimeOpen(true) }}
-        onOpenRpg={() => { setGcInitialTab('rpg'); setGcOpen(true) }}
-        onScrollTo={(id) => {
-          triggerZzz('NAVIGATING', () => {
-            document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-          })
-        }}
-        onLainnyaOpen={() => { setLainnyaOpen(true); setSectionWrapVisible(true) }}
-        onLainnyaClose={() => setLainnyaOpen(false)}
-        onSectionNav={(id) => {
-          // Buka section sebagai fullscreen panel — tidak ke tampilan utama
-          setLainnyaSection(id)
-          setSectionWrapVisible(true)
-          setLainnyaOpen(false)
-        }}
-        gcUnread={gcUnread}
-        aiUnread={aiUnread}
-      />
+      <React.Suspense fallback={null}>
+        <BottomNav
+          onOpenGlobalChat={() => { setGcInitialTab('chat'); setGcUnread(false); setGcOpen(true) }}
+          onOpenAI={() => { setAiUnread(false); setChatOpen(true) }}
+          onOpenManga={() => { setMangaOpen(true) }}
+          onOpenNovel={() => { setNovelOpen(true) }}
+          onOpenAnime={() => { setAnimeOpen(true) }}
+          onOpenRpg={() => { setGcInitialTab('rpg'); setGcOpen(true) }}
+          onScrollTo={(id) => {
+            triggerZzz('NAVIGATING', () => {
+              document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            })
+          }}
+          onLainnyaOpen={() => { setLainnyaOpen(true); setSectionWrapVisible(true) }}
+          onLainnyaClose={() => setLainnyaOpen(false)}
+          onSectionNav={(id) => {
+            // Buka section sebagai fullscreen panel — tidak ke tampilan utama
+            setLainnyaSection(id)
+            setSectionWrapVisible(true)
+            setLainnyaOpen(false)
+          }}
+          gcUnread={gcUnread}
+          aiUnread={aiUnread}
+        />
+      </React.Suspense>
 
       <div className={`chat-widget ${chatOpen ? 'open' : ''}`}>
         <div className="chat-header">
@@ -2363,7 +2383,7 @@ function App() {
                   value={groupForm.category}
                   onChange={(event) => setGroupForm((prev) => ({ ...prev, category: event.target.value }))}
                 >
-                  {groupCategories.map((category) => (
+                  {GROUP_CATEGORIES.map((category) => (
                     <option key={category}>{category}</option>
                   ))}
                 </select>

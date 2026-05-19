@@ -1,10 +1,38 @@
 import React, { useEffect, useRef, useState, useCallback, memo, Suspense } from 'react'
-const GameRpg = React.lazy(() => import('./GameRpg'))
-import AnimeStreamPanel from './AnimeStreamPanel'
-import DrakorStreamPanel from './DrakorStreamPanel'
-import MangaStreamPanel from './MangaStreamPanel'
-import MangaCrossPanel from './MangaCrossPanel'
-import KyoNovelPanel from './KyoNovelPanel'
+
+// ── Lazy load semua sub-panel — tidak dimuat sampai tab dibuka ──────────────
+const GameRpg          = React.lazy(() => import('./GameRpg'))
+const AnimeStreamPanel = React.lazy(() => import('./AnimeStreamPanel'))
+const DrakorStreamPanel= React.lazy(() => import('./DrakorStreamPanel'))
+const MangaStreamPanel = React.lazy(() => import('./MangaStreamPanel'))
+const MangaCrossPanel  = React.lazy(() => import('./MangaCrossPanel'))
+const KyoNovelPanel    = React.lazy(() => import('./KyoNovelPanel'))
+const PlanetPanel      = React.lazy(() => import('./PlanetPanel'))
+// GameOfflinePanel dan sub-game-nya juga lazy
+const GameOfflinePanel = React.lazy(() => import('./GameOfflinePanel'))
+const OfflineGamesMenuLazy = React.lazy(() =>
+  import('./GameOfflinePanel').then(m => ({ default: m.OfflineGamesMenu }))
+)
+const CaturGameLazy = React.lazy(() =>
+  import('./GameOfflinePanel').then(m => ({ default: m.CaturGame }))
+)
+const SnakeGameLazy = React.lazy(() =>
+  import('./GameOfflinePanel').then(m => ({ default: m.SnakeGame }))
+)
+const TicTacToeGameLazy = React.lazy(() =>
+  import('./GameOfflinePanel').then(m => ({ default: m.TicTacToeGame }))
+)
+const MemoryCardGameLazy = React.lazy(() =>
+  import('./GameOfflinePanel').then(m => ({ default: m.MemoryCardGame }))
+)
+
+// Type alias agar kode di bawah tetap pakai nama asli tanpa ubah banyak
+const OfflineGamesMenu = OfflineGamesMenuLazy
+const CaturGame        = CaturGameLazy
+const SnakeGame        = SnakeGameLazy
+const TicTacToeGame    = TicTacToeGameLazy
+const MemoryCardGame   = MemoryCardGameLazy
+
 import { auth, googleProvider, dbChat, getRpgDb } from './firebase'
 import {
   rpgSaveLocal, rpgLoadLocal, rpgSyncToFirebase, rpgNeedsSync,
@@ -12,7 +40,6 @@ import {
   queueTransfer, getPendingTransfers, executePendingTransfers,
   setupOnlineListener, isOnline, hasCachedAuth,
 } from './rpgStore'
-import PlanetPanel from './PlanetPanel'
 import {
   collection, doc, setDoc, addDoc, onSnapshot, orderBy, query,
   serverTimestamp, getDoc, limit, updateDoc, deleteDoc, increment,
@@ -22,7 +49,6 @@ import {
   signInWithPopup, signInWithRedirect, signOut,
   onAuthStateChanged, User
 } from 'firebase/auth'
-import GameOfflinePanel, { OfflineGamesMenu, CaturGame, SnakeGame, TicTacToeGame, MemoryCardGame } from './GameOfflinePanel'
 
 // ═══════════════════════════════════════════════════════════════
 // TYPES
@@ -4189,27 +4215,37 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange, init
 
             {/* ── ANIME STREAM TAB ── */}
             {(activeTab as string) === 'anime' && (
-              <AnimeStreamPanel isAdmin={isAdmin} userId={user?.uid || ''} />
+              <Suspense fallback={<div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',color:'#a78bfa',fontSize:14}}>Memuat AnimeStream...</div>}>
+                <AnimeStreamPanel isAdmin={isAdmin} userId={user?.uid || ''} />
+              </Suspense>
             )}
 
             {/* ── DRAKOR STREAM TAB ── */}
             {(activeTab as string) === 'drakor' && (
-              <DrakorStreamPanel isAdmin={isAdmin} userId={user?.uid || ''} />
+              <Suspense fallback={<div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',color:'#f472b6',fontSize:14}}>Memuat DrakorStream...</div>}>
+                <DrakorStreamPanel isAdmin={isAdmin} userId={user?.uid || ''} />
+              </Suspense>
             )}
 
             {/* ── MANGA TAB ── */}
             {(activeTab as string) === 'manga' && (
-              <MangaStreamPanel isAdmin={isAdmin} userId={user?.uid || ''} />
+              <Suspense fallback={<div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',color:'#c8f500',fontSize:14}}>Memuat MangaStream...</div>}>
+                <MangaStreamPanel isAdmin={isAdmin} userId={user?.uid || ''} />
+              </Suspense>
             )}
 
             {/* ── MANGA CROSS TAB (PREMIUM) ── */}
             {(activeTab as string) === 'mangax' && (
-              <MangaCrossPanel isAdmin={isAdmin} userId={user?.uid || ''} />
+              <Suspense fallback={<div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',color:'#c8f500',fontSize:14}}>Memuat MangaCross...</div>}>
+                <MangaCrossPanel isAdmin={isAdmin} userId={user?.uid || ''} />
+              </Suspense>
             )}
 
             {/* ── KYONOVEL TAB ── */}
             {(activeTab as string) === 'novel' && (
-              <KyoNovelPanel isAdmin={isAdmin} userId={user?.uid || ''} />
+              <Suspense fallback={<div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',color:'#fb923c',fontSize:14}}>Memuat KyoNovel...</div>}>
+                <KyoNovelPanel isAdmin={isAdmin} userId={user?.uid || ''} />
+              </Suspense>
             )}
 
             {/* ── CHAT TAB ── */}
@@ -4933,38 +4969,42 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange, init
             {/* ── OFFLINE GAMES TAB ── */}
             {(activeTab as string) === 'offline' && (
               <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden',background:'#0a0a12'}}>
-                {offlineSelectedGame === null ? (
-                  <OfflineGamesMenu
-                    onSelectGame={(id) => setOfflineSelectedGame(id)}
-                    onBack={() => setActiveTab('chat')}
-                  />
-                ) : offlineSelectedGame === 'catur' ? (
-                  <CaturGame onBack={() => setOfflineSelectedGame(null)} />
-                ) : offlineSelectedGame === 'snake' ? (
-                  <SnakeGame onBack={() => setOfflineSelectedGame(null)} />
-                ) : offlineSelectedGame === 'ttt' ? (
-                  <TicTacToeGame onBack={() => setOfflineSelectedGame(null)} />
-                ) : offlineSelectedGame === 'memory' ? (
-                  <MemoryCardGame onBack={() => setOfflineSelectedGame(null)} />
-                ) : null}
+                <Suspense fallback={<div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',color:'#a78bfa',fontSize:14}}>Memuat Game...</div>}>
+                  {offlineSelectedGame === null ? (
+                    <OfflineGamesMenu
+                      onSelectGame={(id) => setOfflineSelectedGame(id)}
+                      onBack={() => setActiveTab('chat')}
+                    />
+                  ) : offlineSelectedGame === 'catur' ? (
+                    <CaturGame onBack={() => setOfflineSelectedGame(null)} />
+                  ) : offlineSelectedGame === 'snake' ? (
+                    <SnakeGame onBack={() => setOfflineSelectedGame(null)} />
+                  ) : offlineSelectedGame === 'ttt' ? (
+                    <TicTacToeGame onBack={() => setOfflineSelectedGame(null)} />
+                  ) : offlineSelectedGame === 'memory' ? (
+                    <MemoryCardGame onBack={() => setOfflineSelectedGame(null)} />
+                  ) : null}
+                </Suspense>
               </div>
             )}
 
             {/* ── PLANET TAB ── */}
             {activeTab === 'rpg' && activeGachaTab === 'planet' && (
               <div className="gc2-rpg-wrap" style={{overflowY:'hidden',display:'flex',flexDirection:'column',padding:0}}>
-                <PlanetPanel
-                  uid={user?.uid || ''}
-                  username={username}
-                  gold={rpgChar?.gold || 0}
-                  onGoldChange={async (newGold: number) => {
-                    if (!rpgChar || !user) return
-                    const updated = { ...rpgChar, gold: newGold }
-                    setRpgChar(updated)
-                    await updateDoc(doc(getRpgDb(user!.uid), 'rpgChars', user.uid), { gold: newGold })
-                  }}
-                  onBack={() => setActiveGachaTab('rpg')}
-                />
+                <Suspense fallback={<div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',color:'#60a5fa',fontSize:14}}>Memuat Planet...</div>}>
+                  <PlanetPanel
+                    uid={user?.uid || ''}
+                    username={username}
+                    gold={rpgChar?.gold || 0}
+                    onGoldChange={async (newGold: number) => {
+                      if (!rpgChar || !user) return
+                      const updated = { ...rpgChar, gold: newGold }
+                      setRpgChar(updated)
+                      await updateDoc(doc(getRpgDb(user!.uid), 'rpgChars', user.uid), { gold: newGold })
+                    }}
+                    onBack={() => setActiveGachaTab('rpg')}
+                  />
+                </Suspense>
               </div>
             )}
 
