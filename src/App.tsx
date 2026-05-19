@@ -638,12 +638,6 @@ function App() {
       }).catch(() => {
         runAnimation(1280, 1270)
       })
-          runAnimation(current + 1, Math.max(0, current - 5))
-        }
-      }).catch(() => {
-        runAnimation(1280, 1270)
-      })
-    })
     return () => cancelAnimationFrame(rafId)
   }, [])
 
