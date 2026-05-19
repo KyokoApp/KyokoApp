@@ -3802,33 +3802,7 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange, init
     <div className="gc-overlay" onClick={() => { if (battleState) clearActiveBattle(); onClose() }} style={{ zIndex: 9999, position:'fixed', inset:0, display:'flex', alignItems:'stretch', justifyContent:'stretch' }}>
       <div className="gc-container gc2-container zzz-discord-layout" onClick={e => e.stopPropagation()} style={{ position: 'relative', display: 'flex', flexDirection: 'row', padding: 0, overflow: 'hidden', width:'100vw', height:'100dvh', borderRadius:0, flex:1 }}>
 
-        {/* ── QUARTER CIRCLE NAV TRIGGER ── */}
-        {/* ── ICON NAV STRIP ── */}
-        <div className="qc-icon-strip">
-          <div className="qc-strip-avatar" onClick={() => setNavOpen(v => !v)}>
-            {groupInfo?.iconUrl
-              ? <img src={groupInfo.iconUrl} alt="g" style={{width:'100%',height:'100%',objectFit:'cover',borderRadius:'50%'}}/>
-              : <span style={{fontSize:15}}>⚡</span>}
-          </div>
-          <div className="qc-strip-divider"/>
-          {CHANNELS.map((ch) => {
-            const isActive = getActiveChannelId() === ch.id
-            const isVoiceActive = ch.id === 'voice' && voiceCallActive
-            return (
-              <button
-                key={ch.id}
-                className={`qc-strip-btn${isActive ? ' qc-strip-active' : ''}${isVoiceActive ? ' qc-strip-voice' : ''}`}
-                onClick={() => handleChannelClick(ch.id as ChannelId)}
-                title={ch.label}
-              >
-                <span className="qc-strip-icon">{ch.icon}</span>
-                {isVoiceActive && <span className="qc-strip-badge">{Object.keys(voiceParticipants).length}</span>}
-              </button>
-            )
-          })}
-        </div>
-
-        {/* ── GROUP NAV POPUP (click avatar) ── */}
+        {/* ── GROUP NAV POPUP (click group avatar in header) ── */}
 
         {/* ── NAV BACKDROP ── */}
         <div className={`qc-backdrop${navOpen ? ' qc-backdrop-visible' : ''}`} onClick={() => setNavOpen(false)} />
@@ -4004,25 +3978,39 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange, init
         {/* Toast notifications */}
         <ToastContainer toasts={toasts} onRemove={(id) => setToasts(prev => prev.filter(t => t.id !== id))} />
 
-        {/* ── ZZZ CHANNEL HEADER ── */}
-        <div className="zzz-channel-header" style={{paddingLeft:14}}>
-          <div className="zzz-channel-header-left">
-            <span className="zzz-channel-header-icon">
-              {CHANNELS.find(c => c.id === getActiveChannelId())?.icon || '💬'}
-            </span>
-            <span className="zzz-channel-header-name">
-              {CHANNELS.find(c => c.id === getActiveChannelId())?.label || 'global-chat'}
-            </span>
-            {isAdmin && <span className="gc2-admin-badge" style={{marginLeft:6}}>ADMIN</span>}
+        {/* ── ARC GROUP HEADER ── */}
+        <div className="arc-group-header">
+          {/* Arc background shape */}
+          <div className="arc-bg-shape"/>
+          {/* Left: Group avatar (tap to open nav) + group name */}
+          <div className="arc-left" onClick={() => setNavOpen(v => !v)}>
+            <div className="arc-group-avatar">
+              {groupInfo?.iconUrl
+                ? <img src={groupInfo.iconUrl} alt="g" style={{width:'100%',height:'100%',objectFit:'cover',borderRadius:'inherit'}}/>
+                : <span style={{fontSize:20}}>⚡</span>}
+              <div className="arc-avatar-ring"/>
+            </div>
+            <div className="arc-group-meta">
+              <div className="arc-group-name">
+                {groupInfo?.name || 'KyokoMd Global'}
+                {isAdmin && <span className="gc2-admin-badge" style={{marginLeft:5}}>ADMIN</span>}
+              </div>
+              <div className="arc-channel-tag">
+                <span style={{opacity:.6}}>{CHANNELS.find(c => c.id === getActiveChannelId())?.icon || '💬'}</span>
+                <span>{CHANNELS.find(c => c.id === getActiveChannelId())?.label || 'global-chat'}</span>
+                <span className="arc-member-count">· {groupInfo?.members?.length || 0} anggota</span>
+              </div>
+            </div>
           </div>
-          <div style={{display:'flex',alignItems:'center',gap:6}}>
+          {/* Right: action buttons */}
+          <div className="arc-right">
             {isAdmin && (
-              <button onClick={() => setShowOwnerInbox(true)} style={{position:'relative',background:bpRequests.length>0?'rgba(255,157,0,0.15)':'rgba(255,255,255,0.04)',border:`1px solid ${bpRequests.length>0?'rgba(255,157,0,0.4)':'rgba(255,255,255,0.1)'}`,borderRadius:8,padding:'5px 8px',color:bpRequests.length>0?'#ff9d00':'rgba(255,255,255,0.4)',fontSize:13,cursor:'pointer'}} title="Inbox BP Request">
-                📬{bpRequests.length > 0 && <span style={{marginLeft:4,background:'#ff375f',color:'#fff',borderRadius:10,padding:'1px 5px',fontSize:9,fontWeight:800}}>{bpRequests.length}</span>}
+              <button onClick={() => setShowOwnerInbox(true)} className="arc-action-btn" style={{color:bpRequests.length>0?'#ff9d00':'rgba(255,255,255,0.35)',borderColor:bpRequests.length>0?'rgba(255,157,0,0.35)':'rgba(255,255,255,0.08)',background:bpRequests.length>0?'rgba(255,157,0,0.1)':'rgba(255,255,255,0.04)'}} title="Inbox BP Request">
+                📬{bpRequests.length > 0 && <span style={{marginLeft:3,background:'#ff375f',color:'#fff',borderRadius:8,padding:'0 4px',fontSize:9,fontWeight:800}}>{bpRequests.length}</span>}
               </button>
             )}
-            <button className="zzz-icon-btn" onClick={() => setShowGroupInfo(true)} title="Info Grup" style={{padding:'5px 8px'}}>
-              <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14"><path fillRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0zm-7-4a1 1 0 1 1-2 0 1 1 0 0 1 2 0zM9 9a1 1 0 0 0 0 2v3a1 1 0 0 0 1 1h1a1 1 0 1 0 0-2v-3a1 1 0 0 0-1-1H9z" clipRule="evenodd"/></svg>
+            <button className="arc-action-btn" onClick={() => setShowGroupInfo(true)} title="Info Grup">
+              <svg viewBox="0 0 20 20" fill="currentColor" width="13" height="13"><path fillRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0zm-7-4a1 1 0 1 1-2 0 1 1 0 0 1 2 0zM9 9a1 1 0 0 0 0 2v3a1 1 0 0 0 1 1h1a1 1 0 1 0 0-2v-3a1 1 0 0 0-1-1H9z" clipRule="evenodd"/></svg>
             </button>
           </div>
         </div>
@@ -5805,7 +5793,7 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange, init
            ZZZ DISCORD LAYOUT — FULL WIDTH (no sidebar)
         ══════════════════════════════════════════════════════════ */
         .zzz-discord-layout { display:flex !important; flex-direction:row !important; width:100%; max-width:100vw; height:100dvh; border-radius:0; overflow:hidden; border:none; box-shadow:none; }
-        .zzz-main-content { flex:1; display:flex; flex-direction:column; overflow:hidden; min-height:0; position:relative; min-width:0; margin-left:52px; }
+        .zzz-main-content { flex:1; display:flex; flex-direction:column; overflow:hidden; min-height:0; position:relative; min-width:0; margin-left:0; }
 
         /* ── Icon Nav Strip ── */
         .qc-icon-strip {
@@ -5880,14 +5868,14 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange, init
 
         /* ── Nav Popup Panel ── */
         .qc-nav-panel {
-          position:absolute; top:8px; left:58px;
-          width:200px; max-height:85vh;
+          position:absolute; top:62px; left:8px;
+          width:210px; max-height:82vh;
           z-index:50;
           background:linear-gradient(160deg,#0d0d1c 0%,#09090f 100%);
           border:1px solid rgba(200,245,0,0.12);
           border-radius:14px;
           display:flex; flex-direction:column;
-          transform:translateX(-12px) scale(.94);
+          transform:translateY(-10px) scale(.94);
           transform-origin:top left;
           opacity:0;
           transition:transform .3s cubic-bezier(.22,1.15,.36,1), opacity .22s ease;
@@ -5896,7 +5884,7 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange, init
           box-shadow:0 8px 32px rgba(0,0,0,0.6), 0 0 0 1px rgba(200,245,0,0.06);
         }
         .qc-nav-open {
-          transform:translateX(0) scale(1);
+          transform:translateY(0) scale(1);
           opacity:1; pointer-events:all;
         }
         .qc-group-info {
@@ -5971,6 +5959,77 @@ export default function GlobalChatPanel({ onClose, onUnread, onMusicChange, init
         .zzz-channel-header-left { display:flex; align-items:center; gap:8px; }
         .zzz-channel-header-icon { font-size:16px; }
         .zzz-channel-header-name { font-size:12px; font-weight:800; color:rgba(255,255,255,0.7); letter-spacing:.3px; }
+
+        /* ── Arc Group Header ── */
+        .arc-group-header {
+          position:relative; display:flex; align-items:center; justify-content:space-between;
+          padding:10px 12px 10px 12px;
+          background:linear-gradient(180deg,#0d0d1c 0%,#090910 100%);
+          border-bottom:1px solid rgba(200,245,0,0.09);
+          flex-shrink:0; overflow:hidden; min-height:58px;
+        }
+        .arc-bg-shape {
+          position:absolute; left:-30px; top:-50px;
+          width:220px; height:130px;
+          border-radius:0 0 60% 60%;
+          background:radial-gradient(ellipse at 40% 0%,rgba(200,245,0,0.07) 0%,transparent 70%);
+          pointer-events:none;
+        }
+        .arc-left {
+          display:flex; align-items:center; gap:10px;
+          cursor:pointer; position:relative; z-index:1;
+          padding:3px 6px 3px 2px;
+          border-radius:40px;
+          transition:background .18s;
+          -webkit-tap-highlight-color:transparent;
+        }
+        .arc-left:hover { background:rgba(200,245,0,0.05); }
+        .arc-left:active { background:rgba(200,245,0,0.1); }
+        .arc-group-avatar {
+          position:relative; width:40px; height:40px; flex-shrink:0;
+          border-radius:14px; overflow:visible;
+          display:flex; align-items:center; justify-content:center;
+          background:linear-gradient(135deg,#1a1a2e,#16213e);
+        }
+        .arc-group-avatar > img {
+          width:40px; height:40px; object-fit:cover; border-radius:14px;
+          display:block;
+        }
+        .arc-avatar-ring {
+          position:absolute; inset:-2px;
+          border-radius:16px;
+          border:2px solid transparent;
+          background:linear-gradient(135deg,rgba(200,245,0,0.6),rgba(100,200,0,0.2)) border-box;
+          -webkit-mask:linear-gradient(#fff 0 0) padding-box,linear-gradient(#fff 0 0);
+          -webkit-mask-composite:destination-out;
+          mask-composite:exclude;
+          pointer-events:none;
+        }
+        .arc-group-meta { display:flex; flex-direction:column; gap:2px; }
+        .arc-group-name {
+          font-size:13px; font-weight:800; color:#fff;
+          letter-spacing:.2px; line-height:1.2;
+          display:flex; align-items:center; gap:4px;
+        }
+        .arc-channel-tag {
+          display:flex; align-items:center; gap:4px;
+          font-size:10px; color:rgba(200,245,0,0.55); font-weight:600;
+          letter-spacing:.2px;
+        }
+        .arc-member-count { color:rgba(255,255,255,0.25); font-weight:500; }
+        .arc-right { display:flex; align-items:center; gap:5px; position:relative; z-index:1; }
+        .arc-action-btn {
+          display:flex; align-items:center; justify-content:center;
+          height:32px; min-width:32px; padding:0 8px;
+          border-radius:10px; border:1px solid rgba(255,255,255,0.08);
+          background:rgba(255,255,255,0.04);
+          color:rgba(255,255,255,0.4);
+          font-size:14px; cursor:pointer;
+          transition:background .15s, color .15s, border-color .15s;
+          -webkit-tap-highlight-color:transparent;
+        }
+        .arc-action-btn:hover { background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.7); }
+        .arc-action-btn:active { transform:scale(.94); }
 
         /* ── Voice Room ── */
         .zzz-voice-room { flex:1; display:flex; flex-direction:column; overflow-y:auto; }
