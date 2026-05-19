@@ -5138,19 +5138,12 @@ h1, h2, h3, .splash-brand, .modal-title {
 }
 
 /* ── Lainnya Tab: sembunyikan community sections dari main scroll ─────────── */
-/* Saat panel Lainnya terbuka, 3 section ini tidak terlihat di halaman utama   */
+/* Saat panel Lainnya terbuka, section ini tidak terlihat di halaman utama   */
 main.lainnya-mode #direktori-grup,
 main.lainnya-mode #jual-beli-akun,
-main.lainnya-mode #apk-mod {
+main.lainnya-mode #apk-mod,
+main.lainnya-mode #kirim-masukan {
   display: none;
-}
-
-/* ── Lainnya sections wrap ──────────────────────────────────────────────── */
-.lainnya-sections-hidden {
-  display: none;
-}
-.lainnya-sections-visible {
-  display: block;
 }
 
 /* ── Anime Feature Grid (HOME page) ─────────────────────────────────────── */
