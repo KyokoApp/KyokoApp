@@ -1547,40 +1547,41 @@ function App() {
               <div className="splash-wipe-out-b" />
             </div>
           )}
-          {/* Grid background */}
-          <div className="splash-grid" aria-hidden="true" />
-          {/* Radial glow */}
-          <div className="splash-glow" aria-hidden="true" />
-          {/* Orbit rings */}
-          <div className="splash-orbit-wrap" aria-hidden="true">
-            <div className="splash-orbit splash-orbit-1" />
-            <div className="splash-orbit splash-orbit-2" />
-            <div className="splash-orbit splash-orbit-3" />
-            <div className="splash-orbit-dot splash-orbit-dot-1" />
-            <div className="splash-orbit-dot splash-orbit-dot-2" />
+          {/* Crystal shards background */}
+          <div className="splash-shards" aria-hidden="true">
+            <div className="shard shard-1" /><div className="shard shard-2" /><div className="shard shard-3" />
+            <div className="shard shard-4" /><div className="shard shard-5" /><div className="shard shard-6" />
+            <div className="shard shard-7" /><div className="shard shard-8" /><div className="shard shard-9" />
+            <div className="shard shard-10" /><div className="shard shard-11" /><div className="shard shard-12" />
+            <div className="shard shard-13" /><div className="shard shard-14" /><div className="shard shard-15" />
+            <div className="shard shard-16" />
           </div>
+          {/* Center glow */}
+          <div className="splash-glow" aria-hidden="true" />
           {/* Corner brackets */}
           <div className="splash-corner splash-corner-tl" aria-hidden="true" />
           <div className="splash-corner splash-corner-tr" aria-hidden="true" />
           <div className="splash-corner splash-corner-bl" aria-hidden="true" />
           <div className="splash-corner splash-corner-br" aria-hidden="true" />
-          {/* Scan line sweep */}
-          <div className="splash-scan" aria-hidden="true" />
-          {/* Side decorative lines */}
-          <div className="splash-line splash-line-l" aria-hidden="true" />
-          <div className="splash-line splash-line-r" aria-hidden="true" />
           {/* Main content */}
           <div className="splash-content">
             <div className="splash-logo-wrap">
               <div className="splash-ring splash-ring-1" />
               <div className="splash-ring splash-ring-2" />
-              <div className="splash-ring splash-ring-3" />
+              <svg className="splash-crystal-ring" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <polygon points="80,4 152,40 152,120 80,156 8,120 8,40" fill="none" stroke="rgba(200,245,0,0.15)" strokeWidth="1" strokeDasharray="6 4"/>
+                <polygon points="80,18 138,48 138,112 80,142 22,112 22,48" fill="none" stroke="rgba(200,245,0,0.07)" strokeWidth="1"/>
+              </svg>
               <svg className="splash-logo-svg" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <polygon points="40,4 72,20 72,60 40,76 8,60 8,20" fill="#0a0a0a" stroke="#c8f500" strokeWidth="2"/>
-                <polygon points="40,14 63,26 63,54 40,66 17,54 17,26" fill="none" stroke="rgba(200,245,0,0.2)" strokeWidth="1"/>
-                <text x="40" y="54" textAnchor="middle" fontFamily="Bebas Neue, sans-serif" fontSize="38" fill="#c8f500" fontWeight="900" letterSpacing="-1">K</text>
-                <circle cx="40" cy="4" r="2.5" fill="#c8f500"/>
-                <circle cx="40" cy="76" r="2.5" fill="#c8f500"/>
+                <polygon points="40,4 72,20 72,60 40,76 8,60 8,20" fill="#0a0a0a" stroke="#c8f500" strokeWidth="1.5"/>
+                <polygon points="40,12 65,25 65,55 40,68 15,55 15,25" fill="none" stroke="rgba(200,245,0,0.18)" strokeWidth="1"/>
+                <text x="40" y="54" textAnchor="middle" fontFamily="Bebas Neue, sans-serif" fontSize="36" fill="#c8f500" fontWeight="900">K</text>
+                <circle cx="40" cy="4" r="2" fill="#c8f500" opacity="0.8"/>
+                <circle cx="40" cy="76" r="2" fill="#c8f500" opacity="0.8"/>
+                <circle cx="72" cy="20" r="1.5" fill="#c8f500" opacity="0.5"/>
+                <circle cx="8" cy="20" r="1.5" fill="#c8f500" opacity="0.5"/>
+                <circle cx="72" cy="60" r="1.5" fill="#c8f500" opacity="0.5"/>
+                <circle cx="8" cy="60" r="1.5" fill="#c8f500" opacity="0.5"/>
               </svg>
             </div>
             <div className="splash-brand">
@@ -1608,7 +1609,6 @@ function App() {
               KYOKO · WHATSAPP BOT · ALWAYS ONLINE · MULTI COMMAND · PLUGIN SYSTEM · READY · 
             </div>
           </div>
-        </div>
       )}
     <div className="page">
       <div className="noise-overlay" aria-hidden="true" />
