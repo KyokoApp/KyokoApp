@@ -1199,7 +1199,7 @@ function App() {
   const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([
     {
       role: 'assistant',
-      content: 'Halo! Aku Kyoko, asisten virtual KyokoMd. Tanyakan apa saja tentang fitur web ini — anime, manga, drakor, novel, game, RPG, gacha, dan lainnya!',
+      content: 'Halo! Aku KyokoAI. Tanyakan apa saja tentang KyokoMd atau komunitasnya.',
     },
   ])
   const [chatMemory, setChatMemory] = useState({
@@ -1864,38 +1864,79 @@ function App() {
     if (!chatInput.trim() || chatLoading) return
     const input = chatInput.trim()
     setChatInput('')
-    const newMessages: { role: 'user' | 'assistant'; content: string }[] = [
-      ...chatMessages,
-      { role: 'user', content: input }
-    ]
-    setChatMessages(newMessages)
+    setChatMessages((prev) => [...prev, { role: 'user', content: input }])
     setChatLoading(true)
 
+    const nameMatch = input.match(/\b(?:nama(?:ku| saya)?|aku|saya)\s*(?:adalah|=)\s*([A-Za-z0-9_\-\s]{2,24})/i)
+    const inferredName = nameMatch ? nameMatch[1].trim() : chatMemory.userName
+    const inferredMood = (() => {
+      if (/[!]{2,}|\b(seru|mantap|keren|yay|yey|asik)\b/i.test(input)) return 'excited'
+      if (/\b(hehe|hihi|malu|gugup)\b/i.test(input)) return 'shy'
+      if (/\b(capek|sepi|bingung|ragu)\b/i.test(input)) return 'calm'
+      if (/\b(kesel|sebel|males|kesal)\b/i.test(input)) return 'annoyed'
+      if (/\b(senang|bahagia|makasih|terima kasih)\b/i.test(input)) return 'happy'
+      return chatMemory.lastMood
+    })()
+    const inferredTopic = (() => {
+      if (/\b(grup|group|komunitas|link)\b/i.test(input)) return 'Komunitas'
+      if (/\b(bot|fitur|plugin|command)\b/i.test(input)) return 'Fitur Bot'
+      if (/\bgame|genshin|moba|fps|rpg\b/i.test(input)) return 'Game'
+      return chatMemory.lastTopic
+    })()
+
+    setChatMemory((prev) => ({
+      ...prev,
+      userName: inferredName,
+      lastMood: inferredMood,
+      lastTopic: inferredTopic,
+      lastUserMessage: input,
+    }))
+
+    const fallbackVariants = [
+      'Hmm... aku agak blank sebentar. Coba ulangi dengan kalimat yang lebih singkat ya?',
+      'Wah, sinyalku lagi goyah. Boleh tanya lagi? Aku bakal jawab sebaik mungkin.',
+      'Maaf, kepalaku lagi penuh. Coba tanya lagi ya~',
+      'Sebentar ya, aku lagi mikir. Ulang pertanyaannya, aku jawab kok.',
+      'Aku masih di sini kok. Coba tanya lagi pelan-pelan, ya?',
+    ]
+    const nextFallback = (offset = 0) => {
+      const index = (lastFallbackIndex + 1 + offset) % fallbackVariants.length
+      setLastFallbackIndex(index)
+      return fallbackVariants[index]
+    }
+
     try {
-      const history = newMessages.slice(1) // skip greeting
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 300,
-          system: 'Kamu adalah Kyoko, asisten virtual resmi KyokoMd. Gunakan bahasa Indonesia yang santai dan ramah. Jawab SINGKAT maksimal 3-4 kalimat, langsung ke poin.\n\nIDENTITAS:\n- Namamu Kyoko, asisten resmi website KyokoMd (kyokomd.netlify.app)\n- KyokoMd adalah platform komunitas multi-fitur berbasis web & bot WhatsApp\n- JANGAN menyebut Claude, Anthropic, atau AI lain. Kamu hanyalah Kyoko.\n\nFITUR KYOKOMD:\n1. GLOBAL CHAT - Chat real-time komunitas. Login Google untuk akses. Ada voice chat & musik bersama.\n2. ANIME HUB - Daftar anime real-time (Airing, Populer, Movie, Action, Romance, Fantasy, Horror, Komedi)\n3. ANIME STREAM - Nonton anime langsung di app (buka Global Chat → tab Anime)\n4. DRAKOR STREAM - Nonton drama Korea di app (buka Global Chat → tab Drakor)\n5. MANGA HUB - Daftar manga/manhwa/manhua real-time (Populer, Manhwa, Manhua, Action, Romance, dll)\n6. MANGA STREAM - Baca manga di app (Global Chat → tab Manga)\n7. MANGA CROSS - Baca manga alternatif (Global Chat → tab MangaX)\n8. NOVEL HUB - Daftar light novel real-time\n9. KYO NOVEL - Baca novel di app (Global Chat → tab Novel)\n10. BATTLE RPG - Game RPG multiplayer online. Kelas: Warrior, Mage, Archer, Healer, Rogue. Ada Battle, Dungeon, Quest, Daily Mission, Duel PvP, Shop, Leaderboard, Mining, Crafting, Farming, Cooking, Training (Global Chat → tab RPG)\n11. GACHA - Sistem gacha karakter (Genshin-style). Soft pity 74, hard pity 90. Ada Primogems, banner, events, battle pass (Global Chat → RPG → Gacha)\n12. PLANET - Eksplorasi planet (Global Chat → RPG → Planet)\n13. FISHING - Mini-game mancing multiplayer. Raritas: Common, Uncommon, Rare, Epic, Legendary, Mythic (Global Chat → tab Fishing)\n14. GAME OFFLINE - Catur, Snake, Tic-Tac-Toe, Memory Card, Ludo (Global Chat → tab Offline)\n15. DIREKTORI GRUP - Daftar grup WhatsApp komunitas. Kategori: Anime, Game, Bot WA, Jual Beli, Cari Teman, Teknologi, Musik, Belajar, Daerah, Random. Siapapun bisa daftarkan grup.\n16. JUAL BELI AKUN - Marketplace akun game. Upload listing, tunggu approval admin.\n17. REKOMENDASI GAME - Info game RPG/MOBA/FPS: Genshin Impact, Wuthering Waves, Neverness to Everness, HoK, MLBB, Delta Force, Free Fire, Blood Strike + berita game.\n18. APK MOD & SCBOT - APK Mod (Game/Sosmed/AI/Lainnya), ScBot Free, ScBot Premium\n19. RATING & ULASAN - Beri rating & ulasan untuk KyokoMd\n20. TOP-UP - Toko top-up: saweria.co/YukiDesu/toko-top-up\n21. LOGIN - Gratis pakai Google. Akses semua fitur interaktif.\n22. CARA BERGABUNG - Buka kyokomd.netlify.app → Login Google → klik tombol + di navbar → pilih tab fitur\n23. SOSMED - YouTube: @ryuukikojo | Instagram: @yusha_desuwa | Telegram: t.me/kyokomd\n\nATURAN:\n- Jawab LANGSUNG sesuai pertanyaan, jangan perkenalan ulang\n- Cara nonton anime/drakor → arahkan ke Global Chat → tab Anime/Drakor\n- Cara baca manga/novel → Global Chat → tab Manga/Novel\n- Topik di luar KyokoMd → "Maaf, aku hanya bisa membantu seputar KyokoMd dan fitur yang tersedia di web ini."',
-          messages: history.map(m => ({ role: m.role, content: m.content }))
-        })
-      })
-      if (!response.ok) throw new Error('API error')
+      const pesanDikirim = `Kamu adalah KyokoAI, asisten virtual KyokoMd. Jawab SINGKAT dan PADAT maksimal 3-4 kalimat saja, jangan panjang. Hanya jawab seputar: KyokoMd bot WhatsApp, cara gabung grup, fitur bot, rekomendasi game (Genshin Impact, Wuthering Waves, Neverness to Everness, Honor of Kings, Mobile Legends, Delta Force, Free Fire, Blood Strike), info top-up di saweria.co/YukiDesu/toko-top-up, dan direktori grup. Jika di luar topik jawab: "Maaf, aku hanya bisa membantu seputar KyokoMd dan fitur yang tersedia di web ini." Pertanyaan user: ${input}`
+      const response = await fetch(`https://api-faa.my.id/faa/claude-ai?text=${encodeURIComponent(pesanDikirim)}`)
+      if (!response.ok) {
+        throw new Error('Request gagal')
+      }
       const data = await response.json()
-      const reply = data?.content?.[0]?.text?.trim() || 'Maaf, aku tidak bisa menjawab saat ini.'
-      setChatMessages(prev => [...prev, { role: 'assistant', content: reply }])
+      if (data?.status === false) {
+        throw new Error(data?.error || 'Request gagal')
+      }
+      const rawReply = typeof data?.result === 'string' ? data.result : nextFallback(1)
+      const cleaned = rawReply
+        .replace(/\n\n+/g, '\n')
+        .replace(/[\*_`>#\-]/g, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim()
+      const sentences = cleaned.split(/(?<=[.!?])\s+/).filter(Boolean)
+      const limited = sentences.length > 4 ? `${sentences.slice(0, 4).join(' ')}...` : cleaned
+      const reply = limited.replace(/\n/g, ' ').trim()
+      setChatMessages((prev) => [...prev, { role: 'assistant', content: reply || nextFallback(1) }])
       if (!chatOpen) setAiUnread(true)
-    } catch {
-      setChatMessages(prev => [...prev, { role: 'assistant', content: 'Maaf, koneksi bermasalah. Coba lagi ya~' }])
+    } catch (error) {
+      setChatMessages((prev) => [
+        ...prev,
+        { role: 'assistant', content: 'Maaf, AI sedang tidak tersedia. Coba lagi nanti.' },
+      ])
     } finally {
       setChatLoading(false)
     }
   }
 
-    const handleThemeToggle = () => {
+  const handleThemeToggle = () => {
     const nextTheme = theme === 'dark' ? 'light' : 'dark'
     setTheme(nextTheme)
     document.body.classList.toggle('theme-light', nextTheme === 'light')
@@ -3239,11 +3280,11 @@ function App() {
         </div>
         {/* Sub: KyokoAI */}
         <div className={`fab-sub ${fabOpen ? 'fab-sub-visible' : ''}`} style={{ '--fab-delay': '0.12s' } as React.CSSProperties}>
-          <span className="fab-sub-label">Kyoko</span>
+          <span className="fab-sub-label">KyokoAI</span>
           <button
             className="fab-sub-btn fab-sub-ai"
             onClick={() => { setFabOpen(false); setAiUnread(false); setChatOpen(true) }}
-            aria-label="Kyoko"
+            aria-label="KyokoAI"
             style={{ position: 'relative' }}
           >
             {aiUnread && <span className="fab-unread-badge">!</span>}
@@ -3296,8 +3337,8 @@ function App() {
       <div className={`chat-widget ${chatOpen ? 'open' : ''}`}>
         <div className="chat-header">
           <div>
-            <div className="chat-title">KYOKO</div>
-            <div className="chat-sub">Asisten Virtual KyokoMd</div>
+            <div className="chat-title">KyokoAI</div>
+            <div className="chat-sub">Powered by Anthropic</div>
           </div>
           <button className="chat-close" onClick={() => { setChatOpen(false); setAiUnread(false) }}>
             ×
