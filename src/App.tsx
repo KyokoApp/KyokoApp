@@ -266,10 +266,32 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
 
   return (
     <div style={{ marginTop: 20 }}>
+      <style>{`
+        @keyframes vcScanline {
+          0%   { transform: translateY(-100%); }
+          100% { transform: translateY(100%); }
+        }
+        @keyframes vcCornerPulse {
+          0%, 100% { opacity: 1; }
+          50%       { opacity: 0.4; }
+        }
+        @keyframes vcGlitch {
+          0%,94%,100% { clip-path: none; transform: none; }
+          95% { clip-path: inset(30% 0 50% 0); transform: translateX(-3px); }
+          97% { clip-path: inset(60% 0 20% 0); transform: translateX(3px); }
+        }
+      `}</style>
+
       {/* Section header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-        <div style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: 2, color: '#c8ff00', textTransform: 'uppercase', opacity: 0.7 }}>
-          📹 VIDEO
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ width: 3, height: 12, background: '#c8ff00', borderRadius: 2 }} />
+          <span style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: 3, color: '#c8ff00', textTransform: 'uppercase' }}>
+            VIDEO
+          </span>
+          <span style={{ fontFamily: 'monospace', fontSize: 7, color: '#c8ff00', opacity: 0.4, letterSpacing: 1 }}>
+            ▶ AUTO
+          </span>
         </div>
         {isAdmin && (
           <button
@@ -280,104 +302,171 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
               padding: '4px 10px', cursor: 'pointer', letterSpacing: 1,
             }}
           >
-            + TAMBAH VIDEO
+            + TAMBAH
           </button>
         )}
       </div>
 
-      {/* Carousel track */}
-      <div
-        style={{ position: 'relative', width: '100%', overflow: 'hidden', borderRadius: 14, border: '1px solid #1e2a00', background: '#000' }}
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-      >
+      {/* ── ZZZ-style outer frame ── */}
+      <div style={{ position: 'relative', padding: '6px' }}>
+
+        {/* Animated corner brackets */}
+        {/* top-left */}
+        <div style={{ position: 'absolute', top: 0, left: 0, width: 18, height: 18, borderTop: '2px solid #c8ff00', borderLeft: '2px solid #c8ff00', borderRadius: '4px 0 0 0', animation: 'vcCornerPulse 2s ease-in-out infinite', zIndex: 10, pointerEvents: 'none' }} />
+        {/* top-right */}
+        <div style={{ position: 'absolute', top: 0, right: 0, width: 18, height: 18, borderTop: '2px solid #c8ff00', borderRight: '2px solid #c8ff00', borderRadius: '0 4px 0 0', animation: 'vcCornerPulse 2s ease-in-out infinite 0.5s', zIndex: 10, pointerEvents: 'none' }} />
+        {/* bottom-left */}
+        <div style={{ position: 'absolute', bottom: 0, left: 0, width: 18, height: 18, borderBottom: '2px solid #c8ff00', borderLeft: '2px solid #c8ff00', borderRadius: '0 0 0 4px', animation: 'vcCornerPulse 2s ease-in-out infinite 1s', zIndex: 10, pointerEvents: 'none' }} />
+        {/* bottom-right */}
+        <div style={{ position: 'absolute', bottom: 0, right: 0, width: 18, height: 18, borderBottom: '2px solid #c8ff00', borderRight: '2px solid #c8ff00', borderRadius: '0 0 4px 0', animation: 'vcCornerPulse 2s ease-in-out infinite 1.5s', zIndex: 10, pointerEvents: 'none' }} />
+
+        {/* Side tick marks */}
+        <div style={{ position: 'absolute', top: '50%', left: 0, transform: 'translateY(-50%)', width: 4, height: 20, background: 'linear-gradient(to bottom, transparent, #c8ff00, transparent)', opacity: 0.6, zIndex: 10, pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', top: '50%', right: 0, transform: 'translateY(-50%)', width: 4, height: 20, background: 'linear-gradient(to bottom, transparent, #c8ff00, transparent)', opacity: 0.6, zIndex: 10, pointerEvents: 'none' }} />
+
+        {/* Carousel track */}
         <div
           style={{
-            display: 'flex',
-            transition: 'transform 0.38s cubic-bezier(0.22,1,0.36,1)',
-            transform: `translateX(-${currentIndex * 100}%)`,
-            willChange: 'transform',
+            position: 'relative', width: '100%', overflow: 'hidden',
+            borderRadius: 10,
+            background: '#000',
+            boxShadow: '0 0 0 1px rgba(200,255,0,0.15), 0 0 24px rgba(200,255,0,0.08), inset 0 0 40px rgba(0,0,0,0.5)',
           }}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
         >
-          {videos.map((video, i) => (
-            <div
-              key={video.id}
-              style={{ flexShrink: 0, width: '100%', aspectRatio: '16/9', position: 'relative', background: '#000' }}
-            >
-              <video
-                ref={el => { videoRefs.current[i] = el }}
-                src={video.url}
-                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                loop
-                muted
-                playsInline
-                preload={i === 0 ? 'auto' : 'none'}
-                controls
-              />
-              {video.title && (
-                <div style={{
-                  position: 'absolute', bottom: 0, left: 0, right: 0, pointerEvents: 'none',
-                  background: 'linear-gradient(to top, rgba(0,0,0,0.75) 0%, transparent 100%)',
-                  padding: '20px 12px 8px',
-                  fontFamily: 'monospace', fontSize: 10, color: '#fff', letterSpacing: 0.5,
-                }}>
-                  {video.title}
-                </div>
-              )}
-              {isAdmin && video.id !== '__default__' && (
-                <button
-                  onClick={() => handleDeleteVideo(video.id)}
-                  style={{
-                    position: 'absolute', top: 8, right: 8,
-                    background: 'rgba(200,0,0,0.82)', border: 'none', borderRadius: 6,
-                    color: '#fff', fontSize: 9, padding: '4px 8px',
-                    cursor: 'pointer', fontFamily: 'monospace', letterSpacing: 1,
-                  }}
-                >
-                  ✕ DEL
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
+          {/* Scanline overlay */}
+          <div style={{
+            position: 'absolute', inset: 0, zIndex: 5, pointerEvents: 'none', overflow: 'hidden', borderRadius: 10,
+          }}>
+            {/* Moving scanline */}
+            <div style={{
+              position: 'absolute', left: 0, right: 0, height: '18%',
+              background: 'linear-gradient(to bottom, transparent, rgba(200,255,0,0.025), transparent)',
+              animation: 'vcScanline 4s linear infinite',
+              pointerEvents: 'none',
+            }} />
+            {/* Horizontal CRT lines */}
+            <div style={{
+              position: 'absolute', inset: 0, pointerEvents: 'none',
+              backgroundImage: 'repeating-linear-gradient(0deg, rgba(0,0,0,0.08) 0px, rgba(0,0,0,0.08) 1px, transparent 1px, transparent 3px)',
+            }} />
+            {/* Vignette */}
+            <div style={{
+              position: 'absolute', inset: 0, pointerEvents: 'none',
+              background: 'radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.55) 100%)',
+            }} />
+            {/* Left/right green edge glow */}
+            <div style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: 6, background: 'linear-gradient(to right, rgba(200,255,0,0.12), transparent)', pointerEvents: 'none' }} />
+            <div style={{ position: 'absolute', top: 0, bottom: 0, right: 0, width: 6, background: 'linear-gradient(to left, rgba(200,255,0,0.12), transparent)', pointerEvents: 'none' }} />
+          </div>
 
-      {/* Dots + arrow nav */}
-      {videos.length > 1 && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 8 }}>
-          <button
-            onClick={() => goTo(currentIndex - 1)}
+          {/* Swipe area blocker — prevents video click-to-pause */}
+          <div
+            style={{ position: 'absolute', inset: 0, zIndex: 4, cursor: 'default' }}
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+          />
+
+          <div
             style={{
-              background: '#161f00', border: '1px solid #2a3a00', borderRadius: 6,
-              color: currentIndex === 0 ? '#2a3a00' : '#c8ff00', fontSize: 16,
-              padding: '2px 9px', cursor: currentIndex === 0 ? 'default' : 'pointer',
-              fontFamily: 'monospace', lineHeight: 1,
+              display: 'flex',
+              transition: 'transform 0.38s cubic-bezier(0.22,1,0.36,1)',
+              transform: `translateX(-${currentIndex * 100}%)`,
+              willChange: 'transform',
+              animation: 'vcGlitch 8s steps(1) infinite',
             }}
-          >‹</button>
-          <div style={{ display: 'flex', gap: 4 }}>
+          >
+            {videos.map((video, i) => (
+              <div
+                key={video.id}
+                style={{ flexShrink: 0, width: '100%', aspectRatio: '16/9', position: 'relative', background: '#000' }}
+              >
+                <video
+                  ref={el => { videoRefs.current[i] = el }}
+                  src={video.url}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', pointerEvents: 'none' }}
+                  loop
+                  muted
+                  playsInline
+                  autoPlay={i === 0}
+                  preload={i === 0 ? 'auto' : 'none'}
+                />
+                {video.title && (
+                  <div style={{
+                    position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 3, pointerEvents: 'none',
+                    background: 'linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 100%)',
+                    padding: '24px 12px 10px',
+                    fontFamily: 'monospace', fontSize: 10, color: '#c8ff00', letterSpacing: 1,
+                  }}>
+                    {video.title}
+                  </div>
+                )}
+                {isAdmin && video.id !== '__default__' && (
+                  <button
+                    onClick={() => handleDeleteVideo(video.id)}
+                    style={{
+                      position: 'absolute', top: 8, right: 8, zIndex: 8,
+                      background: 'rgba(200,0,0,0.82)', border: 'none', borderRadius: 6,
+                      color: '#fff', fontSize: 9, padding: '4px 8px',
+                      cursor: 'pointer', fontFamily: 'monospace', letterSpacing: 1,
+                    }}
+                  >
+                    ✕ DEL
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Bottom HUD bar */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 6, paddingInline: 2 }}>
+          {/* Dots */}
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
             {videos.map((_, i) => (
               <div
                 key={i}
                 onClick={() => goTo(i)}
                 style={{
-                  width: i === currentIndex ? 14 : 5, height: 5, borderRadius: 3,
-                  background: i === currentIndex ? '#c8ff00' : '#2a3a00',
+                  width: i === currentIndex ? 16 : 4, height: 4, borderRadius: 2,
+                  background: i === currentIndex ? '#c8ff00' : 'rgba(200,255,0,0.2)',
                   cursor: 'pointer', transition: 'all 0.3s ease',
+                  boxShadow: i === currentIndex ? '0 0 6px rgba(200,255,0,0.5)' : 'none',
                 }}
               />
             ))}
           </div>
-          <button
-            onClick={() => goTo(currentIndex + 1)}
-            style={{
-              background: '#161f00', border: '1px solid #2a3a00', borderRadius: 6,
-              color: currentIndex === videos.length - 1 ? '#2a3a00' : '#c8ff00', fontSize: 16,
-              padding: '2px 9px', cursor: currentIndex === videos.length - 1 ? 'default' : 'pointer',
-              fontFamily: 'monospace', lineHeight: 1,
-            }}
-          >›</button>
+          {/* Index label */}
+          <span style={{ fontFamily: 'monospace', fontSize: 7, color: '#c8ff00', opacity: 0.4, letterSpacing: 1 }}>
+            {String(currentIndex + 1).padStart(2, '0')} / {String(videos.length).padStart(2, '0')}
+          </span>
         </div>
-      )}
+
+        {/* Arrow nav — only if > 1 video */}
+        {videos.length > 1 && (
+          <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginTop: 6 }}>
+            <button
+              onClick={() => goTo(currentIndex - 1)}
+              style={{
+                background: '#0d1500', border: '1px solid rgba(200,255,0,0.3)', borderRadius: 6,
+                color: currentIndex === 0 ? 'rgba(200,255,0,0.2)' : '#c8ff00', fontSize: 15,
+                padding: '3px 12px', cursor: currentIndex === 0 ? 'default' : 'pointer',
+                fontFamily: 'monospace', lineHeight: 1,
+              }}
+            >‹</button>
+            <button
+              onClick={() => goTo(currentIndex + 1)}
+              style={{
+                background: '#0d1500', border: '1px solid rgba(200,255,0,0.3)', borderRadius: 6,
+                color: currentIndex === videos.length - 1 ? 'rgba(200,255,0,0.2)' : '#c8ff00', fontSize: 15,
+                padding: '3px 12px', cursor: currentIndex === videos.length - 1 ? 'default' : 'pointer',
+                fontFamily: 'monospace', lineHeight: 1,
+              }}
+            >›</button>
+          </div>
+        )}
+      </div>
 
       {/* Admin: Add Video Modal */}
       {showAddModal && (
