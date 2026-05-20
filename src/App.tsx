@@ -175,6 +175,282 @@ function MangaCarousel({ list, loading, activeId }: { list: MangaItem[]; loading
   )
 }
 
+// ── Video Carousel (home section, admin-managed) ────────────────────────────
+interface VideoItem {
+  id: string
+  url: string
+  title?: string
+  addedAt?: number
+}
+
+const HOME_DEFAULT_VIDEOS: VideoItem[] = [
+  { id: '__default__', url: 'https://c.termai.cc/a156/4VoP.mp4', title: '' },
+]
+
+function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
+  const [videos, setVideos] = useState<VideoItem[]>(HOME_DEFAULT_VIDEOS)
+  const [currentIndex, setCurrentIndex] = useState(0)
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [newVideoUrl, setNewVideoUrl] = useState('')
+  const [newVideoTitle, setNewVideoTitle] = useState('')
+  const [addErr, setAddErr] = useState('')
+  const videoRefs = useRef<(HTMLVideoElement | null)[]>([])
+  const touchStartX = useRef<number | null>(null)
+  const hasFirestoreVideos = useRef(false)
+
+  // Load videos from Firestore
+  useEffect(() => {
+    const unsub = onSnapshot(collection(dbAdmin, 'homeVideos'), (snap) => {
+      hasFirestoreVideos.current = !snap.empty
+      if (!snap.empty) {
+        const list: VideoItem[] = snap.docs
+          .map(d => ({ id: d.id, ...(d.data() as Omit<VideoItem, 'id'>) }))
+          .sort((a, b) => (a.addedAt || 0) - (b.addedAt || 0))
+        setVideos(list)
+        setCurrentIndex(prev => Math.min(prev, list.length - 1))
+      } else {
+        setVideos(HOME_DEFAULT_VIDEOS)
+        setCurrentIndex(0)
+      }
+    })
+    return () => unsub()
+  }, [])
+
+  // Play active, pause & reset others
+  useEffect(() => {
+    videoRefs.current.forEach((v, i) => {
+      if (!v) return
+      if (i === currentIndex) {
+        v.play().catch(() => {})
+      } else {
+        v.pause()
+        v.currentTime = 0
+      }
+    })
+  }, [currentIndex, videos.length])
+
+  const goTo = (index: number) => {
+    const next = Math.max(0, Math.min(index, videos.length - 1))
+    if (next === currentIndex) return
+    setCurrentIndex(next)
+  }
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX
+  }
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null) return
+    const diff = touchStartX.current - e.changedTouches[0].clientX
+    if (Math.abs(diff) > 40) diff > 0 ? goTo(currentIndex + 1) : goTo(currentIndex - 1)
+    touchStartX.current = null
+  }
+
+  const handleAddVideo = async () => {
+    if (!newVideoUrl.trim()) { setAddErr('URL tidak boleh kosong'); return }
+    setAddErr('')
+    await addDoc(collection(dbAdmin, 'homeVideos'), {
+      url: newVideoUrl.trim(),
+      title: newVideoTitle.trim(),
+      addedAt: Date.now(),
+    })
+    setNewVideoUrl('')
+    setNewVideoTitle('')
+    setShowAddModal(false)
+  }
+
+  const handleDeleteVideo = async (id: string) => {
+    if (id === '__default__') return
+    await deleteDoc(doc(dbAdmin, 'homeVideos', id))
+    setCurrentIndex(0)
+  }
+
+  return (
+    <div style={{ marginTop: 20 }}>
+      {/* Section header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <div style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: 2, color: '#c8ff00', textTransform: 'uppercase', opacity: 0.7 }}>
+          📹 VIDEO
+        </div>
+        {isAdmin && (
+          <button
+            onClick={() => setShowAddModal(true)}
+            style={{
+              background: '#161f00', border: '1px solid #c8ff00', borderRadius: 6,
+              color: '#c8ff00', fontFamily: 'monospace', fontSize: 8,
+              padding: '4px 10px', cursor: 'pointer', letterSpacing: 1,
+            }}
+          >
+            + TAMBAH VIDEO
+          </button>
+        )}
+      </div>
+
+      {/* Carousel track */}
+      <div
+        style={{ position: 'relative', width: '100%', overflow: 'hidden', borderRadius: 14, border: '1px solid #1e2a00', background: '#000' }}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
+        <div
+          style={{
+            display: 'flex',
+            transition: 'transform 0.38s cubic-bezier(0.22,1,0.36,1)',
+            transform: `translateX(-${currentIndex * 100}%)`,
+            willChange: 'transform',
+          }}
+        >
+          {videos.map((video, i) => (
+            <div
+              key={video.id}
+              style={{ flexShrink: 0, width: '100%', aspectRatio: '16/9', position: 'relative', background: '#000' }}
+            >
+              <video
+                ref={el => { videoRefs.current[i] = el }}
+                src={video.url}
+                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                loop
+                muted
+                playsInline
+                preload={i === 0 ? 'auto' : 'none'}
+                controls
+              />
+              {video.title && (
+                <div style={{
+                  position: 'absolute', bottom: 0, left: 0, right: 0, pointerEvents: 'none',
+                  background: 'linear-gradient(to top, rgba(0,0,0,0.75) 0%, transparent 100%)',
+                  padding: '20px 12px 8px',
+                  fontFamily: 'monospace', fontSize: 10, color: '#fff', letterSpacing: 0.5,
+                }}>
+                  {video.title}
+                </div>
+              )}
+              {isAdmin && video.id !== '__default__' && (
+                <button
+                  onClick={() => handleDeleteVideo(video.id)}
+                  style={{
+                    position: 'absolute', top: 8, right: 8,
+                    background: 'rgba(200,0,0,0.82)', border: 'none', borderRadius: 6,
+                    color: '#fff', fontSize: 9, padding: '4px 8px',
+                    cursor: 'pointer', fontFamily: 'monospace', letterSpacing: 1,
+                  }}
+                >
+                  ✕ DEL
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Dots + arrow nav */}
+      {videos.length > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 8 }}>
+          <button
+            onClick={() => goTo(currentIndex - 1)}
+            style={{
+              background: '#161f00', border: '1px solid #2a3a00', borderRadius: 6,
+              color: currentIndex === 0 ? '#2a3a00' : '#c8ff00', fontSize: 16,
+              padding: '2px 9px', cursor: currentIndex === 0 ? 'default' : 'pointer',
+              fontFamily: 'monospace', lineHeight: 1,
+            }}
+          >‹</button>
+          <div style={{ display: 'flex', gap: 4 }}>
+            {videos.map((_, i) => (
+              <div
+                key={i}
+                onClick={() => goTo(i)}
+                style={{
+                  width: i === currentIndex ? 14 : 5, height: 5, borderRadius: 3,
+                  background: i === currentIndex ? '#c8ff00' : '#2a3a00',
+                  cursor: 'pointer', transition: 'all 0.3s ease',
+                }}
+              />
+            ))}
+          </div>
+          <button
+            onClick={() => goTo(currentIndex + 1)}
+            style={{
+              background: '#161f00', border: '1px solid #2a3a00', borderRadius: 6,
+              color: currentIndex === videos.length - 1 ? '#2a3a00' : '#c8ff00', fontSize: 16,
+              padding: '2px 9px', cursor: currentIndex === videos.length - 1 ? 'default' : 'pointer',
+              fontFamily: 'monospace', lineHeight: 1,
+            }}
+          >›</button>
+        </div>
+      )}
+
+      {/* Admin: Add Video Modal */}
+      {showAddModal && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', zIndex: 9999,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+          }}
+          onClick={() => setShowAddModal(false)}
+        >
+          <div
+            style={{
+              background: '#111', border: '1px solid rgba(200,255,0,0.3)', borderRadius: 20,
+              padding: '24px 20px', maxWidth: 360, width: '100%',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ fontFamily: 'monospace', fontSize: 11, color: '#c8ff00', marginBottom: 16, letterSpacing: 2 }}>
+              📹 TAMBAH VIDEO
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <input
+                type="text"
+                placeholder="URL Video (mp4, dll)"
+                value={newVideoUrl}
+                onChange={e => { setNewVideoUrl(e.target.value); setAddErr('') }}
+                style={{
+                  background: '#1a1a1a', border: `1px solid ${addErr ? '#ff4444' : '#2a3a00'}`, borderRadius: 8,
+                  padding: '10px 12px', color: '#fff', fontSize: 12, outline: 'none', width: '100%', boxSizing: 'border-box',
+                }}
+              />
+              {addErr && <div style={{ fontSize: 10, color: '#ff4444', fontFamily: 'monospace' }}>{addErr}</div>}
+              <input
+                type="text"
+                placeholder="Judul (opsional)"
+                value={newVideoTitle}
+                onChange={e => setNewVideoTitle(e.target.value)}
+                style={{
+                  background: '#1a1a1a', border: '1px solid #2a3a00', borderRadius: 8,
+                  padding: '10px 12px', color: '#fff', fontSize: 12, outline: 'none', width: '100%', boxSizing: 'border-box',
+                }}
+              />
+              <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                <button
+                  onClick={handleAddVideo}
+                  style={{
+                    flex: 1, padding: '12px', borderRadius: 10,
+                    background: 'linear-gradient(135deg,#c8ff00,#a0cc00)',
+                    color: '#000', fontWeight: 800, fontSize: 12, border: 'none',
+                    cursor: 'pointer', fontFamily: 'monospace', letterSpacing: 1,
+                  }}
+                >
+                  TAMBAH
+                </button>
+                <button
+                  onClick={() => { setShowAddModal(false); setAddErr('') }}
+                  style={{
+                    padding: '12px 16px', borderRadius: 10,
+                    background: '#1a1a1a', border: '1px solid #333',
+                    color: '#888', fontSize: 12, cursor: 'pointer',
+                  }}
+                >
+                  Batal
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function MangaHubSection() {
   const [activeId, setActiveId] = useState('popular')
   const [mangaList, setMangaList] = useState<MangaItem[]>([])
@@ -1809,6 +2085,10 @@ function App() {
                 </button>
               </div>
             )}
+
+            {/* ── Video Carousel ── */}
+            <VideoCarousel isAdmin={isAdmin} />
+
           </div>
         </section>
 
