@@ -1341,10 +1341,8 @@ function App() {
 
   const handleMenuClick = (targetId: string) => {
     setMenuOpen(false)
-    triggerZzz('NAVIGATING', () => {
-      const element = document.getElementById(targetId)
-      if (element) element.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    })
+    const element = document.getElementById(targetId)
+    if (element) element.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
 
@@ -1535,51 +1533,81 @@ function App() {
       {/* ── Splash Screen ─────────────────────────────────────────────────── */}
       {!splashDone && (
         <div className={`splash-screen ${splashFade ? 'splash-fade-out' : ''}`}>
-          {/* ZZZ wipe-in overlay */}
+          {/* Wipe-in */}
           {!splashFade && (
             <div className="splash-wipe" aria-hidden="true">
               <div className="splash-wipe-a" />
               <div className="splash-wipe-b" />
             </div>
           )}
-          {/* ZZZ wipe-out overlay */}
+          {/* Wipe-out */}
           {splashFade && (
             <div className="splash-wipe splash-wipe-out" aria-hidden="true">
               <div className="splash-wipe-out-a" />
               <div className="splash-wipe-out-b" />
             </div>
           )}
-          {/* Liquid ripple layers */}
-          <div className="splash-liquid-wrap" aria-hidden="true">
-            <div className="splash-liquid splash-liquid-1" />
-            <div className="splash-liquid splash-liquid-2" />
-            <div className="splash-liquid splash-liquid-3" />
+          {/* Grid background */}
+          <div className="splash-grid" aria-hidden="true" />
+          {/* Radial glow */}
+          <div className="splash-glow" aria-hidden="true" />
+          {/* Orbit rings */}
+          <div className="splash-orbit-wrap" aria-hidden="true">
+            <div className="splash-orbit splash-orbit-1" />
+            <div className="splash-orbit splash-orbit-2" />
+            <div className="splash-orbit splash-orbit-3" />
+            <div className="splash-orbit-dot splash-orbit-dot-1" />
+            <div className="splash-orbit-dot splash-orbit-dot-2" />
           </div>
-          {/* Corner accents */}
+          {/* Corner brackets */}
           <div className="splash-corner splash-corner-tl" aria-hidden="true" />
           <div className="splash-corner splash-corner-tr" aria-hidden="true" />
           <div className="splash-corner splash-corner-bl" aria-hidden="true" />
           <div className="splash-corner splash-corner-br" aria-hidden="true" />
-          {/* Horizontal scan line removed */}
+          {/* Scan line sweep */}
+          <div className="splash-scan" aria-hidden="true" />
+          {/* Side decorative lines */}
+          <div className="splash-line splash-line-l" aria-hidden="true" />
+          <div className="splash-line splash-line-r" aria-hidden="true" />
+          {/* Main content */}
           <div className="splash-content">
             <div className="splash-logo-wrap">
               <div className="splash-ring splash-ring-1" />
               <div className="splash-ring splash-ring-2" />
-              <svg className="splash-logo-svg" viewBox="0 0 44 44" fill="none">
-                <polygon points="22,2 40,11 40,33 22,42 4,33 4,11" fill="#c8f500" />
-                <text x="22" y="30" textAnchor="middle" fontFamily="Bebas Neue, sans-serif" fontSize="22" fill="#0a0a0a" fontWeight="900">K</text>
+              <div className="splash-ring splash-ring-3" />
+              <svg className="splash-logo-svg" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <polygon points="40,4 72,20 72,60 40,76 8,60 8,20" fill="#0a0a0a" stroke="#c8f500" strokeWidth="2"/>
+                <polygon points="40,14 63,26 63,54 40,66 17,54 17,26" fill="none" stroke="rgba(200,245,0,0.2)" strokeWidth="1"/>
+                <text x="40" y="54" textAnchor="middle" fontFamily="Bebas Neue, sans-serif" fontSize="38" fill="#c8f500" fontWeight="900" letterSpacing="-1">K</text>
+                <circle cx="40" cy="4" r="2.5" fill="#c8f500"/>
+                <circle cx="40" cy="76" r="2.5" fill="#c8f500"/>
               </svg>
             </div>
-            <div className="splash-brand">KYOKOMD</div>
-            <div className="splash-tagline">WHATSAPP BOT</div>
-            <div className="splash-loader">
-              <div className="splash-loader-bar" />
-              <div className="splash-loader-pct" />
+            <div className="splash-brand">
+              <span className="splash-brand-k">K</span><span className="splash-brand-rest">YOKO</span>
             </div>
-            <div className="splash-status">READY</div>
+            <div className="splash-tagline">
+              <span className="splash-tag-line" /> WHATSAPP BOT <span className="splash-tag-line" />
+            </div>
+            <div className="splash-loader">
+              <div className="splash-loader-track" />
+              <div className="splash-loader-bar" />
+              <div className="splash-loader-glow" />
+            </div>
+            <div className="splash-status-row">
+              <span className="splash-status-dot-anim" />
+              <span className="splash-status">INITIALIZING</span>
+            </div>
           </div>
           <div className="splash-ver">v1.0</div>
           <div className="splash-est">EST. 2024</div>
+          {/* Bottom ticker */}
+          <div className="splash-ticker" aria-hidden="true">
+            <div className="splash-ticker-inner">
+              KYOKO · WHATSAPP BOT · ALWAYS ONLINE · MULTI COMMAND · PLUGIN SYSTEM · READY · 
+              KYOKO · WHATSAPP BOT · ALWAYS ONLINE · MULTI COMMAND · PLUGIN SYSTEM · READY · 
+            </div>
+          </div>
         </div>
       )}
     <div className="page">
@@ -3242,27 +3270,7 @@ function App() {
         </div>
       )}
 
-      {/* ── ZZZ-style transition overlay */}
-      <div className={`zzz-transition-overlay${zzzActive ? ' zzz-active' : ''}`} aria-hidden="true">
-        <div className="zzz-slash" />
-        <div className="zzz-slash-2" />
-        <div className="zzz-slash-out" />
-        <div className="zzz-slash-out-2" />
-        <div className="zzz-ripple zzz-ripple-1" />
-        <div className="zzz-ripple zzz-ripple-2" />
-        <div className="zzz-ripple zzz-ripple-3" />
-        <div className="zzz-scanlines" />
-        <div className="zzz-glitch-r" />
-        <div className="zzz-glitch-g" />
-        <div className="zzz-glitch-b" />
-        <div className="zzz-noise" />
-        <div className="zzz-flash" />
-        <div className="zzz-line-h" />
-        <div className="zzz-line-v" />
-        <div className="zzz-corner zzz-corner-tl" />
-        <div className="zzz-corner zzz-corner-br" />
-        <div className="zzz-label">{zzzLabel}</div>
-      </div>
+      {/* zzz transition removed */}
     </div>
     </>
   )
