@@ -1609,6 +1609,7 @@ function App() {
               KYOKO · WHATSAPP BOT · ALWAYS ONLINE · MULTI COMMAND · PLUGIN SYSTEM · READY · 
             </div>
           </div>
+        </div>
       )}
     <div className="page">
       <div className="noise-overlay" aria-hidden="true" />
