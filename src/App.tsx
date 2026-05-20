@@ -2173,26 +2173,19 @@ function App() {
               <div className="splash-ring splash-ring-1" />
               <div className="splash-ring splash-ring-2" />
               <svg className="splash-crystal-ring" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="80" cy="80" r="74" fill="none" stroke="rgba(200,245,0,0.13)" strokeWidth="1" strokeDasharray="5 4"/>
-                <circle cx="80" cy="80" r="60" fill="none" stroke="rgba(200,245,0,0.07)" strokeWidth="1"/>
-                <circle cx="80" cy="6" r="2.5" fill="#c8f500" opacity="0.6"/>
-                <circle cx="80" cy="154" r="2.5" fill="#c8f500" opacity="0.6"/>
-                <circle cx="6" cy="80" r="2" fill="#c8f500" opacity="0.35"/>
-                <circle cx="154" cy="80" r="2" fill="#c8f500" opacity="0.35"/>
-                <circle cx="27" cy="27" r="1.5" fill="#c8f500" opacity="0.25"/>
-                <circle cx="133" cy="27" r="1.5" fill="#c8f500" opacity="0.25"/>
-                <circle cx="27" cy="133" r="1.5" fill="#c8f500" opacity="0.25"/>
-                <circle cx="133" cy="133" r="1.5" fill="#c8f500" opacity="0.25"/>
+                <polygon points="80,4 152,40 152,120 80,156 8,120 8,40" fill="none" stroke="rgba(200,245,0,0.15)" strokeWidth="1" strokeDasharray="6 4"/>
+                <polygon points="80,18 138,48 138,112 80,142 22,112 22,48" fill="none" stroke="rgba(200,245,0,0.07)" strokeWidth="1"/>
               </svg>
               <svg className="splash-logo-svg" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="40" cy="40" r="36" fill="#0a0a0a" stroke="rgba(200,245,0,0.55)" strokeWidth="1.5"/>
-                <circle cx="40" cy="40" r="29" fill="none" stroke="rgba(200,245,0,0.1)" strokeWidth="1"/>
-                <path d="M 22 40 A 18 18 0 1 1 40 58" stroke="#c8f500" strokeWidth="1.8" strokeLinecap="round" fill="none" opacity="0.45"/>
-                <line x1="27" y1="22" x2="27" y2="58" stroke="#c8f500" strokeWidth="4" strokeLinecap="round"/>
-                <line x1="27" y1="40" x2="50" y2="22" stroke="#c8f500" strokeWidth="3.5" strokeLinecap="round"/>
-                <line x1="27" y1="40" x2="52" y2="58" stroke="#c8f500" strokeWidth="3.5" strokeLinecap="round"/>
-                <circle cx="40" cy="40" r="2.5" fill="rgba(200,245,0,0.25)"/>
-                <circle cx="40" cy="40" r="1.2" fill="#c8f500"/>
+                <polygon points="40,4 72,20 72,60 40,76 8,60 8,20" fill="#0a0a0a" stroke="#c8f500" strokeWidth="1.5"/>
+                <polygon points="40,12 65,25 65,55 40,68 15,55 15,25" fill="none" stroke="rgba(200,245,0,0.18)" strokeWidth="1"/>
+                <text x="40" y="54" textAnchor="middle" fontFamily="Bebas Neue, sans-serif" fontSize="36" fill="#c8f500" fontWeight="900">K</text>
+                <circle cx="40" cy="4" r="2" fill="#c8f500" opacity="0.8"/>
+                <circle cx="40" cy="76" r="2" fill="#c8f500" opacity="0.8"/>
+                <circle cx="72" cy="20" r="1.5" fill="#c8f500" opacity="0.5"/>
+                <circle cx="8" cy="20" r="1.5" fill="#c8f500" opacity="0.5"/>
+                <circle cx="72" cy="60" r="1.5" fill="#c8f500" opacity="0.5"/>
+                <circle cx="8" cy="60" r="1.5" fill="#c8f500" opacity="0.5"/>
               </svg>
             </div>
             <div className="splash-brand">
@@ -2228,13 +2221,8 @@ function App() {
         <div className="logo">
           <div className={`logo-k-wrap ${musicPlaying ? 'music-pulse' : ''}`} onClick={() => setMenuOpen(true)} role="button" aria-label="Buka menu">
             <svg className="logo-k-svg" viewBox="0 0 44 44" fill="none">
-              <circle cx="22" cy="22" r="20" fill="#0a0a0a" stroke="#c8f500" strokeWidth="1.8"/>
-              <circle cx="22" cy="22" r="15" fill="none" stroke="rgba(200,245,0,0.2)" strokeWidth="1"/>
-              <path d="M 10 22 A 12 12 0 0 1 22 10" stroke="#c8f500" strokeWidth="1.5" strokeLinecap="round" fill="none" opacity="0.5"/>
-              <line x1="14" y1="13" x2="14" y2="31" stroke="#c8f500" strokeWidth="2.8" strokeLinecap="round"/>
-              <line x1="14" y1="22" x2="28" y2="13" stroke="#c8f500" strokeWidth="2.4" strokeLinecap="round"/>
-              <line x1="14" y1="22" x2="29" y2="31" stroke="#c8f500" strokeWidth="2.4" strokeLinecap="round"/>
-              <circle cx="22" cy="22" r="1.8" fill="rgba(200,245,0,0.5)"/>
+              <polygon points="22,2 40,11 40,33 22,42 4,33 4,11" fill="#c8f500" />
+              <text x="22" y="30" textAnchor="middle" fontFamily="Bebas Neue, sans-serif" fontSize="22" fill="#0a0a0a" fontWeight="900">K</text>
             </svg>
             {musicPlaying && <div className="music-rings" aria-hidden="true"><span/><span/><span/></div>}
           </div>
@@ -2253,10 +2241,7 @@ function App() {
               onClick={() => setNavDrawerOpen(p => !p)}
               aria-label="Menu icon"
             >
-              <span className="nd-grid">
-                <span className="nd-sq"/><span className="nd-sq"/>
-                <span className="nd-sq"/><span className="nd-sq"/>
-              </span>
+              <span className="nav-drawer-dot"/><span className="nav-drawer-dot"/><span className="nav-drawer-dot"/><span className="nav-drawer-dot"/>
             </button>
             <div className={`nav-drawer-panel ${navDrawerOpen ? 'open' : ''}`}>
               <a className="nav-icon-btn" href="https://saweria.co/YukiDesu/toko-top-up" target="_blank" rel="noreferrer" data-tooltip="Top-Up Shop" onClick={() => setNavDrawerOpen(false)}>🛒</a>
@@ -2278,18 +2263,18 @@ function App() {
             </div>
           </div>
 
-          {/* Dev Call button */}
-          <a
-            className="btn btn-devcall"
-            href="https://wa.me/6285122344606"
-            target="_blank"
-            rel="noreferrer"
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style={{flexShrink:0}}>
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
-            </svg>
-            HUB
-          </a>
+          {/* Dev Call button with arrow badge */}
+          <div className="devcall-wrap">
+            <span className="devcall-arrow">◀</span>
+            <a
+              className="btn btn-devcall"
+              href="https://wa.me/6285122344606"
+              target="_blank"
+              rel="noreferrer"
+            >
+              HUB DEV
+            </a>
+          </div>
 
           {/* Music button - far right */}
           <button
