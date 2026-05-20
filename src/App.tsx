@@ -197,6 +197,7 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
   const [saving, setSaving] = useState(false)
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([])
   const touchStartX = useRef<number | null>(null)
+  const containerRef = useRef<HTMLDivElement | null>(null)
 
   // Load videos from Firestore (collection homeVideos, sorted by addedAt)
   useEffect(() => {
@@ -215,17 +216,23 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
     return () => unsub()
   }, [])
 
-  // Play active, pause & reset others
+  // Play active, pause & reset others — with smooth playback optimization
   useEffect(() => {
     videoRefs.current.forEach((v, i) => {
       if (!v) return
       if (i === currentIndex) {
+        v.muted = false
+        // Optimasi: gunakan playbackRate & preload untuk smooth
+        v.playbackRate = 1.0
         if (v.readyState === 0) {
           v.load()
-          const onReady = () => { v.play().catch(() => {}); v.removeEventListener('canplay', onReady) }
+          const onReady = () => {
+            v.play().catch(() => { v.muted = true; v.play().catch(() => {}) })
+            v.removeEventListener('canplay', onReady)
+          }
           v.addEventListener('canplay', onReady)
         } else {
-          v.play().catch(() => {})
+          v.play().catch(() => { v.muted = true; v.play().catch(() => {}) })
         }
       } else {
         v.pause()
@@ -233,6 +240,27 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
       }
     })
   }, [currentIndex, videos.length])
+
+  // Scroll-based volume: makin jauh scroll dari video → volume makin kecil
+  useEffect(() => {
+    const handleScroll = () => {
+      const container = containerRef.current
+      const activeVideo = videoRefs.current[currentIndex]
+      if (!container || !activeVideo) return
+      const rect = container.getBoundingClientRect()
+      const windowH = window.innerHeight
+      // Jarak center video dari center layar
+      const videoCenter = rect.top + rect.height / 2
+      const screenCenter = windowH / 2
+      const distance = Math.abs(videoCenter - screenCenter)
+      // Volume 1 saat video di tengah layar, 0 saat jarak > windowH
+      const vol = Math.max(0, 1 - distance / windowH)
+      activeVideo.volume = vol
+    }
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    handleScroll() // initial check
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [currentIndex])
 
   const goTo = (index: number) => {
     const next = Math.max(0, Math.min(index, videos.length - 1))
@@ -286,7 +314,7 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
   }
 
   return (
-    <div style={{ marginTop: 20 }}>
+    <div style={{ marginTop: 20 }} ref={containerRef}>
       <style>{`
         @keyframes vcScanline {
           0%   { transform: translateY(-100%); }
@@ -297,9 +325,7 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
           50%       { opacity: 0.4; }
         }
         @keyframes vcGlitch {
-          0%,94%,100% { clip-path: none; transform: none; }
-          95% { clip-path: inset(30% 0 50% 0); transform: translateX(-3px); }
-          97% { clip-path: inset(60% 0 20% 0); transform: translateX(3px); }
+          0%,100% { clip-path: none; transform: none; }
         }
       `}</style>
 
@@ -356,28 +382,11 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
         >
-          {/* Scanline overlay */}
+          {/* Scanline overlay — only subtle edge glow, no blocking layers */}
           <div style={{
             position: 'absolute', inset: 0, zIndex: 5, pointerEvents: 'none', overflow: 'hidden', borderRadius: 10,
           }}>
-            {/* Moving scanline */}
-            <div style={{
-              position: 'absolute', left: 0, right: 0, height: '18%',
-              background: 'linear-gradient(to bottom, transparent, rgba(200,255,0,0.025), transparent)',
-              animation: 'vcScanline 4s linear infinite',
-              pointerEvents: 'none',
-            }} />
-            {/* Horizontal CRT lines */}
-            <div style={{
-              position: 'absolute', inset: 0, pointerEvents: 'none',
-              backgroundImage: 'repeating-linear-gradient(0deg, rgba(0,0,0,0.08) 0px, rgba(0,0,0,0.08) 1px, transparent 1px, transparent 3px)',
-            }} />
-            {/* Vignette */}
-            <div style={{
-              position: 'absolute', inset: 0, pointerEvents: 'none',
-              background: 'radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.55) 100%)',
-            }} />
-            {/* Left/right green edge glow */}
+            {/* Left/right green edge glow only */}
             <div style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: 6, background: 'linear-gradient(to right, rgba(200,255,0,0.12), transparent)', pointerEvents: 'none' }} />
             <div style={{ position: 'absolute', top: 0, bottom: 0, right: 0, width: 6, background: 'linear-gradient(to left, rgba(200,255,0,0.12), transparent)', pointerEvents: 'none' }} />
           </div>
@@ -395,7 +404,6 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
               transition: 'transform 0.38s cubic-bezier(0.22,1,0.36,1)',
               transform: `translateX(-${currentIndex * 100}%)`,
               willChange: 'transform',
-              animation: 'vcGlitch 8s steps(1) infinite',
             }}
           >
             {videos.map((video, i) => (
@@ -408,7 +416,6 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
                   src={video.url}
                   style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', pointerEvents: 'none' }}
                   loop
-                  muted
                   playsInline
                   autoPlay={i === 0}
                   preload={i === 0 ? 'auto' : 'none'}
@@ -1315,6 +1322,34 @@ function App() {
   // Rating show more
   const [ratingShowCount, setRatingShowCount] = useState(3)
   const [musicPlaying, setMusicPlaying] = useState(false)
+  const [musicTrackUrl, setMusicTrackUrl] = useState('https://c.termai.cc/a138/nOnf2vY.mp3')
+  const [musicTrackName, setMusicTrackName] = useState('Default BGM')
+  const [adminMusicUrl, setAdminMusicUrl] = useState('')
+  const [adminMusicName, setAdminMusicName] = useState('')
+
+  // Load musik dari Firestore (admin bisa ganti via admin setting)
+  React.useEffect(() => {
+    const musicRef = doc(dbAdmin, 'site_config', 'bgmusic')
+    const unsub = onSnapshot(musicRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data()
+        if (data?.url) {
+          setMusicTrackUrl(data.url)
+          setMusicTrackName(data.name || 'BGM')
+          // Update audio element jika sudah ada
+          const audio = audioRef.current
+          if (audio) {
+            const wasPlaying = !audio.paused
+            audio.pause()
+            audio.src = data.url
+            audio.load()
+            if (wasPlaying) audio.play().then(() => setMusicPlaying(true)).catch(() => setMusicPlaying(false))
+          }
+        }
+      }
+    })
+    return () => unsub()
+  }, [])
 
   // ── JUAL BELI AKUN ─────────────────────────────────────────────
   const jualBeliGames = ['Free Fire', 'Mobile Legends', 'Genshin Impact', 'Honkai Star Rail', 'Wuthering Waves', 'Blood Strike', 'Valorant']
@@ -1441,23 +1476,14 @@ function App() {
   }, [])
 
   React.useEffect(() => {
-    const audio = new Audio('https://c.termai.cc/a138/nOnf2vY.mp3')
+    const audio = new Audio(musicTrackUrl)
     audio.loop = true
     audio.volume = 0.4
     audioRef.current = audio
-    // Auto-play: browser requires user interaction first, so we try on first click/touch
-    const tryPlay = () => {
-      audio.play().then(() => setMusicPlaying(true)).catch(() => {})
-      document.removeEventListener('click', tryPlay)
-      document.removeEventListener('touchstart', tryPlay)
-    }
-    document.addEventListener('click', tryPlay)
-    document.addEventListener('touchstart', tryPlay)
+    // Default: musik MATI — user harus klik tombol musik untuk nyalakan
     return () => {
       audio.pause()
       audio.src = ''
-      document.removeEventListener('click', tryPlay)
-      document.removeEventListener('touchstart', tryPlay)
     }
   }, [])
 
@@ -1966,6 +1992,16 @@ function App() {
   const handleAdminLogout = () => {
     sessionStorage.removeItem('isAdmin')
     setIsAdmin(false)
+  }
+
+  const handleSaveBgMusic = async () => {
+    if (!adminMusicUrl.trim()) return
+    try {
+      const musicRef = doc(dbAdmin, 'site_config', 'bgmusic')
+      await setDoc(musicRef, { url: adminMusicUrl.trim(), name: adminMusicName.trim() || 'BGM', updatedAt: Date.now() })
+      setAdminMusicUrl('')
+      setAdminMusicName('')
+    } catch (e) { console.error('Gagal simpan musik:', e) }
   }
 
   const handleSaveAnnouncement = async () => {
@@ -3566,6 +3602,41 @@ function App() {
                 </select>
               </label>
               <div className="ann-preview-note">💡 Broadcast disimpan ke Firebase — semua pengunjung akan melihat saat buka web (cooldown 5 menit per orang).</div>
+
+              {/* ── Music Management ── */}
+              <div style={{ borderTop: '1px solid rgba(200,255,0,0.15)', paddingTop: 16, marginTop: 4 }}>
+                <div style={{ fontFamily: 'monospace', fontSize: 10, color: '#c8ff00', letterSpacing: 2, marginBottom: 10 }}>🎵 GANTI MUSIK LATAR</div>
+                <div style={{ fontSize: 10, color: '#888', marginBottom: 8 }}>
+                  Musik aktif: <span style={{ color: '#c8ff00' }}>{musicTrackName}</span>
+                </div>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
+                  <span style={{ fontSize: 11, color: '#aaa' }}>Nama Lagu (opsional)</span>
+                  <input
+                    type="text"
+                    placeholder="Contoh: Lo-fi BGM"
+                    value={adminMusicName}
+                    onChange={e => setAdminMusicName(e.target.value)}
+                    style={{ background: '#1a1a1a', border: '1px solid #2a3a00', borderRadius: 8, padding: '8px 10px', color: '#fff', fontSize: 12, outline: 'none' }}
+                  />
+                </label>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 10 }}>
+                  <span style={{ fontSize: 11, color: '#aaa' }}>URL Audio (.mp3, dll)</span>
+                  <input
+                    type="text"
+                    placeholder="https://example.com/music.mp3"
+                    value={adminMusicUrl}
+                    onChange={e => setAdminMusicUrl(e.target.value)}
+                    style={{ background: '#1a1a1a', border: '1px solid #2a3a00', borderRadius: 8, padding: '8px 10px', color: '#fff', fontSize: 12, outline: 'none' }}
+                  />
+                </label>
+                <button
+                  className="btn btn-primary"
+                  onClick={handleSaveBgMusic}
+                  disabled={!adminMusicUrl.trim()}
+                  style={{ opacity: adminMusicUrl.trim() ? 1 : 0.4 }}
+                  type="button"
+                >🎵 GANTI LAGU</button>
+              </div>
               <div className="form-actions">
                 <button className="btn btn-primary" onClick={handleSaveAnnouncement}>📢 BROADCAST SEKARANG</button>
                 <button className="btn btn-secondary" onClick={async () => {
