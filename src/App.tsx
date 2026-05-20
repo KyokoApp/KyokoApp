@@ -675,6 +675,210 @@ function MangaHubSection() {
   )
 }
 
+// ── Novel Hub Section ─────────────────────────────────────────────────────────
+const NOVEL_CATS = [
+  { id: 'popular',  name: 'POPULER',  icon: '🔥', url: 'https://api.jikan.moe/v4/top/manga?type=lightnovel&filter=bypopularity&limit=12' },
+  { id: 'top',      name: 'TOP',      icon: '👑', url: 'https://api.jikan.moe/v4/top/manga?type=lightnovel&limit=12' },
+  { id: 'airing',   name: 'TERBIT',   icon: '📡', url: 'https://api.jikan.moe/v4/top/manga?type=lightnovel&filter=publishing&limit=12' },
+  { id: 'romance',  name: 'ROMANCE',  icon: '💘', url: 'https://api.jikan.moe/v4/manga?type=lightnovel&genres=22&order_by=score&sort=desc&limit=12' },
+  { id: 'fantasy',  name: 'FANTASY',  icon: '🧙', url: 'https://api.jikan.moe/v4/manga?type=lightnovel&genres=10&order_by=score&sort=desc&limit=12' },
+  { id: 'action',   name: 'ACTION',   icon: '⚔️', url: 'https://api.jikan.moe/v4/manga?type=lightnovel&genres=1&order_by=score&sort=desc&limit=12' },
+  { id: 'drama',    name: 'DRAMA',    icon: '🎭', url: 'https://api.jikan.moe/v4/manga?type=lightnovel&genres=8&order_by=score&sort=desc&limit=12' },
+  { id: 'mystery',  name: 'MISTERI',  icon: '🔍', url: 'https://api.jikan.moe/v4/manga?type=lightnovel&genres=7&order_by=score&sort=desc&limit=12' },
+]
+
+interface NovelItem {
+  mal_id: number
+  title: string
+  title_english?: string
+  images: { jpg: { image_url: string } }
+  score?: number
+  chapters?: number
+  volumes?: number
+  type?: string
+  status?: string
+  url?: string
+  publishing?: boolean
+}
+
+function NovelHubSection() {
+  const [activeId, setActiveId] = useState('popular')
+  const [novelList, setNovelList] = useState<NovelItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const cacheRef   = useRef<Record<string, NovelItem[]>>({})
+  const trackRef   = useRef<HTMLDivElement>(null)
+  const animRef    = useRef<Animation | null>(null)
+  const resumeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const pauseAndScheduleResume = () => {
+    animRef.current?.pause()
+    if (resumeTimer.current) clearTimeout(resumeTimer.current)
+    resumeTimer.current = setTimeout(() => animRef.current?.play(), 3000)
+  }
+
+  // Sidebar scroll loop (vertikal, ke bawah)
+  useEffect(() => {
+    const track = trackRef.current
+    if (!track) return
+    const totalH = track.scrollHeight / 2
+    animRef.current?.cancel()
+    animRef.current = track.animate(
+      [{ transform: 'translateY(0)' }, { transform: `translateY(-${totalH}px)` }],
+      { duration: 18000, iterations: Infinity, easing: 'linear' }
+    )
+    track.addEventListener('mouseenter',  pauseAndScheduleResume)
+    track.addEventListener('touchstart',  pauseAndScheduleResume, { passive: true })
+    return () => {
+      track.removeEventListener('mouseenter', pauseAndScheduleResume)
+      track.removeEventListener('touchstart', pauseAndScheduleResume)
+      animRef.current?.cancel()
+      if (resumeTimer.current) clearTimeout(resumeTimer.current)
+    }
+  }, [])
+
+  // Fetch data
+  useEffect(() => {
+    const cat = NOVEL_CATS.find(c => c.id === activeId)
+    if (!cat) return
+    if (cacheRef.current[activeId]) { setNovelList(cacheRef.current[activeId]); setLoading(false); return }
+    setLoading(true)
+    fetch(cat.url)
+      .then(r => r.json())
+      .then(json => {
+        const data: NovelItem[] = json.data || []
+        cacheRef.current[activeId] = data
+        setNovelList(data)
+      })
+      .catch(() => setNovelList([]))
+      .finally(() => setLoading(false))
+  }, [activeId])
+
+  const catItems = [...NOVEL_CATS, ...NOVEL_CATS]
+
+  const renderCard = (novel: NovelItem, key: string) => {
+    const title = novel.title_english || novel.title || 'Unknown'
+    const score = novel.score ? `★ ${novel.score.toFixed(1)}` : '★ –'
+    const info  = novel.volumes ? `${novel.volumes} vol` : novel.chapters ? `${novel.chapters} ch` : novel.type || ''
+    const img   = novel.images?.jpg?.image_url || ''
+    const isPublishing = novel.publishing || novel.status === 'Publishing'
+    const badgeColor   = isPublishing ? '#c8ff00' : novel.status === 'Not yet published' ? '#00c8ff' : '#333'
+    const badgeTxtCol  = isPublishing ? '#000' : '#fff'
+    const badgeTxt     = isPublishing ? 'LIVE' : novel.status === 'Not yet published' ? 'SOON' : 'END'
+    return (
+      <div
+        key={key}
+        onClick={() => novel.url && window.open(novel.url, '_blank')}
+        style={{
+          flexShrink: 0, width: 88, height: 128,
+          position: 'relative', borderRadius: 8, overflow: 'hidden',
+          cursor: 'pointer', background: '#111', border: '1px solid #1e2a00',
+        }}
+      >
+        {img && <img src={img} alt={title} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', background: '#1a1a1a' }} />}
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: 'linear-gradient(to top, rgba(0,0,0,0.95) 40%, transparent 75%)',
+          display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', padding: 6,
+        }}>
+          <div style={{ fontFamily: 'monospace', fontSize: 7, color: '#c8ff00', fontWeight: 700, marginBottom: 1 }}>{score}</div>
+          <div style={{ fontSize: 7, fontWeight: 800, color: '#fff', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{title}</div>
+          <div style={{ fontSize: 6, color: '#666', marginTop: 1 }}>{info}</div>
+        </div>
+        <div style={{
+          position: 'absolute', top: 5, right: 5,
+          background: badgeColor, color: badgeTxtCol,
+          fontFamily: 'monospace', fontSize: 5, letterSpacing: 1,
+          padding: '2px 4px', borderRadius: 3, fontWeight: 700,
+        }}>{badgeTxt}</div>
+      </div>
+    )
+  }
+
+  // Duplikat 4x untuk seamless infinite loop
+  const rowA = novelList.slice(0, 6)
+  const rowB = novelList.slice(3, 9).length >= 3 ? novelList.slice(3, 9) : novelList.slice(0, 6)
+  const rowAFull = [...rowA, ...rowA, ...rowA, ...rowA]
+  const rowBFull = [...rowB, ...rowB, ...rowB, ...rowB]
+
+  return (
+    <div style={{ display: 'flex', gap: 12, position: 'relative' }}>
+      <style>{`
+        @keyframes novelScrollRight {
+          from { transform: translateX(0); }
+          to   { transform: translateX(-50%); }
+        }
+        @keyframes novelScrollLeft {
+          from { transform: translateX(-50%); }
+          to   { transform: translateX(0); }
+        }
+      `}</style>
+
+      {/* ── AREA KIRI: dua baris card ─────────────────────────── */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10, overflow: 'hidden', position: 'relative', minHeight: 280 }}>
+        {loading && (
+          <div style={{
+            position: 'absolute', inset: 0, zIndex: 10,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8,
+            background: 'rgba(10,10,10,0.92)', borderRadius: 10,
+          }}>
+            <div style={{ width: 28, height: 28, border: '3px solid #1a2200', borderTopColor: '#c8ff00', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+            <span style={{ fontFamily: 'monospace', fontSize: 8, color: '#c8ff00', letterSpacing: 2 }}>FETCHING</span>
+          </div>
+        )}
+
+        {/* ROW A → gerak ke kanan */}
+        <div style={{ overflow: 'hidden', WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 5%, black 95%, transparent 100%)', maskImage: 'linear-gradient(to right, transparent 0%, black 5%, black 95%, transparent 100%)' }}>
+          <div style={{ display: 'flex', gap: 8, width: 'max-content', animation: rowAFull.length > 0 ? 'novelScrollRight 20s linear infinite' : 'none' }}>
+            {rowAFull.map((n, i) => renderCard(n, `rowA-${n.mal_id}-${i}`))}
+            {rowAFull.length === 0 && !loading && <div style={{ height: 128 }} />}
+          </div>
+        </div>
+
+        {/* ROW B → gerak ke kiri */}
+        <div style={{ overflow: 'hidden', WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 5%, black 95%, transparent 100%)', maskImage: 'linear-gradient(to right, transparent 0%, black 5%, black 95%, transparent 100%)' }}>
+          <div style={{ display: 'flex', gap: 8, width: 'max-content', animation: rowBFull.length > 0 ? 'novelScrollLeft 20s linear infinite' : 'none' }}>
+            {rowBFull.map((n, i) => renderCard(n, `rowB-${n.mal_id}-${i}`))}
+            {rowBFull.length === 0 && !loading && <div style={{ height: 128 }} />}
+          </div>
+        </div>
+      </div>
+
+      {/* ── SIDEBAR KANAN: kategori vertikal scroll ───────────── */}
+      <div style={{
+        width: 72, flexShrink: 0, overflow: 'hidden', position: 'relative', height: 280,
+        WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 10%, black 90%, transparent 100%)',
+        maskImage: 'linear-gradient(to bottom, transparent 0%, black 10%, black 90%, transparent 100%)',
+      }}>
+        <div ref={trackRef} style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+          {catItems.map((cat, i) => (
+            <div
+              key={cat.id + i}
+              onClick={() => { setActiveId(cat.id); pauseAndScheduleResume() }}
+              style={{
+                background: activeId === cat.id ? '#161f00' : '#111',
+                border: `1px solid ${activeId === cat.id ? '#c8ff00' : '#1e2a00'}`,
+                borderRight: `3px solid ${activeId === cat.id ? '#c8ff00' : 'transparent'}`,
+                borderRadius: 6, padding: '8px 6px', cursor: 'pointer',
+                textAlign: 'center', transition: 'all 0.2s',
+                boxShadow: activeId === cat.id ? '0 0 8px rgba(200,255,0,0.15)' : 'none',
+                userSelect: 'none',
+              }}
+            >
+              <div style={{ fontSize: 16, marginBottom: 3 }}>{cat.icon}</div>
+              <div style={{
+                fontFamily: 'monospace', fontSize: 6, letterSpacing: 1,
+                textTransform: 'uppercase',
+                color: activeId === cat.id ? '#c8ff00' : '#aaa',
+                lineHeight: 1.3,
+              }}>{cat.name}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const ANIME_CATS = [
   { id: 'airing',       name: 'LIVE NOW',  icon: '🔴', url: 'https://api.jikan.moe/v4/top/anime?filter=airing&limit=12' },
   { id: 'popular',      name: 'POPULER',   icon: '🔥', url: 'https://api.jikan.moe/v4/top/anime?filter=bypopularity&limit=12' },
@@ -2295,17 +2499,12 @@ function App() {
 
         <section className="section fade-section" id="latar-belakang">
           <div className="section-number">04</div>
-          <div className="section-bg-text">FEATURES</div>
+          <div className="section-bg-text">NOVEL</div>
           <div className="section-header">
-            <h2>Fitur Utama</h2>
-            <p>Arsitektur bot modern dengan fokus pada fleksibilitas dan komunitas.</p>
+            <h2>Info Novel</h2>
+            <p>Temukan light novel terbaik · selalu diperbarui real-time.</p>
           </div>
-          <div className="feature-list">
-            <div className="feature-item">Multi-Command untuk berbagai kebutuhan chat.</div>
-            <div className="feature-item">Plugin System modular dan mudah diperluas.</div>
-            <div className="feature-item">Aktif & Diperbarui secara berkala.</div>
-            <div className="feature-item">Komunitas aktif untuk dukungan dan sharing.</div>
-          </div>
+          <NovelHubSection />
         </section>
 
         <div className="film-divider" aria-hidden="true" />
