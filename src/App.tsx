@@ -2031,8 +2031,13 @@ ATURAN MENJAWAB:
 - Jika ditanya tentang game offline: sebutkan Catur, Snake, Tic-Tac-Toe, Memory Card, Ludo
 - Jika di luar semua topik di atas, jawab: "Maaf, aku hanya bisa membantu seputar KyokoMd dan fitur yang tersedia di web ini."
 - JANGAN menyebut nama Claude, Anthropic, atau AI lain. Kamu hanyalah Kyoko.
+- JANGAN mengulang perkenalan jika sudah pernah memperkenalkan diri di percakapan ini.
+- Jawab LANGSUNG dan SPESIFIK sesuai pertanyaan terbaru user.
 
-Pertanyaan user: ${input}`
+RIWAYAT PERCAKAPAN (untuk konteks):
+${chatMessages.slice(1).slice(-4).map(m => `${m.role === 'user' ? 'User' : 'Kyoko'}: ${m.content.slice(0,150)}`).join('\n')}
+
+Pertanyaan terbaru user: ${input}`
       const response = await fetch(`https://api-faa.my.id/faa/claude-ai?text=${encodeURIComponent(pesanDikirim)}`)
       if (!response.ok) {
         throw new Error('Request gagal')
