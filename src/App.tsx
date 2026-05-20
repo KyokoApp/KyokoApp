@@ -1199,7 +1199,7 @@ function App() {
   const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([
     {
       role: 'assistant',
-      content: 'Halo! Aku KyokoAI. Tanyakan apa saja tentang KyokoMd atau komunitasnya.',
+      content: 'Halo! Aku KyokoAI. Tanyakan apa saja tentang anime, manga, novel, atau komunitas Kyoko!',
     },
   ])
   const [chatMemory, setChatMemory] = useState({
@@ -2173,26 +2173,33 @@ function App() {
               <div className="splash-ring splash-ring-1" />
               <div className="splash-ring splash-ring-2" />
               <svg className="splash-crystal-ring" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <polygon points="80,4 152,40 152,120 80,156 8,120 8,40" fill="none" stroke="rgba(200,245,0,0.15)" strokeWidth="1" strokeDasharray="6 4"/>
-                <polygon points="80,18 138,48 138,112 80,142 22,112 22,48" fill="none" stroke="rgba(200,245,0,0.07)" strokeWidth="1"/>
+                <circle cx="80" cy="80" r="74" fill="none" stroke="rgba(200,245,0,0.13)" strokeWidth="1" strokeDasharray="5 4"/>
+                <circle cx="80" cy="80" r="60" fill="none" stroke="rgba(200,245,0,0.07)" strokeWidth="1"/>
+                <circle cx="80" cy="6" r="2.5" fill="#c8f500" opacity="0.6"/>
+                <circle cx="80" cy="154" r="2.5" fill="#c8f500" opacity="0.6"/>
+                <circle cx="6" cy="80" r="2" fill="#c8f500" opacity="0.35"/>
+                <circle cx="154" cy="80" r="2" fill="#c8f500" opacity="0.35"/>
+                <circle cx="27" cy="27" r="1.5" fill="#c8f500" opacity="0.25"/>
+                <circle cx="133" cy="27" r="1.5" fill="#c8f500" opacity="0.25"/>
+                <circle cx="27" cy="133" r="1.5" fill="#c8f500" opacity="0.25"/>
+                <circle cx="133" cy="133" r="1.5" fill="#c8f500" opacity="0.25"/>
               </svg>
               <svg className="splash-logo-svg" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <polygon points="40,4 72,20 72,60 40,76 8,60 8,20" fill="#0a0a0a" stroke="#c8f500" strokeWidth="1.5"/>
-                <polygon points="40,12 65,25 65,55 40,68 15,55 15,25" fill="none" stroke="rgba(200,245,0,0.18)" strokeWidth="1"/>
-                <text x="40" y="54" textAnchor="middle" fontFamily="Bebas Neue, sans-serif" fontSize="36" fill="#c8f500" fontWeight="900">K</text>
-                <circle cx="40" cy="4" r="2" fill="#c8f500" opacity="0.8"/>
-                <circle cx="40" cy="76" r="2" fill="#c8f500" opacity="0.8"/>
-                <circle cx="72" cy="20" r="1.5" fill="#c8f500" opacity="0.5"/>
-                <circle cx="8" cy="20" r="1.5" fill="#c8f500" opacity="0.5"/>
-                <circle cx="72" cy="60" r="1.5" fill="#c8f500" opacity="0.5"/>
-                <circle cx="8" cy="60" r="1.5" fill="#c8f500" opacity="0.5"/>
+                <circle cx="40" cy="40" r="36" fill="#0a0a0a" stroke="rgba(200,245,0,0.55)" strokeWidth="1.5"/>
+                <circle cx="40" cy="40" r="29" fill="none" stroke="rgba(200,245,0,0.1)" strokeWidth="1"/>
+                <path d="M 22 40 A 18 18 0 1 1 40 58" stroke="#c8f500" strokeWidth="1.8" strokeLinecap="round" fill="none" opacity="0.45"/>
+                <line x1="27" y1="22" x2="27" y2="58" stroke="#c8f500" strokeWidth="4" strokeLinecap="round"/>
+                <line x1="27" y1="40" x2="50" y2="22" stroke="#c8f500" strokeWidth="3.5" strokeLinecap="round"/>
+                <line x1="27" y1="40" x2="52" y2="58" stroke="#c8f500" strokeWidth="3.5" strokeLinecap="round"/>
+                <circle cx="40" cy="40" r="2.5" fill="rgba(200,245,0,0.25)"/>
+                <circle cx="40" cy="40" r="1.2" fill="#c8f500"/>
               </svg>
             </div>
             <div className="splash-brand">
               <span className="splash-brand-k">K</span><span className="splash-brand-rest">YOKO</span>
             </div>
             <div className="splash-tagline">
-              <span className="splash-tag-line" /> WHATSAPP BOT <span className="splash-tag-line" />
+              <span className="splash-tag-line" /> ANIME · MANGA · NOVEL <span className="splash-tag-line" />
             </div>
             <div className="splash-loader">
               <div className="splash-loader-track" />
@@ -2201,7 +2208,7 @@ function App() {
             </div>
             <div className="splash-status-row">
               <span className="splash-status-dot-anim" />
-              <span className="splash-status">INITIALIZING</span>
+              <span className="splash-status">LOADING</span>
             </div>
           </div>
           <div className="splash-ver">v1.0</div>
@@ -2209,8 +2216,8 @@ function App() {
           {/* Bottom ticker */}
           <div className="splash-ticker" aria-hidden="true">
             <div className="splash-ticker-inner">
-              KYOKO · WHATSAPP BOT · ALWAYS ONLINE · MULTI COMMAND · PLUGIN SYSTEM · READY · 
-              KYOKO · WHATSAPP BOT · ALWAYS ONLINE · MULTI COMMAND · PLUGIN SYSTEM · READY · 
+              KYOKO · ANIME · MANGA · NOVEL · INFO HUB · ALWAYS UPDATED · COMMUNITY READY · 
+              KYOKO · ANIME · MANGA · NOVEL · INFO HUB · ALWAYS UPDATED · COMMUNITY READY · 
             </div>
           </div>
         </div>
@@ -2221,14 +2228,19 @@ function App() {
         <div className="logo">
           <div className={`logo-k-wrap ${musicPlaying ? 'music-pulse' : ''}`} onClick={() => setMenuOpen(true)} role="button" aria-label="Buka menu">
             <svg className="logo-k-svg" viewBox="0 0 44 44" fill="none">
-              <polygon points="22,2 40,11 40,33 22,42 4,33 4,11" fill="#c8f500" />
-              <text x="22" y="30" textAnchor="middle" fontFamily="Bebas Neue, sans-serif" fontSize="22" fill="#0a0a0a" fontWeight="900">K</text>
+              <circle cx="22" cy="22" r="20" fill="#0a0a0a" stroke="#c8f500" strokeWidth="1.8"/>
+              <circle cx="22" cy="22" r="15" fill="none" stroke="rgba(200,245,0,0.2)" strokeWidth="1"/>
+              <path d="M 10 22 A 12 12 0 0 1 22 10" stroke="#c8f500" strokeWidth="1.5" strokeLinecap="round" fill="none" opacity="0.5"/>
+              <line x1="14" y1="13" x2="14" y2="31" stroke="#c8f500" strokeWidth="2.8" strokeLinecap="round"/>
+              <line x1="14" y1="22" x2="28" y2="13" stroke="#c8f500" strokeWidth="2.4" strokeLinecap="round"/>
+              <line x1="14" y1="22" x2="29" y2="31" stroke="#c8f500" strokeWidth="2.4" strokeLinecap="round"/>
+              <circle cx="22" cy="22" r="1.8" fill="rgba(200,245,0,0.5)"/>
             </svg>
             {musicPlaying && <div className="music-rings" aria-hidden="true"><span/><span/><span/></div>}
           </div>
           <div className="logo-text-wrap">
-            <div className="logo-title">KyokoMd</div>
-            <div className="logo-sub">Kyoko App · Official</div>
+            <div className="logo-title">Kyoko</div>
+            <div className="logo-sub">Anime · Manga · Novel</div>
           </div>
         </div>
 
@@ -2241,7 +2253,10 @@ function App() {
               onClick={() => setNavDrawerOpen(p => !p)}
               aria-label="Menu icon"
             >
-              <span className="nav-drawer-dot"/><span className="nav-drawer-dot"/><span className="nav-drawer-dot"/><span className="nav-drawer-dot"/>
+              <span className="nd-grid">
+                <span className="nd-sq"/><span className="nd-sq"/>
+                <span className="nd-sq"/><span className="nd-sq"/>
+              </span>
             </button>
             <div className={`nav-drawer-panel ${navDrawerOpen ? 'open' : ''}`}>
               <a className="nav-icon-btn" href="https://saweria.co/YukiDesu/toko-top-up" target="_blank" rel="noreferrer" data-tooltip="Top-Up Shop" onClick={() => setNavDrawerOpen(false)}>🛒</a>
@@ -2263,18 +2278,18 @@ function App() {
             </div>
           </div>
 
-          {/* Dev Call button with arrow badge */}
-          <div className="devcall-wrap">
-            <span className="devcall-arrow">◀</span>
-            <a
-              className="btn btn-devcall"
-              href="https://wa.me/6285122344606"
-              target="_blank"
-              rel="noreferrer"
-            >
-              HUB DEV
-            </a>
-          </div>
+          {/* Dev Call button */}
+          <a
+            className="btn btn-devcall"
+            href="https://wa.me/6285122344606"
+            target="_blank"
+            rel="noreferrer"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style={{flexShrink:0}}>
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
+            </svg>
+            HUB
+          </a>
 
           {/* Music button - far right */}
           <button
@@ -2295,19 +2310,21 @@ function App() {
         <section className="hero section" id="beranda">
           <div className="section-bg-text">KYOKO</div>
           <div className="hero-content fade-section">
-            <div className="tagline">WhatsApp Bot · Official</div>
+            <div className="tagline">Anime · Manga · Novel · Info</div>
             <h1>
-              KYOKO <span>/</span> MD
+              <span>KYOKO</span>
             </h1>
-            <p className="subtitle">By Ryuuki Kojo · Powered for the Community</p>
+            <p className="subtitle">By Ryuuki Kojo · Info Hub for the Community</p>
             <p className="description">
-              Bot WhatsApp multifungsi dengan fitur lengkap. Gabung komunitas dan rasakan pengalaman chat yang lebih seru!
+              Temukan info anime, manga, novel, dan lebih banyak lagi. Hub komunitas dengan konten selalu diperbarui!
             </p>
             <div className="hero-actions">
               <a className="btn btn-primary" href="https://chat.whatsapp.com/BbLtlR1EbviEHDnaUSvGYz" target="_blank" rel="noreferrer">
-                Official Group
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style={{marginRight:6,flexShrink:0}}><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/></svg>
+                Grup Komunitas
               </a>
               <a className="btn btn-secondary" href="https://whatsapp.com/channel/0029Vb5avimI1rcisKNii32A" target="_blank" rel="noreferrer">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{marginRight:6,flexShrink:0}}><path d="M22 2L11 13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                 Official Channel
               </a>
               {!pwaInstalled && deferredPrompt && (
@@ -2464,8 +2481,8 @@ function App() {
 
         <div className="ticker" aria-hidden="true">
           <div className="ticker-track">
-            <span>KYOKOMD · COMMUNITY READY · MULTI COMMAND · PLUGIN SYSTEM · ALWAYS ONLINE · </span>
-            <span>KYOKOMD · COMMUNITY READY · MULTI COMMAND · PLUGIN SYSTEM · ALWAYS ONLINE · </span>
+            <span>KYOKO · ANIME HUB · MANGA READER · NOVEL INFO · COMMUNITY READY · ALWAYS UPDATED · </span>
+            <span>KYOKO · ANIME HUB · MANGA READER · NOVEL INFO · COMMUNITY READY · ALWAYS UPDATED · </span>
           </div>
         </div>
 
@@ -2494,7 +2511,7 @@ function App() {
         </section>
 
         <section className="diagonal-band">
-          <div className="band-text">JOIN THE SIGNAL · POWERED FOR THE COMMUNITY · KYOKOMD READY</div>
+          <div className="band-text">JOIN THE COMMUNITY · ANIME · MANGA · NOVEL · KYOKO READY</div>
         </section>
 
         <section className="section fade-section" id="latar-belakang">
@@ -3170,8 +3187,8 @@ function App() {
         <div className="footer-logo">
           <span className="logo-mark">K</span>
           <div>
-            <div className="logo-title">KyokoMd</div>
-            <div className="logo-sub">Kyoko App · Official</div>
+            <div className="logo-title">Kyoko</div>
+            <div className="logo-sub">Anime · Manga · Novel</div>
           </div>
         </div>
         <div className="socials">
@@ -3205,7 +3222,7 @@ function App() {
             </svg>
           </a>
         </div>
-        <p className="copyright">© 2024 KyokoMd. Powered for the Community.</p>
+        <p className="copyright">© 2024 Kyoko. Anime · Manga · Novel Hub.</p>
       </footer>
 
 
@@ -3596,7 +3613,7 @@ function App() {
       <div className={`menu-overlay ${menuOpen ? 'open' : ''}`} onClick={() => setMenuOpen(false)}>
         <div className="menu-panel" onClick={(event) => event.stopPropagation()}>
           <div className="menu-header">
-            <div className="menu-logo">KyokoMd</div>
+            <div className="menu-logo">Kyoko</div>
             <button className="menu-close" type="button" onClick={() => setMenuOpen(false)} aria-label="Tutup menu">
               ×
             </button>
