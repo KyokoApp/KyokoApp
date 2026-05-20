@@ -190,18 +190,17 @@ const HOME_DEFAULT_VIDEOS: VideoItem[] = [
 function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
   const [videos, setVideos] = useState<VideoItem[]>(HOME_DEFAULT_VIDEOS)
   const [currentIndex, setCurrentIndex] = useState(0)
-  const [showAddModal, setShowAddModal] = useState(false)
-  const [newVideoUrl, setNewVideoUrl] = useState('')
-  const [newVideoTitle, setNewVideoTitle] = useState('')
-  const [addErr, setAddErr] = useState('')
+  const [showReplaceModal, setShowReplaceModal] = useState(false)
+  const [replaceUrl, setReplaceUrl] = useState('')
+  const [replaceTitle, setReplaceTitle] = useState('')
+  const [replaceErr, setReplaceErr] = useState('')
+  const [saving, setSaving] = useState(false)
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([])
   const touchStartX = useRef<number | null>(null)
-  const hasFirestoreVideos = useRef(false)
 
-  // Load videos from Firestore
+  // Load videos from Firestore (collection homeVideos, sorted by addedAt)
   useEffect(() => {
     const unsub = onSnapshot(collection(dbAdmin, 'homeVideos'), (snap) => {
-      hasFirestoreVideos.current = !snap.empty
       if (!snap.empty) {
         const list: VideoItem[] = snap.docs
           .map(d => ({ id: d.id, ...(d.data() as Omit<VideoItem, 'id'>) }))
@@ -222,7 +221,6 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
       if (!v) return
       if (i === currentIndex) {
         if (v.readyState === 0) {
-          // Video belum di-load sama sekali — load dulu baru play
           v.load()
           const onReady = () => { v.play().catch(() => {}); v.removeEventListener('canplay', onReady) }
           v.addEventListener('canplay', onReady)
@@ -242,9 +240,7 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
     setCurrentIndex(next)
   }
 
-  const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0].clientX
-  }
+  const handleTouchStart = (e: React.TouchEvent) => { touchStartX.current = e.touches[0].clientX }
   const handleTouchEnd = (e: React.TouchEvent) => {
     if (touchStartX.current === null) return
     const diff = touchStartX.current - e.changedTouches[0].clientX
@@ -252,23 +248,41 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
     touchStartX.current = null
   }
 
-  const handleAddVideo = async () => {
-    if (!newVideoUrl.trim()) { setAddErr('URL tidak boleh kosong'); return }
-    setAddErr('')
-    await addDoc(collection(dbAdmin, 'homeVideos'), {
-      url: newVideoUrl.trim(),
-      title: newVideoTitle.trim(),
-      addedAt: Date.now(),
-    })
-    setNewVideoUrl('')
-    setNewVideoTitle('')
-    setShowAddModal(false)
+  // Open replace modal — pre-fill dengan URL video yang sedang aktif
+  const openReplace = () => {
+    const cur = videos[currentIndex]
+    setReplaceUrl(cur?.url === HOME_DEFAULT_VIDEOS[0].url ? '' : (cur?.url || ''))
+    setReplaceTitle(cur?.title || '')
+    setReplaceErr('')
+    setShowReplaceModal(true)
   }
 
-  const handleDeleteVideo = async (id: string) => {
-    if (id === '__default__') return
-    await deleteDoc(doc(dbAdmin, 'homeVideos', id))
-    setCurrentIndex(0)
+  // Simpan: kalau video aktif ada di Firestore → updateDoc, kalau default → addDoc
+  const handleReplace = async () => {
+    if (!replaceUrl.trim()) { setReplaceErr('URL tidak boleh kosong'); return }
+    setSaving(true)
+    setReplaceErr('')
+    try {
+      const cur = videos[currentIndex]
+      if (cur && cur.id !== '__default__') {
+        // Update dokumen yang sudah ada
+        await updateDoc(doc(dbAdmin, 'homeVideos', cur.id), {
+          url: replaceUrl.trim(),
+          title: replaceTitle.trim(),
+        })
+      } else {
+        // Default video → buat dokumen baru (slot pertama)
+        await setDoc(doc(dbAdmin, 'homeVideos', 'slot_' + currentIndex), {
+          url: replaceUrl.trim(),
+          title: replaceTitle.trim(),
+          addedAt: currentIndex * 1000, // urutan tetap
+        })
+      }
+      setShowReplaceModal(false)
+    } catch {
+      setReplaceErr('Gagal menyimpan, coba lagi')
+    }
+    setSaving(false)
   }
 
   return (
@@ -302,14 +316,14 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
         </div>
         {isAdmin && (
           <button
-            onClick={() => setShowAddModal(true)}
+            onClick={openReplace}
             style={{
               background: '#161f00', border: '1px solid #c8ff00', borderRadius: 6,
               color: '#c8ff00', fontFamily: 'monospace', fontSize: 8,
               padding: '4px 10px', cursor: 'pointer', letterSpacing: 1,
             }}
           >
-            + TAMBAH
+            ✎ GANTI
           </button>
         )}
       </div>
@@ -409,19 +423,6 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
                     {video.title}
                   </div>
                 )}
-                {isAdmin && video.id !== '__default__' && (
-                  <button
-                    onClick={() => handleDeleteVideo(video.id)}
-                    style={{
-                      position: 'absolute', top: 8, right: 8, zIndex: 8,
-                      background: 'rgba(200,0,0,0.82)', border: 'none', borderRadius: 6,
-                      color: '#fff', fontSize: 9, padding: '4px 8px',
-                      cursor: 'pointer', fontFamily: 'monospace', letterSpacing: 1,
-                    }}
-                  >
-                    ✕ DEL
-                  </button>
-                )}
               </div>
             ))}
           </div>
@@ -475,14 +476,14 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
         )}
       </div>
 
-      {/* Admin: Add Video Modal */}
-      {showAddModal && (
+      {/* Admin: Ganti Video Modal */}
+      {showReplaceModal && (
         <div
           style={{
             position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', zIndex: 9999,
             display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
           }}
-          onClick={() => setShowAddModal(false)}
+          onClick={() => setShowReplaceModal(false)}
         >
           <div
             style={{
@@ -491,26 +492,29 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
             }}
             onClick={e => e.stopPropagation()}
           >
-            <div style={{ fontFamily: 'monospace', fontSize: 11, color: '#c8ff00', marginBottom: 16, letterSpacing: 2 }}>
-              📹 TAMBAH VIDEO
+            <div style={{ fontFamily: 'monospace', fontSize: 11, color: '#c8ff00', marginBottom: 4, letterSpacing: 2 }}>
+              ✎ GANTI VIDEO
+            </div>
+            <div style={{ fontFamily: 'monospace', fontSize: 8, color: '#c8ff00', opacity: 0.4, marginBottom: 16, letterSpacing: 1 }}>
+              SLOT {String(currentIndex + 1).padStart(2, '0')} / {String(videos.length).padStart(2, '0')}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <input
                 type="text"
-                placeholder="URL Video (mp4, dll)"
-                value={newVideoUrl}
-                onChange={e => { setNewVideoUrl(e.target.value); setAddErr('') }}
+                placeholder="URL Video baru (mp4, dll)"
+                value={replaceUrl}
+                onChange={e => { setReplaceUrl(e.target.value); setReplaceErr('') }}
                 style={{
-                  background: '#1a1a1a', border: `1px solid ${addErr ? '#ff4444' : '#2a3a00'}`, borderRadius: 8,
+                  background: '#1a1a1a', border: `1px solid ${replaceErr ? '#ff4444' : '#2a3a00'}`, borderRadius: 8,
                   padding: '10px 12px', color: '#fff', fontSize: 12, outline: 'none', width: '100%', boxSizing: 'border-box',
                 }}
               />
-              {addErr && <div style={{ fontSize: 10, color: '#ff4444', fontFamily: 'monospace' }}>{addErr}</div>}
+              {replaceErr && <div style={{ fontSize: 10, color: '#ff4444', fontFamily: 'monospace' }}>{replaceErr}</div>}
               <input
                 type="text"
                 placeholder="Judul (opsional)"
-                value={newVideoTitle}
-                onChange={e => setNewVideoTitle(e.target.value)}
+                value={replaceTitle}
+                onChange={e => setReplaceTitle(e.target.value)}
                 style={{
                   background: '#1a1a1a', border: '1px solid #2a3a00', borderRadius: 8,
                   padding: '10px 12px', color: '#fff', fontSize: 12, outline: 'none', width: '100%', boxSizing: 'border-box',
@@ -518,18 +522,19 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
               />
               <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
                 <button
-                  onClick={handleAddVideo}
+                  onClick={handleReplace}
+                  disabled={saving}
                   style={{
                     flex: 1, padding: '12px', borderRadius: 10,
-                    background: 'linear-gradient(135deg,#c8ff00,#a0cc00)',
-                    color: '#000', fontWeight: 800, fontSize: 12, border: 'none',
-                    cursor: 'pointer', fontFamily: 'monospace', letterSpacing: 1,
+                    background: saving ? '#2a3a00' : 'linear-gradient(135deg,#c8ff00,#a0cc00)',
+                    color: saving ? '#c8ff00' : '#000', fontWeight: 800, fontSize: 12, border: 'none',
+                    cursor: saving ? 'default' : 'pointer', fontFamily: 'monospace', letterSpacing: 1,
                   }}
                 >
-                  TAMBAH
+                  {saving ? 'MENYIMPAN...' : 'SIMPAN'}
                 </button>
                 <button
-                  onClick={() => { setShowAddModal(false); setAddErr('') }}
+                  onClick={() => { setShowReplaceModal(false); setReplaceErr('') }}
                   style={{
                     padding: '12px 16px', borderRadius: 10,
                     background: '#1a1a1a', border: '1px solid #333',
@@ -539,6 +544,29 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
                   Batal
                 </button>
               </div>
+              {/* Hapus — hanya muncul kalau video bukan default */}
+              {videos[currentIndex]?.id !== '__default__' && (
+                <button
+                  onClick={async () => {
+                    setSaving(true)
+                    try {
+                      await deleteDoc(doc(dbAdmin, 'homeVideos', videos[currentIndex].id))
+                      setCurrentIndex(0)
+                      setShowReplaceModal(false)
+                    } catch { setReplaceErr('Gagal menghapus') }
+                    setSaving(false)
+                  }}
+                  disabled={saving}
+                  style={{
+                    width: '100%', padding: '10px', borderRadius: 10, marginTop: 4,
+                    background: 'transparent', border: '1px solid rgba(255,60,60,0.4)',
+                    color: '#ff5555', fontSize: 11, cursor: saving ? 'default' : 'pointer',
+                    fontFamily: 'monospace', letterSpacing: 1,
+                  }}
+                >
+                  🗑 HAPUS VIDEO INI
+                </button>
+              )}
             </div>
           </div>
         </div>
