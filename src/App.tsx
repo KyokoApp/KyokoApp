@@ -195,9 +195,40 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
   const [replaceTitle, setReplaceTitle] = useState('')
   const [replaceErr, setReplaceErr] = useState('')
   const [saving, setSaving] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null)
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([])
   const touchStartX = useRef<number | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
+
+  // Upload video ke Cloudinary
+  const uploadToCloudinary = async (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('upload_preset', 'kyokoapp')
+
+      const xhr = new XMLHttpRequest()
+      xhr.open('POST', 'https://api.cloudinary.com/v1_1/dtxpdx8ua/video/upload')
+
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          setUploadProgress(Math.round((e.loaded / e.total) * 100))
+        }
+      }
+
+      xhr.onload = () => {
+        if (xhr.status === 200) {
+          const data = JSON.parse(xhr.responseText)
+          resolve(data.secure_url)
+        } else {
+          reject(new Error('Upload gagal'))
+        }
+      }
+
+      xhr.onerror = () => reject(new Error('Network error'))
+      xhr.send(formData)
+    })
+  }
 
   // Load videos from Firestore (collection homeVideos, sorted by addedAt)
   useEffect(() => {
@@ -419,8 +450,10 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
                   style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', pointerEvents: 'none' }}
                   loop
                   playsInline
+                  muted
                   autoPlay={i === 0}
-                  preload={i === 0 ? 'auto' : 'none'}
+                  preload="metadata"
+                  crossOrigin="anonymous"
                 />
                 {video.title && (
                   <div style={{
@@ -492,7 +525,7 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
             position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', zIndex: 9999,
             display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
           }}
-          onClick={() => setShowReplaceModal(false)}
+          onClick={() => { if (!saving) setShowReplaceModal(false) }}
         >
           <div
             style={{
@@ -508,27 +541,93 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
               SLOT {String(currentIndex + 1).padStart(2, '0')} / {String(videos.length).padStart(2, '0')}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+              {/* Upload dari HP */}
+              <div style={{
+                border: '1px dashed rgba(200,255,0,0.3)', borderRadius: 8,
+                padding: '12px', textAlign: 'center', position: 'relative',
+                background: '#0d1200',
+              }}>
+                <div style={{ fontFamily: 'monospace', fontSize: 9, color: '#c8ff00', opacity: 0.7, marginBottom: 6, letterSpacing: 1 }}>
+                  📁 UPLOAD DARI HP
+                </div>
+                <input
+                  type="file"
+                  accept="video/*"
+                  disabled={saving}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0]
+                    if (!file) return
+                    setSaving(true)
+                    setUploadProgress(0)
+                    setReplaceErr('')
+                    try {
+                      const url = await uploadToCloudinary(file)
+                      setReplaceUrl(url)
+                      setUploadProgress(null)
+                    } catch {
+                      setReplaceErr('Upload gagal, coba lagi')
+                      setUploadProgress(null)
+                    }
+                    setSaving(false)
+                  }}
+                  style={{
+                    position: 'absolute', inset: 0, opacity: 0,
+                    width: '100%', height: '100%', cursor: saving ? 'default' : 'pointer',
+                  }}
+                />
+                {uploadProgress !== null ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'center' }}>
+                    <div style={{ width: '100%', height: 4, background: '#1a2200', borderRadius: 4, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${uploadProgress}%`, background: '#c8ff00', borderRadius: 4, transition: 'width 0.2s ease' }} />
+                    </div>
+                    <span style={{ fontFamily: 'monospace', fontSize: 9, color: '#c8ff00' }}>
+                      UPLOADING {uploadProgress}%
+                    </span>
+                  </div>
+                ) : replaceUrl && replaceUrl.includes('cloudinary') ? (
+                  <span style={{ fontFamily: 'monospace', fontSize: 9, color: '#c8ff00' }}>✓ Upload berhasil!</span>
+                ) : (
+                  <span style={{ fontFamily: 'monospace', fontSize: 9, color: '#888' }}>Tap untuk pilih video</span>
+                )}
+              </div>
+
+              {/* Divider */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ flex: 1, height: 1, background: '#2a2a2a' }} />
+                <span style={{ fontFamily: 'monospace', fontSize: 8, color: '#555' }}>ATAU PASTE URL</span>
+                <div style={{ flex: 1, height: 1, background: '#2a2a2a' }} />
+              </div>
+
+              {/* URL input manual */}
               <input
                 type="text"
-                placeholder="URL Video baru (mp4, dll)"
+                placeholder="URL Video (mp4, cloudinary, dll)"
                 value={replaceUrl}
                 onChange={e => { setReplaceUrl(e.target.value); setReplaceErr('') }}
+                disabled={saving}
                 style={{
                   background: '#1a1a1a', border: `1px solid ${replaceErr ? '#ff4444' : '#2a3a00'}`, borderRadius: 8,
                   padding: '10px 12px', color: '#fff', fontSize: 12, outline: 'none', width: '100%', boxSizing: 'border-box',
+                  opacity: saving ? 0.5 : 1,
                 }}
               />
               {replaceErr && <div style={{ fontSize: 10, color: '#ff4444', fontFamily: 'monospace' }}>{replaceErr}</div>}
+
+              {/* Judul */}
               <input
                 type="text"
                 placeholder="Judul (opsional)"
                 value={replaceTitle}
                 onChange={e => setReplaceTitle(e.target.value)}
+                disabled={saving}
                 style={{
                   background: '#1a1a1a', border: '1px solid #2a3a00', borderRadius: 8,
                   padding: '10px 12px', color: '#fff', fontSize: 12, outline: 'none', width: '100%', boxSizing: 'border-box',
+                  opacity: saving ? 0.5 : 1,
                 }}
               />
+
               <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
                 <button
                   onClick={handleReplace}
@@ -540,19 +639,21 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
                     cursor: saving ? 'default' : 'pointer', fontFamily: 'monospace', letterSpacing: 1,
                   }}
                 >
-                  {saving ? 'MENYIMPAN...' : 'SIMPAN'}
+                  {saving ? 'PROSES...' : 'SIMPAN'}
                 </button>
                 <button
-                  onClick={() => { setShowReplaceModal(false); setReplaceErr('') }}
+                  onClick={() => { if (!saving) { setShowReplaceModal(false); setReplaceErr(''); setUploadProgress(null) } }}
+                  disabled={saving}
                   style={{
                     padding: '12px 16px', borderRadius: 10,
                     background: '#1a1a1a', border: '1px solid #333',
-                    color: '#888', fontSize: 12, cursor: 'pointer',
+                    color: saving ? '#444' : '#888', fontSize: 12, cursor: saving ? 'default' : 'pointer',
                   }}
                 >
                   Batal
                 </button>
               </div>
+
               {/* Hapus — hanya muncul kalau video bukan default */}
               {videos[currentIndex]?.id !== '__default__' && (
                 <button
