@@ -216,29 +216,31 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
     return () => unsub()
   }, [])
 
-  // Play active, pause & reset others — with smooth playback optimization
+  // Play active, pause & mute ALL others first — fix double audio bug
   useEffect(() => {
-    videoRefs.current.forEach((v, i) => {
+    // Step 1: Pause & mute semua video dulu tanpa terkecuali
+    videoRefs.current.forEach((v) => {
       if (!v) return
-      if (i === currentIndex) {
-        v.muted = false
-        // Optimasi: gunakan playbackRate & preload untuk smooth
-        v.playbackRate = 1.0
-        if (v.readyState === 0) {
-          v.load()
-          const onReady = () => {
-            v.play().catch(() => { v.muted = true; v.play().catch(() => {}) })
-            v.removeEventListener('canplay', onReady)
-          }
-          v.addEventListener('canplay', onReady)
-        } else {
-          v.play().catch(() => { v.muted = true; v.play().catch(() => {}) })
-        }
-      } else {
-        v.pause()
-        v.currentTime = 0
-      }
+      v.pause()
+      v.muted = true
+      v.volume = 0
     })
+    // Step 2: Baru play yang aktif
+    const active = videoRefs.current[currentIndex]
+    if (!active) return
+    active.muted = false
+    active.volume = 1.0
+    active.playbackRate = 1.0
+    if (active.readyState === 0) {
+      active.load()
+      const onReady = () => {
+        active.play().catch(() => { active.muted = true; active.play().catch(() => {}) })
+        active.removeEventListener('canplay', onReady)
+      }
+      active.addEventListener('canplay', onReady)
+    } else {
+      active.play().catch(() => { active.muted = true; active.play().catch(() => {}) })
+    }
   }, [currentIndex, videos.length])
 
   // Scroll-based volume: makin jauh scroll dari video → volume makin kecil
