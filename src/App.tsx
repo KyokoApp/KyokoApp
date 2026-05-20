@@ -221,7 +221,14 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
     videoRefs.current.forEach((v, i) => {
       if (!v) return
       if (i === currentIndex) {
-        v.play().catch(() => {})
+        if (v.readyState === 0) {
+          // Video belum di-load sama sekali — load dulu baru play
+          v.load()
+          const onReady = () => { v.play().catch(() => {}); v.removeEventListener('canplay', onReady) }
+          v.addEventListener('canplay', onReady)
+        } else {
+          v.play().catch(() => {})
+        }
       } else {
         v.pause()
         v.currentTime = 0
