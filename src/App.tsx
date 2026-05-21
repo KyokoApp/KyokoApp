@@ -412,7 +412,13 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
             {videos.map((video, i) => (
               <div
                 key={video.id}
-                style={{ flexShrink: 0, width: '100%', aspectRatio: '16/9', position: 'relative', background: '#000' }}
+                style={{
+                  flexShrink: 0, width: '100%', aspectRatio: '16/9', position: 'relative', background: '#000',
+                  WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 12%, black 88%, transparent 100%), linear-gradient(to bottom, transparent 0%, black 10%, black 90%, transparent 100%)',
+                  WebkitMaskComposite: 'destination-in',
+                  maskImage: 'linear-gradient(to right, transparent 0%, black 12%, black 88%, transparent 100%), linear-gradient(to bottom, transparent 0%, black 10%, black 90%, transparent 100%)',
+                  maskComposite: 'intersect',
+                }}
               >
                 <video
                   ref={el => { videoRefs.current[i] = el }}
