@@ -187,6 +187,242 @@ const HOME_DEFAULT_VIDEOS: VideoItem[] = [
   { id: '__default__', url: 'https://c.termai.cc/a156/4VoP.mp4', title: '' },
 ]
 
+// ── Comic Video Panel ─────────────────────────────────────────────────────
+const COMIC_DEFAULT_VIDEO = 'https://c.termai.cc/a156/4VoP.mp4'
+
+function ComicVideoPanel({ isAdmin }: { isAdmin: boolean }) {
+  const [videoUrl, setVideoUrl] = useState(COMIC_DEFAULT_VIDEO)
+  const [showModal, setShowModal] = useState(false)
+  const [inputUrl, setInputUrl] = useState('')
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState('')
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+
+  // Load dari Firestore
+  React.useEffect(() => {
+    const ref = doc(dbAdmin, 'site_config', 'comicVideo')
+    const unsub = onSnapshot(ref, (snap) => {
+      if (snap.exists() && snap.data()?.url) setVideoUrl(snap.data().url)
+    })
+    return () => unsub()
+  }, [])
+
+  const uploadToCloudinary = async (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const fd = new FormData()
+      fd.append('file', file)
+      fd.append('upload_preset', 'kyokoapp')
+      const xhr = new XMLHttpRequest()
+      xhr.open('POST', 'https://api.cloudinary.com/v1_1/dtxpdx8ua/video/upload')
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) setUploadProgress(Math.round((e.loaded / e.total) * 100))
+      }
+      xhr.onload = () => {
+        if (xhr.status === 200) resolve(JSON.parse(xhr.responseText).secure_url)
+        else reject(new Error('Upload gagal'))
+      }
+      xhr.onerror = () => reject(new Error('Network error'))
+      xhr.send(fd)
+    })
+  }
+
+  const handleSave = async () => {
+    if (!inputUrl.trim()) return
+    setSaving(true)
+    try {
+      await setDoc(doc(dbAdmin, 'site_config', 'comicVideo'), { url: inputUrl.trim(), updatedAt: Date.now() })
+      setShowModal(false)
+      setInputUrl('')
+    } catch { setErr('Gagal simpan') }
+    setSaving(false)
+  }
+
+  // clip-path: potongan sudut diagonal kanan atas dan kiri bawah — efek panel komik
+  const clipPath = 'polygon(0 0, calc(100% - 28px) 0, 100% 28px, 100% 100%, 28px 100%, 0 calc(100% - 28px))'
+
+  return (
+    <div style={{ position: 'relative', marginTop: 24, marginBottom: 4 }}>
+
+      {/* Label section */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+        <div style={{ width: 3, height: 14, background: '#c8ff00', borderRadius: 2 }} />
+        <span style={{ fontFamily: 'monospace', fontSize: 9, color: '#c8ff00', letterSpacing: 3, opacity: 0.8 }}>PANEL · KOMIK</span>
+        {isAdmin && (
+          <button
+            onClick={() => { setShowModal(true); setInputUrl(''); setErr('') }}
+            style={{
+              marginLeft: 'auto', background: 'rgba(200,255,0,0.12)', border: '1px solid rgba(200,255,0,0.3)',
+              borderRadius: 6, padding: '3px 10px', color: '#c8ff00', fontFamily: 'monospace',
+              fontSize: 9, cursor: 'pointer', letterSpacing: 1,
+            }}
+          >✎ GANTI</button>
+        )}
+      </div>
+
+      {/* Comic panel wrapper */}
+      <div style={{ position: 'relative', width: '100%', paddingBottom: '100%' }}>
+
+        {/* Outer glow border — dibuat dengan pseudo-layer */}
+        <div style={{
+          position: 'absolute', inset: -2,
+          clipPath,
+          background: 'linear-gradient(135deg, #c8ff00 0%, #4aff91 50%, #c8ff00 100%)',
+          zIndex: 1,
+        }} />
+
+        {/* Inner background */}
+        <div style={{
+          position: 'absolute', inset: 2,
+          clipPath,
+          background: '#0a0a0a',
+          zIndex: 2,
+          overflow: 'hidden',
+        }}>
+          <video
+            ref={videoRef}
+            src={videoUrl}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+            loop
+            playsInline
+            muted
+            autoPlay
+            preload="metadata"
+            crossOrigin="anonymous"
+          />
+        </div>
+
+        {/* Corner accents — sudut potongan */}
+        {/* kanan atas */}
+        <div style={{
+          position: 'absolute', top: -1, right: -1, width: 38, height: 38,
+          zIndex: 5, pointerEvents: 'none',
+        }}>
+          <svg width="38" height="38" viewBox="0 0 38 38">
+            <polyline points="12,2 36,2 36,26" fill="none" stroke="#c8ff00" strokeWidth="2.5" strokeLinecap="round"/>
+          </svg>
+        </div>
+        {/* kiri bawah */}
+        <div style={{
+          position: 'absolute', bottom: -1, left: -1, width: 38, height: 38,
+          zIndex: 5, pointerEvents: 'none',
+        }}>
+          <svg width="38" height="38" viewBox="0 0 38 38">
+            <polyline points="26,36 2,36 2,12" fill="none" stroke="#c8ff00" strokeWidth="2.5" strokeLinecap="round"/>
+          </svg>
+        </div>
+
+        {/* Scanline overlay efek komik */}
+        <div style={{
+          position: 'absolute', inset: 2,
+          clipPath,
+          background: 'repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.08) 3px, rgba(0,0,0,0.08) 4px)',
+          zIndex: 3, pointerEvents: 'none',
+        }} />
+
+        {/* Halftone dots — pojok bawah kanan */}
+        <div style={{
+          position: 'absolute', bottom: 10, right: 10,
+          width: 60, height: 60, zIndex: 4, pointerEvents: 'none',
+          backgroundImage: 'radial-gradient(circle, rgba(200,255,0,0.35) 1.5px, transparent 1.5px)',
+          backgroundSize: '8px 8px',
+          maskImage: 'radial-gradient(ellipse at bottom right, black 30%, transparent 75%)',
+          WebkitMaskImage: 'radial-gradient(ellipse at bottom right, black 30%, transparent 75%)',
+        }} />
+
+        {/* Speed lines — pojok kiri atas */}
+        <div style={{
+          position: 'absolute', top: 6, left: 6,
+          width: 50, height: 50, zIndex: 4, pointerEvents: 'none',
+          opacity: 0.4,
+        }}>
+          <svg width="50" height="50" viewBox="0 0 50 50">
+            {[0,15,30,45,60,75].map((angle, i) => (
+              <line key={i}
+                x1="0" y1="0"
+                x2={Math.cos((angle * Math.PI) / 180) * 50}
+                y2={Math.sin((angle * Math.PI) / 180) * 50}
+                stroke="#c8ff00" strokeWidth="0.8" opacity={0.6 - i * 0.08}
+              />
+            ))}
+          </svg>
+        </div>
+
+      </div>
+
+      {/* Admin: Ganti Modal */}
+      {showModal && (
+        <div
+          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.9)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', padding:24 }}
+          onClick={() => { if (!saving) setShowModal(false) }}
+        >
+          <div
+            style={{ background:'#111', border:'1px solid rgba(200,255,0,0.3)', borderRadius:20, padding:'24px 20px', maxWidth:360, width:'100%' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ fontFamily:'monospace', fontSize:11, color:'#c8ff00', marginBottom:16, letterSpacing:2 }}>✎ GANTI PANEL VIDEO</div>
+            <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+
+              {/* Upload dari HP */}
+              <div style={{ border:'1px dashed rgba(200,255,0,0.3)', borderRadius:8, padding:'12px', textAlign:'center', position:'relative', background:'#0d1200' }}>
+                <div style={{ fontFamily:'monospace', fontSize:9, color:'#c8ff00', opacity:0.7, marginBottom:6, letterSpacing:1 }}>📁 UPLOAD DARI HP</div>
+                <input type="file" accept="video/*" disabled={saving}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0]
+                    if (!file) return
+                    setSaving(true); setUploadProgress(0); setErr('')
+                    try {
+                      const url = await uploadToCloudinary(file)
+                      setInputUrl(url); setUploadProgress(null)
+                    } catch { setErr('Upload gagal'); setUploadProgress(null) }
+                    setSaving(false)
+                  }}
+                  style={{ position:'absolute', inset:0, opacity:0, width:'100%', height:'100%', cursor: saving ? 'default' : 'pointer' }}
+                />
+                {uploadProgress !== null ? (
+                  <div style={{ display:'flex', flexDirection:'column', gap:6, alignItems:'center' }}>
+                    <div style={{ width:'100%', height:4, background:'#1a2200', borderRadius:4, overflow:'hidden' }}>
+                      <div style={{ height:'100%', width:`${uploadProgress}%`, background:'#c8ff00', borderRadius:4, transition:'width 0.2s ease' }} />
+                    </div>
+                    <span style={{ fontFamily:'monospace', fontSize:9, color:'#c8ff00' }}>UPLOADING {uploadProgress}%</span>
+                  </div>
+                ) : inputUrl.includes('cloudinary') ? (
+                  <span style={{ fontFamily:'monospace', fontSize:9, color:'#c8ff00' }}>✓ Upload berhasil!</span>
+                ) : (
+                  <span style={{ fontFamily:'monospace', fontSize:9, color:'#888' }}>Tap untuk pilih video</span>
+                )}
+              </div>
+
+              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                <div style={{ flex:1, height:1, background:'#2a2a2a' }} />
+                <span style={{ fontFamily:'monospace', fontSize:8, color:'#555' }}>ATAU PASTE URL</span>
+                <div style={{ flex:1, height:1, background:'#2a2a2a' }} />
+              </div>
+
+              <input type="text" placeholder="URL Video (mp4, cloudinary...)" value={inputUrl}
+                onChange={e => { setInputUrl(e.target.value); setErr('') }} disabled={saving}
+                style={{ background:'#1a1a1a', border:`1px solid ${err ? '#ff4444' : '#2a3a00'}`, borderRadius:8, padding:'10px 12px', color:'#fff', fontSize:12, outline:'none', width:'100%', boxSizing:'border-box', opacity: saving ? 0.5 : 1 }}
+              />
+              {err && <div style={{ fontSize:10, color:'#ff4444', fontFamily:'monospace' }}>{err}</div>}
+
+              <div style={{ display:'flex', gap:8, marginTop:4 }}>
+                <button onClick={handleSave} disabled={saving || !inputUrl.trim()}
+                  style={{ flex:1, padding:'12px', borderRadius:10, background: saving ? '#2a3a00' : 'linear-gradient(135deg,#c8ff00,#a0cc00)', color: saving ? '#c8ff00' : '#000', fontWeight:800, fontSize:12, border:'none', cursor: saving ? 'default' : 'pointer', fontFamily:'monospace', letterSpacing:1 }}>
+                  {saving ? 'PROSES...' : 'SIMPAN'}
+                </button>
+                <button onClick={() => { if (!saving) { setShowModal(false); setErr(''); setUploadProgress(null) } }} disabled={saving}
+                  style={{ padding:'12px 16px', borderRadius:10, background:'#1a1a1a', border:'1px solid #333', color: saving ? '#444' : '#888', fontSize:12, cursor: saving ? 'default' : 'pointer' }}>
+                  Batal
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
   const [videos, setVideos] = useState<VideoItem[]>(HOME_DEFAULT_VIDEOS)
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -2581,6 +2817,9 @@ function App() {
                 </button>
               </div>
             )}
+
+            {/* ── Comic Panel Video ── */}
+            <ComicVideoPanel isAdmin={isAdmin} />
 
             {/* ── Video Carousel ── */}
             <VideoCarousel isAdmin={isAdmin} />
