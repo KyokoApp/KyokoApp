@@ -385,14 +385,8 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
                   flexShrink: 0, width: '100%', aspectRatio: '16/9', position: 'relative', background: '#000',
                 }}
               >
-                {/* Fade overlay kiri */}
-                <div style={{ position: 'absolute', inset: 0, zIndex: 6, pointerEvents: 'none', background: 'linear-gradient(to right, #0a0a0a 0%, #0a0a0a 5%, transparent 45%)' }} />
-                {/* Fade overlay kanan */}
-                <div style={{ position: 'absolute', inset: 0, zIndex: 6, pointerEvents: 'none', background: 'linear-gradient(to left, #0a0a0a 0%, #0a0a0a 5%, transparent 45%)' }} />
-                {/* Fade overlay atas */}
-                <div style={{ position: 'absolute', inset: 0, zIndex: 6, pointerEvents: 'none', background: 'linear-gradient(to bottom, #0a0a0a 0%, #0a0a0a 5%, transparent 38%)' }} />
-                {/* Fade overlay bawah */}
-                <div style={{ position: 'absolute', inset: 0, zIndex: 6, pointerEvents: 'none', background: 'linear-gradient(to top, #0a0a0a 0%, #0a0a0a 5%, transparent 38%)' }} />
+                {/* Vignette overlay — nutup semua sisi + pojok sekaligus */}
+                <div style={{ position: 'absolute', inset: 0, zIndex: 6, pointerEvents: 'none', background: 'radial-gradient(ellipse at center, transparent 35%, rgba(10,10,10,0.6) 65%, #0a0a0a 85%)' }} />
                 <video
                   ref={el => { videoRefs.current[i] = el }}
                   src={video.url}
