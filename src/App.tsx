@@ -383,12 +383,16 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
                 key={video.id}
                 style={{
                   flexShrink: 0, width: '100%', aspectRatio: '16/9', position: 'relative', background: '#000',
-                  WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 18%, black 82%, transparent 100%), linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%)',
-                  WebkitMaskComposite: 'destination-in',
-                  maskImage: 'linear-gradient(to right, transparent 0%, black 18%, black 82%, transparent 100%), linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%)',
-                  maskComposite: 'intersect',
                 }}
               >
+                {/* Fade overlay kiri */}
+                <div style={{ position: 'absolute', inset: 0, zIndex: 6, pointerEvents: 'none', background: 'linear-gradient(to right, #0a0a0a 0%, transparent 30%)' }} />
+                {/* Fade overlay kanan */}
+                <div style={{ position: 'absolute', inset: 0, zIndex: 6, pointerEvents: 'none', background: 'linear-gradient(to left, #0a0a0a 0%, transparent 30%)' }} />
+                {/* Fade overlay atas */}
+                <div style={{ position: 'absolute', inset: 0, zIndex: 6, pointerEvents: 'none', background: 'linear-gradient(to bottom, #0a0a0a 0%, transparent 25%)' }} />
+                {/* Fade overlay bawah */}
+                <div style={{ position: 'absolute', inset: 0, zIndex: 6, pointerEvents: 'none', background: 'linear-gradient(to top, #0a0a0a 0%, transparent 25%)' }} />
                 <video
                   ref={el => { videoRefs.current[i] = el }}
                   src={video.url}
