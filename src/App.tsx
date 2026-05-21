@@ -386,13 +386,13 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
                 }}
               >
                 {/* Fade overlay kiri */}
-                <div style={{ position: 'absolute', inset: 0, zIndex: 6, pointerEvents: 'none', background: 'linear-gradient(to right, #0a0a0a 0%, transparent 30%)' }} />
+                <div style={{ position: 'absolute', inset: 0, zIndex: 6, pointerEvents: 'none', background: 'linear-gradient(to right, #0a0a0a 0%, #0a0a0a 5%, transparent 45%)' }} />
                 {/* Fade overlay kanan */}
-                <div style={{ position: 'absolute', inset: 0, zIndex: 6, pointerEvents: 'none', background: 'linear-gradient(to left, #0a0a0a 0%, transparent 30%)' }} />
+                <div style={{ position: 'absolute', inset: 0, zIndex: 6, pointerEvents: 'none', background: 'linear-gradient(to left, #0a0a0a 0%, #0a0a0a 5%, transparent 45%)' }} />
                 {/* Fade overlay atas */}
-                <div style={{ position: 'absolute', inset: 0, zIndex: 6, pointerEvents: 'none', background: 'linear-gradient(to bottom, #0a0a0a 0%, transparent 25%)' }} />
+                <div style={{ position: 'absolute', inset: 0, zIndex: 6, pointerEvents: 'none', background: 'linear-gradient(to bottom, #0a0a0a 0%, #0a0a0a 5%, transparent 38%)' }} />
                 {/* Fade overlay bawah */}
-                <div style={{ position: 'absolute', inset: 0, zIndex: 6, pointerEvents: 'none', background: 'linear-gradient(to top, #0a0a0a 0%, transparent 25%)' }} />
+                <div style={{ position: 'absolute', inset: 0, zIndex: 6, pointerEvents: 'none', background: 'linear-gradient(to top, #0a0a0a 0%, #0a0a0a 5%, transparent 38%)' }} />
                 <video
                   ref={el => { videoRefs.current[i] = el }}
                   src={video.url}
