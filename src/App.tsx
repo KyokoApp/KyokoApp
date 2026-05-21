@@ -385,8 +385,22 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
                   flexShrink: 0, width: '100%', aspectRatio: '16/9', position: 'relative', background: '#000',
                 }}
               >
-                {/* Vignette overlay — nutup semua sisi + pojok sekaligus */}
-                <div style={{ position: 'absolute', inset: 0, zIndex: 6, pointerEvents: 'none', background: 'radial-gradient(ellipse at center, transparent 35%, rgba(10,10,10,0.6) 65%, #0a0a0a 85%)' }} />
+                {/* Fade kiri */}
+                <div style={{ position: 'absolute', inset: 0, zIndex: 6, pointerEvents: 'none', background: 'linear-gradient(to right, #0a0a0a 0%, #0a0a0a 3%, transparent 35%)' }} />
+                {/* Fade kanan */}
+                <div style={{ position: 'absolute', inset: 0, zIndex: 6, pointerEvents: 'none', background: 'linear-gradient(to left, #0a0a0a 0%, #0a0a0a 3%, transparent 35%)' }} />
+                {/* Fade atas */}
+                <div style={{ position: 'absolute', inset: 0, zIndex: 6, pointerEvents: 'none', background: 'linear-gradient(to bottom, #0a0a0a 0%, #0a0a0a 3%, transparent 30%)' }} />
+                {/* Fade bawah */}
+                <div style={{ position: 'absolute', inset: 0, zIndex: 6, pointerEvents: 'none', background: 'linear-gradient(to top, #0a0a0a 0%, #0a0a0a 3%, transparent 30%)' }} />
+                {/* Pojok solid — top-left */}
+                <div style={{ position: 'absolute', top: 0, left: 0, width: '12%', height: '20%', zIndex: 7, pointerEvents: 'none', background: 'radial-gradient(circle at 0% 0%, #0a0a0a 40%, transparent 75%)' }} />
+                {/* Pojok solid — top-right */}
+                <div style={{ position: 'absolute', top: 0, right: 0, width: '12%', height: '20%', zIndex: 7, pointerEvents: 'none', background: 'radial-gradient(circle at 100% 0%, #0a0a0a 40%, transparent 75%)' }} />
+                {/* Pojok solid — bottom-left */}
+                <div style={{ position: 'absolute', bottom: 0, left: 0, width: '12%', height: '20%', zIndex: 7, pointerEvents: 'none', background: 'radial-gradient(circle at 0% 100%, #0a0a0a 40%, transparent 75%)' }} />
+                {/* Pojok solid — bottom-right */}
+                <div style={{ position: 'absolute', bottom: 0, right: 0, width: '12%', height: '20%', zIndex: 7, pointerEvents: 'none', background: 'radial-gradient(circle at 100% 100%, #0a0a0a 40%, transparent 75%)' }} />
                 <video
                   ref={el => { videoRefs.current[i] = el }}
                   src={video.url}
