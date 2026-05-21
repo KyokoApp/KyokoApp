@@ -248,53 +248,22 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
     return () => unsub()
   }, [])
 
-  // Play active, pause & mute ALL others first — fix double audio bug
+  // Play active, pause others
   useEffect(() => {
-    // Step 1: Pause & mute semua video dulu tanpa terkecuali
-    videoRefs.current.forEach((v) => {
+    videoRefs.current.forEach((v, i) => {
       if (!v) return
-      v.pause()
-      v.muted = true
-      v.volume = 0
+      if (i !== currentIndex) {
+        v.pause()
+        v.muted = true
+      }
     })
-    // Step 2: Baru play yang aktif
     const active = videoRefs.current[currentIndex]
     if (!active) return
-    active.muted = false
-    active.volume = 1.0
-    active.playbackRate = 1.0
-    if (active.readyState === 0) {
-      active.load()
-      const onReady = () => {
-        active.play().catch(() => { active.muted = true; active.play().catch(() => {}) })
-        active.removeEventListener('canplay', onReady)
-      }
-      active.addEventListener('canplay', onReady)
-    } else {
-      active.play().catch(() => { active.muted = true; active.play().catch(() => {}) })
-    }
+    active.muted = true  // tetap muted, user bisa unmute manual
+    active.volume = 0.5
+    active.play().catch(() => {})
   }, [currentIndex, videos.length])
 
-  // Scroll-based volume: makin jauh scroll dari video → volume makin kecil
-  useEffect(() => {
-    const handleScroll = () => {
-      const container = containerRef.current
-      const activeVideo = videoRefs.current[currentIndex]
-      if (!container || !activeVideo) return
-      const rect = container.getBoundingClientRect()
-      const windowH = window.innerHeight
-      // Jarak center video dari center layar
-      const videoCenter = rect.top + rect.height / 2
-      const screenCenter = windowH / 2
-      const distance = Math.abs(videoCenter - screenCenter)
-      // Volume 1 saat video di tengah layar, 0 saat jarak > windowH
-      const vol = Math.max(0, 1 - distance / windowH)
-      activeVideo.volume = vol
-    }
-    window.addEventListener('scroll', handleScroll, { passive: true })
-    handleScroll() // initial check
-    return () => window.removeEventListener('scroll', handleScroll)
-  }, [currentIndex])
 
   const goTo = (index: number) => {
     const next = Math.max(0, Math.min(index, videos.length - 1))
