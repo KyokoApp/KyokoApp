@@ -314,8 +314,6 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
     setSaving(false)
   }
 
-  if (videos.length === 0) return null
-
   return (
     <div style={{ marginTop: 20 }} ref={containerRef}>
       <style>{`
@@ -332,7 +330,7 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
         }
       `}</style>
 
-      {/* Admin ganti button — tanpa label VIDEO */}
+      {/* Admin ganti button — selalu muncul untuk admin */}
       {isAdmin && (
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
           <button
@@ -347,6 +345,8 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
           </button>
         </div>
       )}
+
+      {videos.length === 0 ? null : (<>
 
       <div style={{ position: 'relative' }}>
 
@@ -615,6 +615,7 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
           </div>
         </div>
       )}
+      </>)}
     </div>
   )
 }
