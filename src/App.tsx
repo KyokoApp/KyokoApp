@@ -393,14 +393,14 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
                 <div style={{ position: 'absolute', inset: 0, zIndex: 6, pointerEvents: 'none', background: 'linear-gradient(to bottom, #0a0a0a 0%, #0a0a0a 3%, transparent 30%)' }} />
                 {/* Fade bawah */}
                 <div style={{ position: 'absolute', inset: 0, zIndex: 6, pointerEvents: 'none', background: 'linear-gradient(to top, #0a0a0a 0%, #0a0a0a 3%, transparent 30%)' }} />
-                {/* Pojok solid — top-left */}
-                <div style={{ position: 'absolute', top: 0, left: 0, width: '12%', height: '20%', zIndex: 7, pointerEvents: 'none', background: 'radial-gradient(circle at 0% 0%, #0a0a0a 40%, transparent 75%)' }} />
-                {/* Pojok solid — top-right */}
-                <div style={{ position: 'absolute', top: 0, right: 0, width: '12%', height: '20%', zIndex: 7, pointerEvents: 'none', background: 'radial-gradient(circle at 100% 0%, #0a0a0a 40%, transparent 75%)' }} />
-                {/* Pojok solid — bottom-left */}
-                <div style={{ position: 'absolute', bottom: 0, left: 0, width: '12%', height: '20%', zIndex: 7, pointerEvents: 'none', background: 'radial-gradient(circle at 0% 100%, #0a0a0a 40%, transparent 75%)' }} />
-                {/* Pojok solid — bottom-right */}
-                <div style={{ position: 'absolute', bottom: 0, right: 0, width: '12%', height: '20%', zIndex: 7, pointerEvents: 'none', background: 'radial-gradient(circle at 100% 100%, #0a0a0a 40%, transparent 75%)' }} />
+                {/* Pojok solid kotak — top-left */}
+                <div style={{ position: 'absolute', top: 0, left: 0, width: 28, height: 28, zIndex: 7, pointerEvents: 'none', background: '#0a0a0a' }} />
+                {/* Pojok solid kotak — top-right */}
+                <div style={{ position: 'absolute', top: 0, right: 0, width: 28, height: 28, zIndex: 7, pointerEvents: 'none', background: '#0a0a0a' }} />
+                {/* Pojok solid kotak — bottom-left */}
+                <div style={{ position: 'absolute', bottom: 0, left: 0, width: 28, height: 28, zIndex: 7, pointerEvents: 'none', background: '#0a0a0a' }} />
+                {/* Pojok solid kotak — bottom-right */}
+                <div style={{ position: 'absolute', bottom: 0, right: 0, width: 28, height: 28, zIndex: 7, pointerEvents: 'none', background: '#0a0a0a' }} />
                 <video
                   ref={el => { videoRefs.current[i] = el }}
                   src={video.url}
