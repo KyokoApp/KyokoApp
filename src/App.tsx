@@ -354,7 +354,6 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
         <div
           style={{
             position: 'relative', width: '100%', overflow: 'hidden',
-            borderRadius: 10,
             background: '#000',
             boxShadow: 'none',
           }}
