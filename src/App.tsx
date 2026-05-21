@@ -197,9 +197,7 @@ function ComicVideoPanel({ isAdmin }: { isAdmin: boolean }) {
   const [uploadProgress, setUploadProgress] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
-  const videoRef = useRef<HTMLVideoElement | null>(null)
 
-  // Load dari Firestore
   React.useEffect(() => {
     const ref = doc(dbAdmin, 'site_config', 'comicVideo')
     const unsub = onSnapshot(ref, (snap) => {
@@ -238,119 +236,95 @@ function ComicVideoPanel({ isAdmin }: { isAdmin: boolean }) {
     setSaving(false)
   }
 
-  // clip-path: potongan sudut diagonal kanan atas dan kiri bawah — efek panel komik
-  const clipPath = 'polygon(0 0, calc(100% - 28px) 0, 100% 28px, 100% 100%, 28px 100%, 0 calc(100% - 28px))'
+  // Bentuk panel manga: potongan diagonal di semua sudut — bukan kotak biasa
+  const clipOuter = 'polygon(18px 0%, calc(100% - 18px) 0%, 100% 18px, 100% calc(100% - 18px), calc(100% - 18px) 100%, 18px 100%, 0% calc(100% - 18px), 0% 18px)'
+  const clipInner = 'polygon(20px 0%, calc(100% - 20px) 0%, 100% 20px, 100% calc(100% - 20px), calc(100% - 20px) 100%, 20px 100%, 0% calc(100% - 20px), 0% 20px)'
 
   return (
-    <div style={{ position: 'relative', marginTop: 24, marginBottom: 4 }}>
+    <>
+      {/* Panel: floating pojok kanan atas hero */}
+      <div style={{
+        position: 'absolute',
+        top: -8,
+        right: -16,
+        width: 148,
+        height: 148,
+        zIndex: 10,
+      }}>
+        {/* Glow border */}
+        <div style={{
+          position: 'absolute', inset: 0,
+          clipPath: clipOuter,
+          background: 'linear-gradient(135deg, #c8ff00, #4aff91 50%, #c8ff00)',
+          filter: 'blur(0px)',
+        }} />
+        {/* Glow shadow */}
+        <div style={{
+          position: 'absolute', inset: -4,
+          clipPath: clipOuter,
+          background: 'rgba(200,255,0,0.18)',
+          filter: 'blur(8px)',
+          zIndex: -1,
+        }} />
+        {/* Video layer */}
+        <div style={{
+          position: 'absolute', inset: 2,
+          clipPath: clipInner,
+          overflow: 'hidden',
+          background: '#000',
+        }}>
+          <video
+            src={videoUrl}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+            loop playsInline muted autoPlay preload="metadata" crossOrigin="anonymous"
+          />
+          {/* Scanline */}
+          <div style={{
+            position: 'absolute', inset: 0,
+            background: 'repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.1) 3px, rgba(0,0,0,0.1) 4px)',
+            pointerEvents: 'none',
+          }} />
+          {/* Halftone pojok bawah kanan */}
+          <div style={{
+            position: 'absolute', bottom: 6, right: 6, width: 44, height: 44,
+            backgroundImage: 'radial-gradient(circle, rgba(200,255,0,0.4) 1.2px, transparent 1.2px)',
+            backgroundSize: '7px 7px',
+            maskImage: 'radial-gradient(ellipse at bottom right, black 30%, transparent 70%)',
+            WebkitMaskImage: 'radial-gradient(ellipse at bottom right, black 30%, transparent 70%)',
+            pointerEvents: 'none',
+          }} />
+        </div>
 
-      {/* Label section */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-        <div style={{ width: 3, height: 14, background: '#c8ff00', borderRadius: 2 }} />
-        <span style={{ fontFamily: 'monospace', fontSize: 9, color: '#c8ff00', letterSpacing: 3, opacity: 0.8 }}>PANEL · KOMIK</span>
+        {/* Corner tick marks di tiap sudut potongan */}
+        {[
+          { top: -1, right: -1, rotate: '0deg' },
+          { bottom: -1, right: -1, rotate: '90deg' },
+          { bottom: -1, left: -1, rotate: '180deg' },
+          { top: -1, left: -1, rotate: '270deg' },
+        ].map((pos, i) => (
+          <div key={i} style={{ position: 'absolute', width: 22, height: 22, ...pos, zIndex: 5, pointerEvents: 'none' }}>
+            <svg width="22" height="22" viewBox="0 0 22 22" style={{ transform: `rotate(${pos.rotate})` }}>
+              <polyline points="14,2 20,2 20,8" fill="none" stroke="#c8ff00" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </div>
+        ))}
+
+        {/* Admin ganti button */}
         {isAdmin && (
           <button
             onClick={() => { setShowModal(true); setInputUrl(''); setErr('') }}
             style={{
-              marginLeft: 'auto', background: 'rgba(200,255,0,0.12)', border: '1px solid rgba(200,255,0,0.3)',
-              borderRadius: 6, padding: '3px 10px', color: '#c8ff00', fontFamily: 'monospace',
-              fontSize: 9, cursor: 'pointer', letterSpacing: 1,
+              position: 'absolute', bottom: -22, right: 0,
+              background: 'rgba(200,255,0,0.15)', border: '1px solid rgba(200,255,0,0.3)',
+              borderRadius: 5, padding: '2px 8px', color: '#c8ff00',
+              fontFamily: 'monospace', fontSize: 8, cursor: 'pointer', letterSpacing: 1, zIndex: 6,
+              whiteSpace: 'nowrap',
             }}
           >✎ GANTI</button>
         )}
       </div>
 
-      {/* Comic panel wrapper */}
-      <div style={{ position: 'relative', width: '100%', paddingBottom: '100%' }}>
-
-        {/* Outer glow border — dibuat dengan pseudo-layer */}
-        <div style={{
-          position: 'absolute', inset: -2,
-          clipPath,
-          background: 'linear-gradient(135deg, #c8ff00 0%, #4aff91 50%, #c8ff00 100%)',
-          zIndex: 1,
-        }} />
-
-        {/* Inner background */}
-        <div style={{
-          position: 'absolute', inset: 2,
-          clipPath,
-          background: '#0a0a0a',
-          zIndex: 2,
-          overflow: 'hidden',
-        }}>
-          <video
-            ref={videoRef}
-            src={videoUrl}
-            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-            loop
-            playsInline
-            muted
-            autoPlay
-            preload="metadata"
-            crossOrigin="anonymous"
-          />
-        </div>
-
-        {/* Corner accents — sudut potongan */}
-        {/* kanan atas */}
-        <div style={{
-          position: 'absolute', top: -1, right: -1, width: 38, height: 38,
-          zIndex: 5, pointerEvents: 'none',
-        }}>
-          <svg width="38" height="38" viewBox="0 0 38 38">
-            <polyline points="12,2 36,2 36,26" fill="none" stroke="#c8ff00" strokeWidth="2.5" strokeLinecap="round"/>
-          </svg>
-        </div>
-        {/* kiri bawah */}
-        <div style={{
-          position: 'absolute', bottom: -1, left: -1, width: 38, height: 38,
-          zIndex: 5, pointerEvents: 'none',
-        }}>
-          <svg width="38" height="38" viewBox="0 0 38 38">
-            <polyline points="26,36 2,36 2,12" fill="none" stroke="#c8ff00" strokeWidth="2.5" strokeLinecap="round"/>
-          </svg>
-        </div>
-
-        {/* Scanline overlay efek komik */}
-        <div style={{
-          position: 'absolute', inset: 2,
-          clipPath,
-          background: 'repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.08) 3px, rgba(0,0,0,0.08) 4px)',
-          zIndex: 3, pointerEvents: 'none',
-        }} />
-
-        {/* Halftone dots — pojok bawah kanan */}
-        <div style={{
-          position: 'absolute', bottom: 10, right: 10,
-          width: 60, height: 60, zIndex: 4, pointerEvents: 'none',
-          backgroundImage: 'radial-gradient(circle, rgba(200,255,0,0.35) 1.5px, transparent 1.5px)',
-          backgroundSize: '8px 8px',
-          maskImage: 'radial-gradient(ellipse at bottom right, black 30%, transparent 75%)',
-          WebkitMaskImage: 'radial-gradient(ellipse at bottom right, black 30%, transparent 75%)',
-        }} />
-
-        {/* Speed lines — pojok kiri atas */}
-        <div style={{
-          position: 'absolute', top: 6, left: 6,
-          width: 50, height: 50, zIndex: 4, pointerEvents: 'none',
-          opacity: 0.4,
-        }}>
-          <svg width="50" height="50" viewBox="0 0 50 50">
-            {[0,15,30,45,60,75].map((angle, i) => (
-              <line key={i}
-                x1="0" y1="0"
-                x2={Math.cos((angle * Math.PI) / 180) * 50}
-                y2={Math.sin((angle * Math.PI) / 180) * 50}
-                stroke="#c8ff00" strokeWidth="0.8" opacity={0.6 - i * 0.08}
-              />
-            ))}
-          </svg>
-        </div>
-
-      </div>
-
-      {/* Admin: Ganti Modal */}
+      {/* Modal */}
       {showModal && (
         <div
           style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.9)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center', padding:24 }}
@@ -362,8 +336,6 @@ function ComicVideoPanel({ isAdmin }: { isAdmin: boolean }) {
           >
             <div style={{ fontFamily:'monospace', fontSize:11, color:'#c8ff00', marginBottom:16, letterSpacing:2 }}>✎ GANTI PANEL VIDEO</div>
             <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-
-              {/* Upload dari HP */}
               <div style={{ border:'1px dashed rgba(200,255,0,0.3)', borderRadius:8, padding:'12px', textAlign:'center', position:'relative', background:'#0d1200' }}>
                 <div style={{ fontFamily:'monospace', fontSize:9, color:'#c8ff00', opacity:0.7, marginBottom:6, letterSpacing:1 }}>📁 UPLOAD DARI HP</div>
                 <input type="file" accept="video/*" disabled={saving}
@@ -392,19 +364,16 @@ function ComicVideoPanel({ isAdmin }: { isAdmin: boolean }) {
                   <span style={{ fontFamily:'monospace', fontSize:9, color:'#888' }}>Tap untuk pilih video</span>
                 )}
               </div>
-
               <div style={{ display:'flex', alignItems:'center', gap:8 }}>
                 <div style={{ flex:1, height:1, background:'#2a2a2a' }} />
                 <span style={{ fontFamily:'monospace', fontSize:8, color:'#555' }}>ATAU PASTE URL</span>
                 <div style={{ flex:1, height:1, background:'#2a2a2a' }} />
               </div>
-
               <input type="text" placeholder="URL Video (mp4, cloudinary...)" value={inputUrl}
                 onChange={e => { setInputUrl(e.target.value); setErr('') }} disabled={saving}
-                style={{ background:'#1a1a1a', border:`1px solid ${err ? '#ff4444' : '#2a3a00'}`, borderRadius:8, padding:'10px 12px', color:'#fff', fontSize:12, outline:'none', width:'100%', boxSizing:'border-box', opacity: saving ? 0.5 : 1 }}
+                style={{ background:'#1a1a1a', border:`1px solid ${err ? '#ff4444' : '#2a3a00'}`, borderRadius:8, padding:'10px 12px', color:'#fff', fontSize:12, outline:'none', width:'100%', boxSizing:'border-box' }}
               />
               {err && <div style={{ fontSize:10, color:'#ff4444', fontFamily:'monospace' }}>{err}</div>}
-
               <div style={{ display:'flex', gap:8, marginTop:4 }}>
                 <button onClick={handleSave} disabled={saving || !inputUrl.trim()}
                   style={{ flex:1, padding:'12px', borderRadius:10, background: saving ? '#2a3a00' : 'linear-gradient(135deg,#c8ff00,#a0cc00)', color: saving ? '#c8ff00' : '#000', fontWeight:800, fontSize:12, border:'none', cursor: saving ? 'default' : 'pointer', fontFamily:'monospace', letterSpacing:1 }}>
@@ -419,7 +388,7 @@ function ComicVideoPanel({ isAdmin }: { isAdmin: boolean }) {
           </div>
         </div>
       )}
-    </div>
+    </>
   )
 }
 
@@ -2697,10 +2666,15 @@ function App() {
         <section className="hero section" id="beranda">
           <div className="section-bg-text">KYOKO</div>
           <div className="hero-content fade-section">
-            <div className="tagline">Anime · Manga · Novel · Info</div>
-            <h1>
-              <span>KYOKO</span>
-            </h1>
+            {/* Tagline + h1 dibungkus relative agar panel komik bisa float di kanan */}
+            <div style={{ position: 'relative' }}>
+              <div className="tagline">Anime · Manga · Novel · Info</div>
+              <h1>
+                <span>KYOKO</span>
+              </h1>
+              {/* Comic Panel — floating pojok kanan, sejajar dengan KYOKO title */}
+              <ComicVideoPanel isAdmin={isAdmin} />
+            </div>
             <p className="subtitle">By Ryuuki Kojo · Info Hub for the Community</p>
             <p className="description">
               Temukan info anime, manga, novel, dan lebih banyak lagi. Hub komunitas dengan konten selalu diperbarui!
@@ -2817,9 +2791,6 @@ function App() {
                 </button>
               </div>
             )}
-
-            {/* ── Comic Panel Video ── */}
-            <ComicVideoPanel isAdmin={isAdmin} />
 
             {/* ── Video Carousel ── */}
             <VideoCarousel isAdmin={isAdmin} />
