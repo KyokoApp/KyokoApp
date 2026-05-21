@@ -2254,15 +2254,9 @@ function App() {
               <div className="splash-wipe-out-b" />
             </div>
           )}
-          {/* Crystal shards background */}
-          <div className="splash-shards" aria-hidden="true">
-            <div className="shard shard-1" /><div className="shard shard-2" /><div className="shard shard-3" />
-            <div className="shard shard-4" /><div className="shard shard-5" /><div className="shard shard-6" />
-            <div className="shard shard-7" /><div className="shard shard-8" /><div className="shard shard-9" />
-            <div className="shard shard-10" /><div className="shard shard-11" /><div className="shard shard-12" />
-            <div className="shard shard-13" /><div className="shard shard-14" /><div className="shard shard-15" />
-            <div className="shard shard-16" />
-          </div>
+          {/* Lightweight background — static radial gradients + thin lines, zero backdrop-filter */}
+          <div className="splash-bg" aria-hidden="true" />
+          <div className="splash-lines" aria-hidden="true" />
           {/* Center glow */}
           <div className="splash-glow" aria-hidden="true" />
           {/* Corner brackets */}
@@ -2275,10 +2269,6 @@ function App() {
             <div className="splash-logo-wrap">
               <div className="splash-ring splash-ring-1" />
               <div className="splash-ring splash-ring-2" />
-              <svg className="splash-crystal-ring" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <polygon points="80,4 152,40 152,120 80,156 8,120 8,40" fill="none" stroke="rgba(200,245,0,0.15)" strokeWidth="1" strokeDasharray="6 4"/>
-                <polygon points="80,18 138,48 138,112 80,142 22,112 22,48" fill="none" stroke="rgba(200,245,0,0.07)" strokeWidth="1"/>
-              </svg>
               <svg className="splash-logo-svg" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <polygon points="40,4 72,20 72,60 40,76 8,60 8,20" fill="#0a0a0a" stroke="#c8f500" strokeWidth="1.5"/>
                 <polygon points="40,12 65,25 65,55 40,68 15,55 15,25" fill="none" stroke="rgba(200,245,0,0.18)" strokeWidth="1"/>
@@ -2300,7 +2290,6 @@ function App() {
             <div className="splash-loader">
               <div className="splash-loader-track" />
               <div className="splash-loader-bar" />
-              <div className="splash-loader-glow" />
             </div>
             <div className="splash-status-row">
               <span className="splash-status-dot-anim" />
