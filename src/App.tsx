@@ -383,9 +383,9 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
                 key={video.id}
                 style={{
                   flexShrink: 0, width: '100%', aspectRatio: '16/9', position: 'relative', background: '#000',
-                  WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 12%, black 88%, transparent 100%), linear-gradient(to bottom, transparent 0%, black 10%, black 90%, transparent 100%)',
+                  WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 18%, black 82%, transparent 100%), linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%)',
                   WebkitMaskComposite: 'destination-in',
-                  maskImage: 'linear-gradient(to right, transparent 0%, black 12%, black 88%, transparent 100%), linear-gradient(to bottom, transparent 0%, black 10%, black 90%, transparent 100%)',
+                  maskImage: 'linear-gradient(to right, transparent 0%, black 18%, black 82%, transparent 100%), linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%)',
                   maskComposite: 'intersect',
                 }}
               >
@@ -414,28 +414,7 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
           </div>
         </div>
 
-        {/* Bottom HUD bar */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 6, paddingInline: 2 }}>
-          {/* Dots */}
-          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-            {videos.map((_, i) => (
-              <div
-                key={i}
-                onClick={() => goTo(i)}
-                style={{
-                  width: i === currentIndex ? 16 : 4, height: 4, borderRadius: 2,
-                  background: i === currentIndex ? '#c8ff00' : 'rgba(200,255,0,0.2)',
-                  cursor: 'pointer', transition: 'all 0.3s ease',
-                  boxShadow: i === currentIndex ? '0 0 6px rgba(200,255,0,0.5)' : 'none',
-                }}
-              />
-            ))}
-          </div>
-          {/* Index label */}
-          <span style={{ fontFamily: 'monospace', fontSize: 7, color: '#c8ff00', opacity: 0.4, letterSpacing: 1 }}>
-            {String(currentIndex + 1).padStart(2, '0')} / {String(videos.length).padStart(2, '0')}
-          </span>
-        </div>
+
 
         {/* Arrow nav — only if > 1 video */}
         {videos.length > 1 && (
