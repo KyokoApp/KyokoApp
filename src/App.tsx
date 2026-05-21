@@ -183,9 +183,7 @@ interface VideoItem {
   addedAt?: number
 }
 
-const HOME_DEFAULT_VIDEOS: VideoItem[] = [
-  { id: '__default__', url: 'https://c.termai.cc/a156/4VoP.mp4', title: '' },
-]
+const HOME_DEFAULT_VIDEOS: VideoItem[] = []
 
 
 function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
@@ -241,7 +239,7 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
         setVideos(list)
         setCurrentIndex(prev => Math.min(prev, list.length - 1))
       } else {
-        setVideos(HOME_DEFAULT_VIDEOS)
+        setVideos([])
         setCurrentIndex(0)
       }
     })
@@ -315,6 +313,8 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
     }
     setSaving(false)
   }
+
+  if (videos.length === 0) return null
 
   return (
     <div style={{ marginTop: 20 }} ref={containerRef}>
@@ -421,9 +421,8 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
                   loop
                   playsInline
                   muted
-                  autoPlay={i === 0}
-                  preload="metadata"
-                  crossOrigin="anonymous"
+                  autoPlay
+                  preload="auto"
                 />
                 {video.title && (
                   <div style={{
