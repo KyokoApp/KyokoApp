@@ -280,7 +280,7 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
   // Open replace modal — pre-fill dengan URL video yang sedang aktif
   const openReplace = () => {
     const cur = videos[currentIndex]
-    setReplaceUrl(cur?.url === HOME_DEFAULT_VIDEOS[0].url ? '' : (cur?.url || ''))
+    setReplaceUrl(cur?.url || '')
     setReplaceTitle(cur?.title || '')
     setReplaceErr('')
     setShowReplaceModal(true)
