@@ -332,18 +332,9 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
         }
       `}</style>
 
-      {/* Section header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div style={{ width: 3, height: 12, background: '#c8ff00', borderRadius: 2 }} />
-          <span style={{ fontFamily: 'monospace', fontSize: 9, letterSpacing: 3, color: '#c8ff00', textTransform: 'uppercase' }}>
-            VIDEO
-          </span>
-          <span style={{ fontFamily: 'monospace', fontSize: 7, color: '#c8ff00', opacity: 0.4, letterSpacing: 1 }}>
-            ▶ AUTO
-          </span>
-        </div>
-        {isAdmin && (
+      {/* Admin ganti button — tanpa label VIDEO */}
+      {isAdmin && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
           <button
             onClick={openReplace}
             style={{
@@ -354,25 +345,10 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
           >
             ✎ GANTI
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* ── ZZZ-style outer frame ── */}
-      <div style={{ position: 'relative', padding: '6px' }}>
-
-        {/* Animated corner brackets */}
-        {/* top-left */}
-        <div style={{ position: 'absolute', top: 0, left: 0, width: 18, height: 18, borderTop: '2px solid #c8ff00', borderLeft: '2px solid #c8ff00', borderRadius: '4px 0 0 0', animation: 'vcCornerPulse 2s ease-in-out infinite', zIndex: 10, pointerEvents: 'none' }} />
-        {/* top-right */}
-        <div style={{ position: 'absolute', top: 0, right: 0, width: 18, height: 18, borderTop: '2px solid #c8ff00', borderRight: '2px solid #c8ff00', borderRadius: '0 4px 0 0', animation: 'vcCornerPulse 2s ease-in-out infinite 0.5s', zIndex: 10, pointerEvents: 'none' }} />
-        {/* bottom-left */}
-        <div style={{ position: 'absolute', bottom: 0, left: 0, width: 18, height: 18, borderBottom: '2px solid #c8ff00', borderLeft: '2px solid #c8ff00', borderRadius: '0 0 0 4px', animation: 'vcCornerPulse 2s ease-in-out infinite 1s', zIndex: 10, pointerEvents: 'none' }} />
-        {/* bottom-right */}
-        <div style={{ position: 'absolute', bottom: 0, right: 0, width: 18, height: 18, borderBottom: '2px solid #c8ff00', borderRight: '2px solid #c8ff00', borderRadius: '0 0 4px 0', animation: 'vcCornerPulse 2s ease-in-out infinite 1.5s', zIndex: 10, pointerEvents: 'none' }} />
-
-        {/* Side tick marks */}
-        <div style={{ position: 'absolute', top: '50%', left: 0, transform: 'translateY(-50%)', width: 4, height: 20, background: 'linear-gradient(to bottom, transparent, #c8ff00, transparent)', opacity: 0.6, zIndex: 10, pointerEvents: 'none' }} />
-        <div style={{ position: 'absolute', top: '50%', right: 0, transform: 'translateY(-50%)', width: 4, height: 20, background: 'linear-gradient(to bottom, transparent, #c8ff00, transparent)', opacity: 0.6, zIndex: 10, pointerEvents: 'none' }} />
+      <div style={{ position: 'relative' }}>
 
         {/* Carousel track */}
         <div
@@ -380,19 +356,12 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
             position: 'relative', width: '100%', overflow: 'hidden',
             borderRadius: 10,
             background: '#000',
-            boxShadow: '0 0 0 1px rgba(200,255,0,0.15), 0 0 24px rgba(200,255,0,0.08), inset 0 0 40px rgba(0,0,0,0.5)',
+            boxShadow: 'none',
           }}
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
         >
-          {/* Scanline overlay — only subtle edge glow, no blocking layers */}
-          <div style={{
-            position: 'absolute', inset: 0, zIndex: 5, pointerEvents: 'none', overflow: 'hidden', borderRadius: 10,
-          }}>
-            {/* Left/right green edge glow only */}
-            <div style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: 6, background: 'linear-gradient(to right, rgba(200,255,0,0.12), transparent)', pointerEvents: 'none' }} />
-            <div style={{ position: 'absolute', top: 0, bottom: 0, right: 0, width: 6, background: 'linear-gradient(to left, rgba(200,255,0,0.12), transparent)', pointerEvents: 'none' }} />
-          </div>
+
 
           {/* Swipe area blocker — prevents video click-to-pause */}
           <div
