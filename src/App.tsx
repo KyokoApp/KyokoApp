@@ -1429,6 +1429,7 @@ function App() {
   const [musicTrackName, setMusicTrackName] = useState('Default BGM')
   const [adminMusicUrl, setAdminMusicUrl] = useState('')
   const [adminMusicName, setAdminMusicName] = useState('')
+  const [bgMusicAutoplay, setBgMusicAutoplay] = useState(false)
 
   // Load musik dari Firestore (admin bisa ganti via admin setting)
   React.useEffect(() => {
@@ -1447,6 +1448,18 @@ function App() {
             audio.src = data.url
             audio.load()
             if (wasPlaying) audio.play().then(() => setMusicPlaying(true)).catch(() => setMusicPlaying(false))
+          }
+        }
+        // Sync status autoplay dari Firestore
+        const autoplay = data?.autoplay === true
+        setBgMusicAutoplay(autoplay)
+        const audio = audioRef.current
+        if (audio) {
+          if (autoplay && audio.paused) {
+            audio.play().then(() => setMusicPlaying(true)).catch(() => {})
+          } else if (!autoplay && !audio.paused) {
+            audio.pause()
+            setMusicPlaying(false)
           }
         }
       }
@@ -2101,10 +2114,24 @@ function App() {
     if (!adminMusicUrl.trim()) return
     try {
       const musicRef = doc(dbAdmin, 'site_config', 'bgmusic')
-      await setDoc(musicRef, { url: adminMusicUrl.trim(), name: adminMusicName.trim() || 'BGM', updatedAt: Date.now() })
+      await setDoc(musicRef, { url: adminMusicUrl.trim(), name: adminMusicName.trim() || 'BGM', autoplay: bgMusicAutoplay, updatedAt: Date.now() })
       setAdminMusicUrl('')
       setAdminMusicName('')
     } catch (e) { console.error('Gagal simpan musik:', e) }
+  }
+
+  const handleToggleBgMusicAutoplay = async () => {
+    const next = !bgMusicAutoplay
+    try {
+      const musicRef = doc(dbAdmin, 'site_config', 'bgmusic')
+      await updateDoc(musicRef, { autoplay: next, updatedAt: Date.now() })
+    } catch {
+      // Kalau doc belum ada, pakai setDoc dengan merge
+      try {
+        const musicRef = doc(dbAdmin, 'site_config', 'bgmusic')
+        await setDoc(musicRef, { autoplay: next, updatedAt: Date.now() }, { merge: true })
+      } catch (e) { console.error('Gagal toggle autoplay:', e) }
+    }
   }
 
   const handleSaveAnnouncement = async () => {
@@ -3709,9 +3736,43 @@ function App() {
               {/* ── Music Management ── */}
               <div style={{ borderTop: '1px solid rgba(200,255,0,0.15)', paddingTop: 16, marginTop: 4 }}>
                 <div style={{ fontFamily: 'monospace', fontSize: 10, color: '#c8ff00', letterSpacing: 2, marginBottom: 10 }}>🎵 GANTI MUSIK LATAR</div>
-                <div style={{ fontSize: 10, color: '#888', marginBottom: 8 }}>
+                <div style={{ fontSize: 10, color: '#888', marginBottom: 12 }}>
                   Musik aktif: <span style={{ color: '#c8ff00' }}>{musicTrackName}</span>
                 </div>
+
+                {/* Toggle Autoplay */}
+                <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  background: bgMusicAutoplay ? 'rgba(200,255,0,0.07)' : 'rgba(255,255,255,0.03)',
+                  border: `1px solid ${bgMusicAutoplay ? 'rgba(200,255,0,0.3)' : '#2a2a2a'}`,
+                  borderRadius: 10, padding: '10px 14px', marginBottom: 12,
+                }}>
+                  <div>
+                    <div style={{ fontFamily: 'monospace', fontSize: 10, color: bgMusicAutoplay ? '#c8ff00' : '#888', letterSpacing: 1 }}>
+                      🔊 AUTOPLAY MUSIK
+                    </div>
+                    <div style={{ fontSize: 9, color: '#555', marginTop: 2 }}>
+                      {bgMusicAutoplay ? 'Musik otomatis nyala saat user buka web' : 'Musik mati — user harus klik manual'}
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleToggleBgMusicAutoplay}
+                    type="button"
+                    style={{
+                      width: 48, height: 26, borderRadius: 13, border: 'none',
+                      background: bgMusicAutoplay ? '#c8ff00' : '#333',
+                      position: 'relative', cursor: 'pointer', transition: 'background 0.25s ease', flexShrink: 0,
+                    }}
+                  >
+                    <div style={{
+                      position: 'absolute', top: 3, left: bgMusicAutoplay ? 25 : 3,
+                      width: 20, height: 20, borderRadius: '50%',
+                      background: bgMusicAutoplay ? '#000' : '#888',
+                      transition: 'left 0.25s ease',
+                    }} />
+                  </button>
+                </div>
+
                 <label style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
                   <span style={{ fontSize: 11, color: '#aaa' }}>Nama Lagu (opsional)</span>
                   <input
