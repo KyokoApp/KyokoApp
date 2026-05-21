@@ -452,6 +452,8 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
         )}
       </div>
 
+      </>)}
+
       {/* Admin: Ganti Video Modal */}
       {showReplaceModal && (
         <div
@@ -615,7 +617,7 @@ function VideoCarousel({ isAdmin }: { isAdmin: boolean }) {
           </div>
         </div>
       )}
-      </>)}
+
     </div>
   )
 }
