@@ -1,4 +1,5 @@
 import GlobalChatPanel from './GlobalChatPanel'
+import LocalMusicPlayer from './LocalMusicPlayer'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { auth, googleProvider, dbChat, dbCommunity, dbAdmin, dbBonus } from './firebase'
 import { collection, doc, setDoc, deleteDoc, onSnapshot, addDoc, orderBy, query, serverTimestamp, getDoc, getDocs, limit, updateDoc, increment } from 'firebase/firestore'
@@ -1264,6 +1265,7 @@ function App() {
   const [visitorCount, setVisitorCount] = useState(0)
   const [newsFilter, setNewsFilter] = useState('Semua')
   const [gcOpen, setGcOpen] = useState(false)
+  const [localMusicOpen, setLocalMusicOpen] = useState(false)
   const [gcUnread, setGcUnread] = useState(false)
   const [authUser, setAuthUser] = useState<User | null>(null)
   const [showLoginTutorial, setShowLoginTutorial] = useState(false)
@@ -3305,6 +3307,7 @@ function App() {
 
       {/* ── Global Chat Inline ───────────────────────────────────── */}
       {gcOpen && <GlobalChatPanel onClose={() => setGcOpen(false)} onUnread={() => setGcUnread(true)} onMusicChange={setGcMiniPlayer} />}
+      {localMusicOpen && <LocalMusicPlayer onClose={() => setLocalMusicOpen(false)} />}
 
       {/* ── GC Mini Music Player floating ────────────────────────── */}
       {gcMiniPlayer && !gcOpen && (
@@ -3372,8 +3375,22 @@ function App() {
             </svg>
           </button>
         </div>
-        {/* Sub: KyokoAI */}
+        {/* Sub: Local Music */}
         <div className={`fab-sub ${fabOpen ? 'fab-sub-visible' : ''}`} style={{ '--fab-delay': '0.12s' } as React.CSSProperties}>
+          <span className="fab-sub-label">Local Music</span>
+          <button
+            className="fab-sub-btn"
+            onClick={() => { setFabOpen(false); setLocalMusicOpen(true) }}
+            aria-label="Local Music"
+            style={{ background: 'linear-gradient(135deg,#7c3aed,#a855f7)' }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/>
+            </svg>
+          </button>
+        </div>
+        {/* Sub: KyokoAI */}
+        <div className={`fab-sub ${fabOpen ? 'fab-sub-visible' : ''}`} style={{ '--fab-delay': '0.19s' } as React.CSSProperties}>
           <span className="fab-sub-label">KyokoAI</span>
           <button
             className="fab-sub-btn fab-sub-ai"
