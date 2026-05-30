@@ -4,17 +4,20 @@ import React, { useEffect, useRef, useState, useCallback } from 'react'
 interface Track {
   id: string
   name: string
-  objectUrl: string
-  duration: number
+  // untuk native: path file; untuk web: objectUrl
+  src: string
+  duration: number // detik
+  isNative?: boolean
 }
 
 interface LocalMusicPlayerProps {
   onClose: () => void
 }
 
-// ── Helpers ────────────────────────────────────────────────────────────────
+// ── Constants ──────────────────────────────────────────────────────────────
 const MIN_DURATION_SEC = 120 // 2 menit
 
+// ── Helpers ────────────────────────────────────────────────────────────────
 function trimExt(filename: string): string {
   return filename.replace(/\.[^/.]+$/, '')
 }
@@ -30,16 +33,61 @@ function getAudioDuration(file: File): Promise<number> {
   return new Promise((resolve) => {
     const url = URL.createObjectURL(file)
     const audio = new Audio(url)
-    audio.addEventListener('loadedmetadata', () => {
-      const dur = audio.duration
-      URL.revokeObjectURL(url)
-      resolve(dur)
-    })
-    audio.addEventListener('error', () => {
-      URL.revokeObjectURL(url)
-      resolve(0)
-    })
+    audio.addEventListener('loadedmetadata', () => { URL.revokeObjectURL(url); resolve(audio.duration) })
+    audio.addEventListener('error', () => { URL.revokeObjectURL(url); resolve(0) })
   })
+}
+
+// Deteksi apakah lagi jalan di Capacitor native (Android/iOS)
+function isNativePlatform(): boolean {
+  return !!(window as any).Capacitor?.isNativePlatform?.()
+}
+
+// ── Native Media Scanner ───────────────────────────────────────────────────
+// Pakai @capacitor-community/media untuk scan semua audio di MediaStore Android
+async function scanNativeAudio(): Promise<Track[]> {
+  try {
+    // Dynamic import biar gak error di browser
+    const { Media } = await import('@capacitor-community/media')
+
+    // Minta permission dulu
+    const permResult = await (Media as any).requestPermissions?.()
+    if (permResult && permResult.photos === 'denied') {
+      throw new Error('Izin storage ditolak')
+    }
+
+    // Ambil semua media audio
+    const result = await (Media as any).getMedias({ types: 'audio' })
+    const medias: any[] = result?.medias ?? []
+
+    const tracks: Track[] = []
+
+    for (const media of medias) {
+      // Duration: Android kasih milidetik, iOS detik — normalisasi
+      const rawDur = media.duration ?? 0
+      // Jika > 10000, kemungkinan milidetik (Android)
+      const durSec = rawDur > 10000 ? rawDur / 1000 : rawDur
+
+      if (durSec < MIN_DURATION_SEC) continue
+
+      const filename = media.filename ?? media.identifier ?? 'Unknown'
+
+      tracks.push({
+        id: media.identifier ?? filename,
+        name: trimExt(filename),
+        src: `capacitor://localhost/_capacitor_file_${media.identifier}`,
+        duration: durSec,
+        isNative: true,
+      })
+    }
+
+    // Sort by name
+    tracks.sort((a, b) => a.name.localeCompare(b.name))
+    return tracks
+  } catch (err: any) {
+    console.error('[LocalMusic] Native scan error:', err)
+    throw err
+  }
 }
 
 // ── Component ──────────────────────────────────────────────────────────────
@@ -55,14 +103,24 @@ export default function LocalMusicPlayer({ onClose }: LocalMusicPlayerProps) {
   const [loop, setLoop] = useState(false)
   const [scanning, setScanning] = useState(false)
   const [scanMsg, setScanMsg] = useState('')
+  const [scanError, setScanError] = useState('')
   const [visible, setVisible] = useState(false)
+  const [isNative] = useState(() => isNativePlatform())
 
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const objectUrlsRef = useRef<string[]>([])
 
+  // mount animation
   useEffect(() => { requestAnimationFrame(() => setVisible(true)) }, [])
 
+  // Auto-scan kalau native
+  useEffect(() => {
+    if (isNative) handleNativeScan()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isNative])
+
+  // cleanup object URLs on unmount
   useEffect(() => {
     return () => { objectUrlsRef.current.forEach(u => URL.revokeObjectURL(u)) }
   }, [])
@@ -71,7 +129,6 @@ export default function LocalMusicPlayer({ onClose }: LocalMusicPlayerProps) {
   useEffect(() => {
     const audio = new Audio()
     audio.volume = volume
-    audio.loop = loop
     audioRef.current = audio
 
     const onTimeUpdate = () => {
@@ -88,8 +145,7 @@ export default function LocalMusicPlayer({ onClose }: LocalMusicPlayerProps) {
     audio.addEventListener('pause', onPause)
 
     return () => {
-      audio.pause()
-      audio.src = ''
+      audio.pause(); audio.src = ''
       audio.removeEventListener('timeupdate', onTimeUpdate)
       audio.removeEventListener('loadedmetadata', onLoadedMetadata)
       audio.removeEventListener('play', onPlay)
@@ -101,21 +157,7 @@ export default function LocalMusicPlayer({ onClose }: LocalMusicPlayerProps) {
   useEffect(() => { if (audioRef.current) audioRef.current.loop = loop }, [loop])
   useEffect(() => { if (audioRef.current) audioRef.current.volume = volume }, [volume])
 
-  // ── Load track ─────────────────────────────────────────────────────────
-  const loadTrack = useCallback((idx: number, autoplay = true) => {
-    const audio = audioRef.current
-    if (!audio || !tracks[idx]) return
-    audio.pause()
-    audio.src = tracks[idx].objectUrl
-    audio.load()
-    setCurrentIdx(idx)
-    setProgress(0)
-    setCurrentTime(0)
-    setDuration(tracks[idx].duration)
-    if (autoplay) audio.play().catch(() => {})
-  }, [tracks])
-
-  // ── Auto next on ended ─────────────────────────────────────────────────
+  // ── Auto-next on ended ─────────────────────────────────────────────────
   useEffect(() => {
     const audio = audioRef.current
     if (!audio) return
@@ -128,7 +170,7 @@ export default function LocalMusicPlayer({ onClose }: LocalMusicPlayerProps) {
           : (prev + 1) % tracks.length
         const track = tracks[next]
         if (!track) return prev
-        audio.src = track.objectUrl
+        audio.src = track.src
         audio.load()
         audio.play().catch(() => {})
         return next
@@ -137,6 +179,20 @@ export default function LocalMusicPlayer({ onClose }: LocalMusicPlayerProps) {
     audio.addEventListener('ended', onEnded)
     return () => audio.removeEventListener('ended', onEnded)
   }, [tracks, shuffle, loop])
+
+  // ── Load track ─────────────────────────────────────────────────────────
+  const loadTrack = useCallback((idx: number, autoplay = true) => {
+    const audio = audioRef.current
+    if (!audio || !tracks[idx]) return
+    audio.pause()
+    audio.src = tracks[idx].src
+    audio.load()
+    setCurrentIdx(idx)
+    setProgress(0)
+    setCurrentTime(0)
+    setDuration(tracks[idx].duration)
+    if (autoplay) audio.play().catch(() => {})
+  }, [tracks])
 
   // ── Controls ───────────────────────────────────────────────────────────
   const handlePlayPause = () => {
@@ -171,11 +227,37 @@ export default function LocalMusicPlayer({ onClose }: LocalMusicPlayerProps) {
     setProgress(val)
   }
 
-  // ── File scan ──────────────────────────────────────────────────────────
+  // ── Native scan ────────────────────────────────────────────────────────
+  const handleNativeScan = async () => {
+    setScanning(true)
+    setScanError('')
+    setScanMsg('Memuat lagu dari perangkat...')
+    audioRef.current?.pause()
+    setCurrentIdx(null)
+    setProgress(0); setCurrentTime(0); setDuration(0)
+
+    try {
+      const found = await scanNativeAudio()
+      setTracks(found)
+      setScanMsg(
+        found.length === 0
+          ? 'Tidak ada lagu ≥2 menit ditemukan'
+          : `${found.length} lagu ditemukan`
+      )
+    } catch (err: any) {
+      setScanError(err?.message ?? 'Gagal scan lagu')
+      setScanMsg('')
+    } finally {
+      setScanning(false)
+    }
+  }
+
+  // ── Web file picker (fallback browser) ────────────────────────────────
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
     if (files.length === 0) return
     setScanning(true)
+    setScanError('')
     setScanMsg(`Scanning ${files.length} file...`)
 
     objectUrlsRef.current.forEach(u => URL.revokeObjectURL(u))
@@ -191,18 +273,15 @@ export default function LocalMusicPlayer({ onClose }: LocalMusicPlayerProps) {
       if (dur < MIN_DURATION_SEC) { skipped++; continue }
       const url = URL.createObjectURL(file)
       objectUrlsRef.current.push(url)
-      newTracks.push({ id: `${file.name}-${file.size}`, name: trimExt(file.name), objectUrl: url, duration: dur })
+      newTracks.push({ id: `${file.name}-${file.size}`, name: trimExt(file.name), src: url, duration: dur })
     }
 
     audioRef.current?.pause()
-    setCurrentIdx(null)
-    setProgress(0)
-    setCurrentTime(0)
-    setDuration(0)
+    setCurrentIdx(null); setProgress(0); setCurrentTime(0); setDuration(0)
     setTracks(newTracks)
     setScanMsg(
       newTracks.length === 0
-        ? `Tidak ada lagu ≥2 menit (${skipped} file dilewati)`
+        ? `Tidak ada lagu ≥2 menit (${skipped} dilewati)`
         : `${newTracks.length} lagu ditemukan${skipped ? `, ${skipped} dilewati (<2 mnt)` : ''}`
     )
     setScanning(false)
@@ -216,6 +295,7 @@ export default function LocalMusicPlayer({ onClose }: LocalMusicPlayerProps) {
 
   const currentTrack = currentIdx !== null ? tracks[currentIdx] : null
 
+  // ── Render ─────────────────────────────────────────────────────────────
   return (
     <div
       className="lmp-overlay"
@@ -234,8 +314,9 @@ export default function LocalMusicPlayer({ onClose }: LocalMusicPlayerProps) {
           <div className="lmp-header-left">
             <span className="lmp-icon-note">♪</span>
             <span className="lmp-title">Local Music</span>
+            {isNative && <span className="lmp-badge">Android</span>}
           </div>
-          <button className="lmp-close" onClick={handleClose} aria-label="Tutup">✕</button>
+          <button className="lmp-close" onClick={handleClose}>✕</button>
         </div>
 
         {/* Now Playing */}
@@ -256,13 +337,8 @@ export default function LocalMusicPlayer({ onClose }: LocalMusicPlayerProps) {
 
         {/* Progress */}
         <div className="lmp-progress-wrap">
-          <input
-            className="lmp-progress"
-            type="range" min={0} max={1} step={0.001}
-            value={progress}
-            onChange={handleSeek}
-            disabled={currentIdx === null}
-          />
+          <input className="lmp-progress" type="range" min={0} max={1} step={0.001}
+            value={progress} onChange={handleSeek} disabled={currentIdx === null} />
         </div>
 
         {/* Controls */}
@@ -304,16 +380,41 @@ export default function LocalMusicPlayer({ onClose }: LocalMusicPlayerProps) {
           </svg>
         </div>
 
-        {/* Scan Button */}
+        {/* Scan area */}
         <div className="lmp-scan-area">
-          <input ref={fileInputRef} type="file" accept="audio/*" multiple style={{ display: 'none' }} onChange={handleFileSelect} />
-          <button className="lmp-scan-btn" onClick={() => fileInputRef.current?.click()} disabled={scanning}>
-            {scanning
-              ? <><span className="lmp-spin">⟳</span>&nbsp;Scanning...</>
-              : <><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>&nbsp;Scan Lagu dari Perangkat</>
-            }
-          </button>
+          {/* Native: tombol refresh */}
+          {isNative && (
+            <button className="lmp-scan-btn" onClick={handleNativeScan} disabled={scanning}>
+              {scanning
+                ? <><span className="lmp-spin">⟳</span>&nbsp;Memuat lagu...</>
+                : <><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4}}><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>Refresh Daftar Lagu</>
+              }
+            </button>
+          )}
+
+          {/* Web fallback: file picker */}
+          {!isNative && (
+            <>
+              <input ref={fileInputRef} type="file" accept="audio/*" multiple style={{ display: 'none' }} onChange={handleFileSelect} />
+              <button className="lmp-scan-btn" onClick={() => fileInputRef.current?.click()} disabled={scanning}>
+                {scanning
+                  ? <><span className="lmp-spin">⟳</span>&nbsp;Scanning...</>
+                  : <><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>&nbsp;Pilih File Audio</>
+                }
+              </button>
+              <div className="lmp-web-note">💡 Di browser, pilih file manual. Di Android, lagu terdeteksi otomatis.</div>
+            </>
+          )}
+
           {scanMsg && <div className="lmp-scan-msg">{scanMsg}</div>}
+          {scanError && (
+            <div className="lmp-scan-error">
+              ⚠️ {scanError}
+              {scanError.includes('ditolak') && (
+                <div style={{marginTop:4,fontSize:10}}>Buka Pengaturan → Izin Aplikasi → Izinkan akses Media/Storage</div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Playlist */}
@@ -338,10 +439,15 @@ export default function LocalMusicPlayer({ onClose }: LocalMusicPlayerProps) {
           </div>
         )}
 
-        {tracks.length === 0 && !scanning && !scanMsg && (
+        {tracks.length === 0 && !scanning && (
           <div className="lmp-empty">
             <div className="lmp-empty-icon">🎵</div>
-            <div className="lmp-empty-text">Belum ada lagu<br/><small>Klik "Scan Lagu" untuk mulai</small></div>
+            <div className="lmp-empty-text">
+              {isNative
+                ? scanError ? 'Gagal memuat lagu' : 'Tidak ada lagu ≥2 menit ditemukan'
+                : <>Belum ada lagu<br/><small>Klik "Pilih File Audio" untuk mulai</small></>
+              }
+            </div>
           </div>
         )}
       </div>
@@ -353,6 +459,7 @@ export default function LocalMusicPlayer({ onClose }: LocalMusicPlayerProps) {
         .lmp-header-left{display:flex;align-items:center;gap:8px;}
         .lmp-icon-note{font-size:18px;color:#a78bfa;}
         .lmp-title{font-size:16px;font-weight:700;color:#e2e8f0;letter-spacing:0.3px;}
+        .lmp-badge{font-size:9px;font-weight:700;background:rgba(124,58,237,0.25);color:#a78bfa;border:1px solid rgba(124,58,237,0.4);border-radius:99px;padding:2px 7px;letter-spacing:0.5px;}
         .lmp-close{width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,0.08);border:none;cursor:pointer;color:#94a3b8;font-size:14px;display:flex;align-items:center;justify-content:center;transition:background 0.2s;}
         .lmp-close:hover{background:rgba(255,255,255,0.15);color:#e2e8f0;}
         .lmp-now-playing{display:flex;align-items:center;gap:14px;padding:16px 20px 8px;flex-shrink:0;}
@@ -371,17 +478,19 @@ export default function LocalMusicPlayer({ onClose }: LocalMusicPlayerProps) {
         .lmp-ctrl-btn{background:none;border:none;cursor:pointer;color:#94a3b8;padding:8px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:color 0.2s,background 0.2s;}
         .lmp-ctrl-btn:hover{color:#e2e8f0;background:rgba(255,255,255,0.07);}
         .lmp-ctrl-play{width:50px;height:50px;background:linear-gradient(135deg,#7c3aed,#a855f7);color:#fff!important;border-radius:50%;box-shadow:0 4px 16px rgba(124,58,237,0.4);}
-        .lmp-ctrl-play:hover{transform:scale(1.06);box-shadow:0 6px 20px rgba(124,58,237,0.6)!important;background:linear-gradient(135deg,#7c3aed,#a855f7)!important;}
+        .lmp-ctrl-play:hover{transform:scale(1.06);box-shadow:0 6px 20px rgba(124,58,237,0.6)!important;}
         .lmp-ctrl-sm{opacity:0.6;}
         .lmp-ctrl-active{color:#a78bfa!important;opacity:1!important;}
         .lmp-volume-wrap{display:flex;align-items:center;gap:8px;padding:0 20px 10px;flex-shrink:0;}
         .lmp-volume{flex:1;height:3px;appearance:none;background:rgba(255,255,255,0.1);border-radius:99px;cursor:pointer;outline:none;}
         .lmp-volume::-webkit-slider-thumb{appearance:none;width:12px;height:12px;border-radius:50%;background:#7c3aed;cursor:pointer;}
         .lmp-scan-area{padding:8px 20px 10px;flex-shrink:0;border-top:1px solid rgba(255,255,255,0.05);}
-        .lmp-scan-btn{width:100%;padding:10px;border-radius:10px;background:rgba(124,58,237,0.15);border:1px solid rgba(124,58,237,0.3);color:#a78bfa;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;transition:background 0.2s,border-color 0.2s;}
+        .lmp-scan-btn{width:100%;padding:10px;border-radius:10px;background:rgba(124,58,237,0.15);border:1px solid rgba(124,58,237,0.3);color:#a78bfa;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;transition:background 0.2s;}
         .lmp-scan-btn:hover:not(:disabled){background:rgba(124,58,237,0.25);border-color:rgba(124,58,237,0.5);}
         .lmp-scan-btn:disabled{opacity:0.6;cursor:not-allowed;}
         .lmp-scan-msg{text-align:center;font-size:11px;color:#64748b;margin-top:6px;}
+        .lmp-scan-error{text-align:center;font-size:11px;color:#f87171;margin-top:6px;line-height:1.5;}
+        .lmp-web-note{text-align:center;font-size:10px;color:#334155;margin-top:5px;}
         .lmp-spin{display:inline-block;animation:lmp-spin 0.8s linear infinite;}
         .lmp-playlist{flex:1;overflow:hidden;display:flex;flex-direction:column;border-top:1px solid rgba(255,255,255,0.05);min-height:0;}
         .lmp-playlist-header{padding:10px 20px 6px;font-size:11px;font-weight:700;color:#64748b;letter-spacing:0.8px;text-transform:uppercase;display:flex;align-items:center;gap:8px;flex-shrink:0;}
