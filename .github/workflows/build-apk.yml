@@ -33,6 +33,9 @@ jobs:
       - name: Install Google Auth plugin
         run: npm install @codetrix-studio/capacitor-google-auth --legacy-peer-deps
 
+      - name: Install Media plugin
+        run: npm install @capacitor-community/media --legacy-peer-deps
+
       - name: Build web app
         run: npm run build
 
@@ -148,6 +151,16 @@ jobs:
             echo "AndroidManifest already patched"
           fi
 
+      - name: Patch AndroidManifest - Add media permissions
+        run: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          if ! grep -q "READ_MEDIA_AUDIO" "$MANIFEST"; then
+            sed -i 's|<uses-permission android:name="android.permission.INTERNET" />|<uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />\n    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />|g' "$MANIFEST"
+            echo "Added media permissions"
+          else
+            echo "Media permissions already exist"
+          fi
+
       - name: Inject Google Auth client ID into strings.xml
         run: |
           STRINGS_FILE="android/app/src/main/res/values/strings.xml"
@@ -175,3 +188,4 @@ jobs:
           name: KyokoApp-debug
           path: android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
+
