@@ -20,7 +20,7 @@
     "tailwindcss": "^4.2.1",
     "@codetrix-studio/capacitor-google-auth": "^3.3.0",
     "html2canvas": "^1.4.1",
-    "@capacitor-community/media": "^6.0.0"
+    "@capacitor/filesystem": "^5.2.2"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
