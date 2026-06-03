@@ -86,19 +86,29 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x android/gradlew
 
-      # ── Release Signing ──────────────────────────────────────────────────────
-      - name: Setup release keystore
+      # ── Release Signing (auto-generate JKS, no manual keystore needed) ───────
+      - name: Generate release keystore
         run: |
           mkdir -p android/app/keystore
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/keystore/kyokoapp-release.keystore
-          echo "✅ Keystore loaded"
+          keytool -genkeypair \
+            -alias kyokoapp \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storetype JKS \
+            -keystore android/app/keystore/kyokoapp-release.keystore \
+            -storepass kyokoapp123 \
+            -keypass kyokoapp123 \
+            -dname "CN=KyokoApp,O=Kyoko,C=ID" \
+            -noprompt
+          echo "✅ Keystore generated (JKS)"
 
       - name: Create key.properties
         run: |
           cat > android/key.properties << EOF
-          storePassword=${{ secrets.KEY_STORE_PASSWORD }}
-          keyPassword=${{ secrets.KEY_PASSWORD }}
-          keyAlias=${{ secrets.KEY_ALIAS }}
+          storePassword=kyokoapp123
+          keyPassword=kyokoapp123
+          keyAlias=kyokoapp
           storeFile=keystore/kyokoapp-release.keystore
           EOF
 
@@ -132,7 +142,7 @@ jobs:
       # ── Versioning & Release ─────────────────────────────────────────────────
       - name: Get version
         id: version
-        run: echo "VERSION=$(node -p \"require('./package.json').version\")" >> $GITHUB_OUTPUT
+        run: echo "VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
 
       - name: Update version.json
         run: |
