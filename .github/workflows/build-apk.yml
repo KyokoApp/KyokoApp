@@ -1,4 +1,4 @@
-name: Build KyokoBeat APK
+name: Build KyokoApp APK
 
 on:
   push:
@@ -22,10 +22,23 @@ jobs:
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
+      - name: Install Capacitor 5
+        run: npm install @capacitor/core@5.7.8 @capacitor/cli@5.7.8 @capacitor/android@5.7.8 --legacy-peer-deps
+
+      - name: Install Capacitor plugins
+        run: |
+          npm install @capacitor/filesystem@5 --legacy-peer-deps
+          npm install @codetrix-studio/capacitor-google-auth --legacy-peer-deps
+
       - name: Build Vite
         env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+          VITE_APP_VERSION: ${{ github.ref_name }}
         run: npm run build
 
       - name: Setup Java
@@ -37,44 +50,57 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install Capacitor CLI
-        run: npm install -g @capacitor/cli@6
-
       - name: Add Android platform
         run: npx cap add android
 
       - name: Capacitor sync
         run: npx cap sync android
 
-      - name: Configure Android (permissions & native plugin)
+      - name: Configure Android (permissions & native setup)
         run: node scripts/configure-android.cjs
+
+      - name: Inject Google Auth client ID
+        run: |
+          STRINGS_FILE="android/app/src/main/res/values/strings.xml"
+          if grep -q "server_client_id" "$STRINGS_FILE"; then
+            echo "server_client_id already exists"
+          else
+            sed -i 's|</resources>|    <string name="server_client_id">730376199922-8hj9gq2ifvkc6ag6ddfs6qsgi84i6tq7.apps.googleusercontent.com</string>\n</resources>|' "$STRINGS_FILE"
+            echo "✅ Injected server_client_id"
+          fi
 
       - name: Inject app icon
         run: |
-          if [ ! -f "assets/icon/ic_launcher.png" ]; then
-            echo "⚠️ Icon tidak ditemukan di assets/icon/ic_launcher.png, skip."
-          else
-            echo "✅ Icon ditemukan, generate semua ukuran..."
+          if [ -f "assets/icon/ic_launcher.png" ]; then
             pip install Pillow --quiet --break-system-packages
             python3 scripts/gen_icons.py
+            echo "✅ Icons generated"
+          else
+            echo "⚠️ No icon found at assets/icon/ic_launcher.png, skip"
           fi
+
+      - name: Fix Gradle & Java compatibility
+        run: |
+          cd android
+          sed -i 's|gradle-.*-all.zip|gradle-8.2.1-all.zip|g' gradle/wrapper/gradle-wrapper.properties
 
       - name: Make gradlew executable
         run: chmod +x android/gradlew
 
+      # ── Release Signing ──────────────────────────────────────────────────────
       - name: Setup release keystore
         run: |
           mkdir -p android/app/keystore
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/keystore/kyokobeat-release.keystore
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/keystore/kyokoapp-release.keystore
           echo "✅ Keystore loaded"
 
       - name: Create key.properties
         run: |
           cat > android/key.properties << EOF
-          storePassword=kyokobeat123
-          keyPassword=kyokobeat123
-          keyAlias=kyokobeat
-          storeFile=keystore/kyokobeat-release.keystore
+          storePassword=${{ secrets.KEY_STORE_PASSWORD }}
+          keyPassword=${{ secrets.KEY_PASSWORD }}
+          keyAlias=${{ secrets.KEY_ALIAS }}
+          storeFile=keystore/kyokoapp-release.keystore
           EOF
 
       - name: Inject signing config into build.gradle
@@ -98,36 +124,35 @@ jobs:
           sed -i '/buildTypes {/,/^    }/ s/release {/release {\n                signingConfig signingConfigs.release/' "$BUILD_GRADLE"
           echo "✅ Signing config injected"
 
-      - name: Build APK release
-        run: cd android && ./gradlew assembleRelease
+      - name: Build Release APK
+        run: cd android && ./gradlew assembleRelease --no-daemon
 
       - name: Rename APK
-        run: cp android/app/build/outputs/apk/release/app-release.apk KyokoBeat.apk
+        run: cp android/app/build/outputs/apk/release/app-release.apk KyokoApp.apk
 
-      # ── Ambil versi dari package.json ──
+      # ── Versioning & Release ─────────────────────────────────────────────────
       - name: Get version
         id: version
-        run: echo "VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+        run: echo "VERSION=$(node -p \"require('./package.json').version\")" >> $GITHUB_OUTPUT
 
-      # ── Update version.json dengan versi & URL terbaru ──
       - name: Update version.json
         run: |
           cat > version.json << EOF
           {
             "version": "${{ steps.version.outputs.VERSION }}",
-            "apkUrl": "https://github.com/KyokoApp/KyokoBeat/releases/latest/download/KyokoBeat.apk",
-            "changelog": "Update v${{ steps.version.outputs.VERSION }}"
+            "apkUrl": "https://github.com/KyokoApp/KyokoApp/releases/latest/download/KyokoApp.apk",
+            "changelog": "Update v${{ steps.version.outputs.VERSION }} — Fitur & perbaikan terbaru"
           }
           EOF
+          echo "✅ version.json updated"
 
-      # ── Upload ke GitHub Releases ──
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version.outputs.VERSION }}
-          name: KyokoBeat v${{ steps.version.outputs.VERSION }}
+          name: KyokoApp v${{ steps.version.outputs.VERSION }}
           files: |
-            KyokoBeat.apk
+            KyokoApp.apk
             version.json
           token: ${{ secrets.PAT_TOKEN }}
           make_latest: true
