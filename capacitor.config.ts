@@ -5,10 +5,11 @@ const config: CapacitorConfig = {
   appName: 'KyokoApp',
   webDir: 'dist',
 
-  android: {
-    // Izinkan mixed content (http + https dalam satu halaman)
-    allowMixedContent: true,
-    // Izinkan WebView load URL eksternal tanpa intercept
+  server: {
+    androidScheme: 'https',
+    // ⬇️ Ganti dengan URL Netlify kamu yang sebenarnya
+    url: 'https://kyokoapp.netlify.app',
+    cleartext: true,
     allowNavigation: [
       '*.hianime.to',
       '*.yugenanime.tv',
@@ -22,11 +23,10 @@ const config: CapacitorConfig = {
     ],
   },
 
-  server: {
-    androidScheme: 'https',
-    // Izinkan cleartext HTTP (untuk provider yang masih pakai http)
-    cleartext: true,
-    // Izinkan navigasi ke domain eksternal dari WebView
+  android: {
+    allowMixedContent: true,
+    backgroundColor: '#0a0a0a',
+    webContentsDebuggingEnabled: false,
     allowNavigation: [
       '*.hianime.to',
       '*.yugenanime.tv',
@@ -41,6 +41,12 @@ const config: CapacitorConfig = {
   },
 
   plugins: {
+    SplashScreen: {
+      backgroundColor: '#0a0a0a',
+      showSpinner: false,
+      launchAutoHide: true,
+      launchShowDuration: 0,
+    },
     GoogleAuth: {
       scopes: ['profile', 'email'],
       serverClientId: '730376199922-8hj9gq2ifvkc6ag6ddfs6qsgi84i6tq7.apps.googleusercontent.com',
