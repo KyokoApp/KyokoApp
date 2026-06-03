@@ -52,28 +52,9 @@ jobs:
       - name: Write capacitor.config.json
         run: |
           rm -f capacitor.config.ts capacitor.config.js
-          python3 -c "
-import json
-cfg = {
-  'appId': 'com.kyokoapp.app',
-  'appName': 'KyokoApp',
-  'webDir': 'dist',
-  'server': {
-    'androidScheme': 'https',
-    'url': 'https://kyokoapp.vercel.app',
-    'cleartext': True
-  },
-  'android': {
-    'allowMixedContent': True,
-    'backgroundColor': '#0a0a0a'
-  }
-}
-with open('capacitor.config.json', 'w') as f:
-    json.dump(cfg, f, indent=2)
-print('capacitor.config.json written')
-"
+          printf '{"appId":"com.kyokoapp.app","appName":"KyokoApp","webDir":"dist","server":{"androidScheme":"https","url":"https://kyokoapp.vercel.app","cleartext":true},"android":{"allowMixedContent":true,"backgroundColor":"#0a0a0a"}}' > capacitor.config.json
+          echo "✅ capacitor.config.json written"
           cat capacitor.config.json
-          echo "✅ Done"
 
       - name: Add Android platform
         run: npx cap add android
@@ -101,10 +82,10 @@ print('capacitor.config.json written')
             python3 scripts/gen_icons.py
             echo "✅ Icons generated"
           else
-            echo "⚠️ No icon found at assets/icon/ic_launcher.png, skip"
+            echo "⚠️ No icon found, skip"
           fi
 
-      - name: Fix Gradle & Java compatibility
+      - name: Fix Gradle compatibility
         run: |
           cd android
           sed -i 's|gradle-.*-all.zip|gradle-8.2.1-all.zip|g' gradle/wrapper/gradle-wrapper.properties
@@ -112,7 +93,6 @@ print('capacitor.config.json written')
       - name: Make gradlew executable
         run: chmod +x android/gradlew
 
-      # ── Release Signing (auto-generate JKS, no manual keystore needed) ───────
       - name: Generate release keystore
         run: |
           mkdir -p android/app/keystore
@@ -127,7 +107,7 @@ print('capacitor.config.json written')
             -keypass kyokoapp123 \
             -dname "CN=KyokoApp,O=Kyoko,C=ID" \
             -noprompt
-          echo "✅ Keystore generated (JKS)"
+          echo "✅ Keystore generated"
 
       - name: Create key.properties
         run: |
@@ -165,20 +145,14 @@ print('capacitor.config.json written')
       - name: Rename APK
         run: cp android/app/build/outputs/apk/release/app-release.apk KyokoApp.apk
 
-      # ── Versioning & Release ─────────────────────────────────────────────────
       - name: Get version
         id: version
         run: echo "VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
 
       - name: Update version.json
         run: |
-          cat > version.json << EOF
-          {
-            "version": "${{ steps.version.outputs.VERSION }}",
-            "apkUrl": "https://github.com/KyokoApp/KyokoApp/releases/latest/download/KyokoApp.apk",
-            "changelog": "Update v${{ steps.version.outputs.VERSION }} — Fitur & perbaikan terbaru"
-          }
-          EOF
+          printf '{"version":"%s","apkUrl":"https://github.com/KyokoApp/KyokoApp/releases/latest/download/KyokoApp.apk","changelog":"Update v%s tersedia!"}' \
+            "${{ steps.version.outputs.VERSION }}" "${{ steps.version.outputs.VERSION }}" > version.json
           echo "✅ version.json updated"
 
       - name: Create GitHub Release
