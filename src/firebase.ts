@@ -2,7 +2,7 @@ import { initializeApp, FirebaseApp } from 'firebase/app'
 import {
   initializeFirestore,
   persistentLocalCache,
-  persistentMultipleTabManager,
+  persistentSingleTabManager,
   getFirestore,
   Firestore
 } from 'firebase/firestore'
@@ -21,17 +21,15 @@ const appChat = initializeApp({
   appId: "1:730376199922:web:e236b7caabbaa11c053a6b"
 }, 'chat')
 
+// ⚠️  FIX: persistentMultipleTabManager → persistentSingleTabManager
+// MultipleTabManager pakai BroadcastChannel yang tidak support di Android WebView!
+// SingleTabManager aman di semua environment (web, PWA, Capacitor).
 export const dbChat = initializeFirestore(appChat, {
-  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+  localCache: persistentLocalCache({ tabManager: persistentSingleTabManager() })
 })
 
 // ═══════════════════════════════════════════════════════════════
-// 2-4. RPG SHARD 1, 2, 3 — rpgChars, playerGacha,
-//      fishingData, activeBattles
-//      Pembagian otomatis berdasarkan UID user:
-//        0-9, a-i  → dbRpg1
-//        j-r       → dbRpg2
-//        s-z       → dbRpg3
+// 2-4. RPG SHARD 1, 2, 3
 // ═══════════════════════════════════════════════════════════════
 const appRpg1 = initializeApp({
   apiKey: "AIzaSyBoIyBKvmEAav6tCZ2deXjXhylAPjnTdSA",
@@ -64,20 +62,16 @@ export const dbRpg1 = getFirestore(appRpg1)
 export const dbRpg2 = getFirestore(appRpg2)
 export const dbRpg3 = getFirestore(appRpg3)
 
-/**
- * Dapatkan Firestore RPG yang tepat berdasarkan UID user.
- * Setiap user selalu dapat shard yang sama → data tidak tercampur.
- */
 export function getRpgDb(uid: string): Firestore {
   if (!uid) return dbRpg1
   const first = uid[0].toLowerCase()
   if ('0123456789abcdefghi'.includes(first)) return dbRpg1
   if ('jklmnopqr'.includes(first)) return dbRpg2
-  return dbRpg3 // s-z
+  return dbRpg3
 }
 
 // ═══════════════════════════════════════════════════════════════
-// 5. COMMUNITY — groups, ratings, jualBeliAkun, middlemanList
+// 5. COMMUNITY
 // ═══════════════════════════════════════════════════════════════
 const appCommunity = initializeApp({
   apiKey: "AIzaSyCR31TsSG3xj1OFKVKPHa53f3_UPXFxSGI",
@@ -89,12 +83,11 @@ const appCommunity = initializeApp({
 }, 'community')
 
 export const dbCommunity = initializeFirestore(appCommunity, {
-  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+  localCache: persistentLocalCache({ tabManager: persistentSingleTabManager() })
 })
 
 // ═══════════════════════════════════════════════════════════════
-// 6. ADMIN — apkList, scbotFreeList, scbotPremiumList,
-//            site_config, stats, announcement
+// 6. ADMIN
 // ═══════════════════════════════════════════════════════════════
 const appAdmin = initializeApp({
   apiKey: "AIzaSyCdEUk_0pPM_oUlwbhGA2j8-sX0RsoXcRw",
@@ -106,11 +99,11 @@ const appAdmin = initializeApp({
 }, 'admin')
 
 export const dbAdmin = initializeFirestore(appAdmin, {
-  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+  localCache: persistentLocalCache({ tabManager: persistentSingleTabManager() })
 })
 
 // ═══════════════════════════════════════════════════════════════
-// 7. BONUS — backup overflow / visitor counter / feedback
+// 7. BONUS
 // ═══════════════════════════════════════════════════════════════
 const appBonus = initializeApp({
   apiKey: "AIzaSyBBdDhf0VQgST6bdfIt6WgBe-JVt-OxvSI",
@@ -122,18 +115,14 @@ const appBonus = initializeApp({
 }, 'bonus')
 
 export const dbBonus = initializeFirestore(appBonus, {
-  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+  localCache: persistentLocalCache({ tabManager: persistentSingleTabManager() })
 })
 
 // ═══════════════════════════════════════════════════════════════
 // AUTH — pakai project Chat sebagai auth utama
-// (satu auth untuk semua, login sekali berlaku semua)
 // ═══════════════════════════════════════════════════════════════
 export const auth = getAuth(appChat)
 export const googleProvider = new GoogleAuthProvider()
 
-// ═══════════════════════════════════════════════════════════════
-// LEGACY ALIAS — biar tidak perlu ubah semua kode sekaligus
-// Hapus bertahap setelah migrasi selesai
-// ═══════════════════════════════════════════════════════════════
-export const db = dbChat // default fallback
+// LEGACY ALIAS
+export const db = dbChat
