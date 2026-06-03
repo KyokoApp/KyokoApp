@@ -51,23 +51,29 @@ jobs:
 
       - name: Write capacitor.config.json
         run: |
-          cat > capacitor.config.json << EOF
-          {
-            "appId": "com.kyokoapp.app",
-            "appName": "KyokoApp",
-            "webDir": "dist",
-            "server": {
-              "androidScheme": "https",
-              "url": "https://kyokoapp.vercel.app",
-              "cleartext": true
-            },
-            "android": {
-              "allowMixedContent": true,
-              "backgroundColor": "#0a0a0a"
-            }
-          }
-          EOF
-          echo "✅ capacitor.config.json created"
+          rm -f capacitor.config.ts capacitor.config.js
+          python3 -c "
+import json
+cfg = {
+  'appId': 'com.kyokoapp.app',
+  'appName': 'KyokoApp',
+  'webDir': 'dist',
+  'server': {
+    'androidScheme': 'https',
+    'url': 'https://kyokoapp.vercel.app',
+    'cleartext': True
+  },
+  'android': {
+    'allowMixedContent': True,
+    'backgroundColor': '#0a0a0a'
+  }
+}
+with open('capacitor.config.json', 'w') as f:
+    json.dump(cfg, f, indent=2)
+print('capacitor.config.json written')
+"
+          cat capacitor.config.json
+          echo "✅ Done"
 
       - name: Add Android platform
         run: npx cap add android
