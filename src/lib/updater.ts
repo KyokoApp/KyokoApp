@@ -1,7 +1,7 @@
 import { Filesystem, Directory } from '@capacitor/filesystem';
 
 // Fetch version.json dari Netlify (selalu up-to-date)
-const VERSION_URL = 'https://kyokoapp.netlify.app/version.json';
+const VERSION_URL = 'https://kyokoapp.vercel.app/version.json';
 // ⬆️ Ganti dengan URL Netlify kamu yang sebenarnya
 
 // Versi app saat ini — otomatis dari package.json via Vite define
