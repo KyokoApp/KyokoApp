@@ -52,7 +52,7 @@ jobs:
       - name: Write capacitor.config.json
         run: |
           rm -f capacitor.config.ts capacitor.config.js
-          printf '{"appId":"com.kyokoapp.app","appName":"KyokoApp","webDir":"dist","server":{"androidScheme":"https","url":"https://kyokoapp.vercel.app","cleartext":true},"android":{"allowMixedContent":true,"backgroundColor":"#0a0a0a"}}' > capacitor.config.json
+          printf '{"appId":"com.kyokoapp.app","appName":"KyokoApp","webDir":"dist","server":{"androidScheme":"https","cleartext":true},"android":{"allowMixedContent":true,"backgroundColor":"#0a0a0a","webContentsDebuggingEnabled":false}}' > capacitor.config.json
           echo "✅ capacitor.config.json written"
           cat capacitor.config.json
 
