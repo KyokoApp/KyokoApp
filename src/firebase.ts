@@ -25,7 +25,7 @@ const appChat = initializeApp({
 // MultipleTabManager pakai BroadcastChannel yang tidak support di Android WebView!
 // SingleTabManager aman di semua environment (web, PWA, Capacitor).
 export const dbChat = initializeFirestore(appChat, {
-  localCache: persistentLocalCache({ tabManager: persistentSingleTabManager() })
+  localCache: persistentLocalCache({ tabManager: persistentSingleTabManager({}) })
 })
 
 // ═══════════════════════════════════════════════════════════════
@@ -83,7 +83,7 @@ const appCommunity = initializeApp({
 }, 'community')
 
 export const dbCommunity = initializeFirestore(appCommunity, {
-  localCache: persistentLocalCache({ tabManager: persistentSingleTabManager() })
+  localCache: persistentLocalCache({ tabManager: persistentSingleTabManager({}) })
 })
 
 // ═══════════════════════════════════════════════════════════════
@@ -99,7 +99,7 @@ const appAdmin = initializeApp({
 }, 'admin')
 
 export const dbAdmin = initializeFirestore(appAdmin, {
-  localCache: persistentLocalCache({ tabManager: persistentSingleTabManager() })
+  localCache: persistentLocalCache({ tabManager: persistentSingleTabManager({}) })
 })
 
 // ═══════════════════════════════════════════════════════════════
@@ -115,7 +115,7 @@ const appBonus = initializeApp({
 }, 'bonus')
 
 export const dbBonus = initializeFirestore(appBonus, {
-  localCache: persistentLocalCache({ tabManager: persistentSingleTabManager() })
+  localCache: persistentLocalCache({ tabManager: persistentSingleTabManager({}) })
 })
 
 // ═══════════════════════════════════════════════════════════════
