@@ -49,6 +49,26 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Write capacitor.config.json
+        run: |
+          cat > capacitor.config.json << EOF
+          {
+            "appId": "com.kyokoapp.app",
+            "appName": "KyokoApp",
+            "webDir": "dist",
+            "server": {
+              "androidScheme": "https",
+              "url": "https://kyokoapp.vercel.app",
+              "cleartext": true
+            },
+            "android": {
+              "allowMixedContent": true,
+              "backgroundColor": "#0a0a0a"
+            }
+          }
+          EOF
+          echo "✅ capacitor.config.json created"
+
       - name: Add Android platform
         run: npx cap add android
 
