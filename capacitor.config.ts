@@ -1,25 +1,28 @@
-import { CapacitorConfig } from '@capacitor/cli'
+import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.kyokoapp.app',
-  appName: 'KyokoApp',
+  appId: 'com.kyokobeat.musicplayer',
+  appName: 'KyokoBeat',
   webDir: 'dist',
   server: {
     androidScheme: 'https',
-    cleartext: true,
+    cleartext: true
   },
   android: {
     allowMixedContent: true,
+    // Background hitam agar tidak ada flash putih saat app loading di HP apapun
     backgroundColor: '#0a0a0a',
+    // Paksa WebView pakai hardware acceleration penuh
     webContentsDebuggingEnabled: false,
   },
   plugins: {
-    GoogleAuth: {
-      scopes: ['profile', 'email'],
-      serverClientId: '730376199922-8hj9gq2ifvkc6ag6ddfs6qsgi84i6tq7.apps.googleusercontent.com',
-      forceCodeForRefreshToken: true,
+    SplashScreen: {
+      backgroundColor: '#0a0a0a',
+      showSpinner: false,
+      launchAutoHide: true,
+      launchShowDuration: 0,
     },
   },
-}
+};
 
-export default config
+export default config;
